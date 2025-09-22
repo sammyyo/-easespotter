@@ -13,26 +13,6 @@ class PublicProfileScreen extends StatelessWidget {
     return doc.exists ? doc.data() : null;
   }
 
-  Future<List<Map<String, dynamic>>> _fetchTop8(String uid) async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-    final List<String> ids = List<String>.from(doc.data()?['top8'] ?? []);
-    final results = <Map<String, dynamic>>[];
-
-    for (final id in ids) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(id).get();
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        results.add({
-          'uid': id,
-          'displayName': data['displayName'] ?? 'Anonymous',
-          'avatarUrl': data['avatarUrl'],
-        });
-      }
-    }
-
-    return results;
-  }
-
   Future<List<Map<String, dynamic>>> _fetchTopCollaborators(String uid) async {
     final query = await FirebaseFirestore.instance
         .collection('grocery_shares')
@@ -49,7 +29,7 @@ class PublicProfileScreen extends StatelessWidget {
     }
 
     final sorted = countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final top = sorted.take(3).toList();
+    final top = sorted.take(6).toList();
     final List<Map<String, dynamic>> result = [];
 
     for (final entry in top) {
@@ -66,6 +46,45 @@ class PublicProfileScreen extends StatelessWidget {
     }
 
     return result;
+  }
+
+  Widget _buildCollaboratorTile(Map<String, dynamic> user) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundImage:
+                  user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
+              child: user['avatarUrl'] == null
+                  ? const Icon(Icons.person, size: 20)
+                  : null,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user['displayName'],
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${user['count']} shared lists',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _buildMusicWidget(BuildContext context, String url) {
@@ -157,67 +176,45 @@ class PublicProfileScreen extends StatelessWidget {
                 const SizedBox(height: 30),
                 const Divider(),
 
-                // Top 8 Tastemates
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _fetchTop8(userId),
-                  builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.isEmpty) return const SizedBox();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Top 8 Tastemates", style: TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 16,
-                          runSpacing: 16,
-                          children: snap.data!
-                              .map((user) => Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: 24,
-                                backgroundImage: user['avatarUrl'] != null
-                                    ? NetworkImage(user['avatarUrl'])
-                                    : null,
-                                child: user['avatarUrl'] == null
-                                    ? const Icon(Icons.person)
-                                    : null,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(user['displayName'], style: const TextStyle(fontSize: 12)),
-                            ],
-                          ))
-                              .toList(),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 30),
-
                 // Top Collaborators
                 FutureBuilder<List<Map<String, dynamic>>>(
                   future: _fetchTopCollaborators(userId),
                   builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.isEmpty) return const SizedBox();
+                    if (!snap.hasData) return const SizedBox();
+                    final users = snap.data!;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text("Top Collaborators", style: TextStyle(fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
-                        ...snap.data!.map((user) => ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: user['avatarUrl'] != null
-                                ? NetworkImage(user['avatarUrl'])
-                                : null,
-                            child: user['avatarUrl'] == null
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
-                          title: Text(user['displayName']),
-                          subtitle: Text('${user['count']} shared lists'),
-                        )),
+                        GridView.count(
+                          crossAxisCount: 3,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          children: () {
+                            final tiles = users.take(6).map<Map<String, dynamic>?>((u) => u).toList();
+                            while (tiles.length < 6) {
+                              tiles.add(null);
+                            }
+                            return tiles.map((user) {
+                              if (user == null) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: Colors.grey.shade100,
+                                  ),
+                                  height: 80,
+                                  width: 80,
+                                  child: const Center(child: Text('—')),
+                                );
+                              }
+
+                              return _buildCollaboratorTile(user);
+                            }).toList();
+                          }(),
+                        ),
                       ],
                     );
                   },

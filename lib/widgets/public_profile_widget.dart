@@ -127,7 +127,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     }
 
     final sorted = countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final top = sorted.take(3);
+    final top = sorted.take(6);
 
     final List<Map<String, dynamic>> result = [];
     for (final entry in top) {
@@ -144,26 +144,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     }
     return result;
   }
-
-
-  Future<List<Map<String, dynamic>>> _fetchTop8() async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(widget.uid).get();
-    final List<String> ids = List<String>.from(doc.data()?['top8'] ?? []);
-    final List<Map<String, dynamic>> results = [];
-    for (final id in ids) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(id).get();
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        results.add({
-          'uid': id,
-          'displayName': data['displayName'] ?? 'Anonymous',
-          'avatarUrl': data['avatarUrl'],
-        });
-      }
-    }
-    return results;
-  }
-
   Widget _buildGridTile(Map<String, dynamic> user, {String? subtitle}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -345,64 +325,27 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                         physics: const NeverScrollableScrollPhysics(),
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        children: users.isEmpty
-                            ? List.generate(
-                          3,
-                              (i) => Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: Colors.grey.shade100,
-                            ),
-                            height: 80,
-                            width: 80,
-                            child: const Center(child: Text('—')),
-                          ),
-                        )
-                            : users.map((user) => _buildGridTile(user, subtitle: '${user['count']} shared')).toList(),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                        children: () {
+                          final tiles = users.take(6).map<Map<String, dynamic>?>((u) => u).toList();
+                          while (tiles.length < 6) {
+                            tiles.add(null);
+                          }
+                          return tiles.map((user) {
+                            if (user == null) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey.shade100,
+                                ),
+                                height: 80,
+                                width: 80,
+                                child: const Center(child: Text('—')),
+                              );
+                            }
 
-
-              const SizedBox(height: 15),
-              const Divider(height: 1, thickness: 1, color: Colors.black12),
-              const SizedBox(height: 10),
-
-
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _fetchTop8(),
-                builder: (context, snap) {
-                  if (!snap.hasData) return const CircularProgressIndicator();
-                  final tastemates = snap.data!.take(6).toList();
-
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Top 6 Tastemates', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      GridView.count(
-                        crossAxisCount: 3,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        children: tastemates.isEmpty
-                            ? List.generate(
-                          3,
-                              (i) => Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: Colors.grey.shade100,
-                            ),
-                            height: 80,
-                            width: 80,
-                            child: const Center(child: Text('—')),
-                          ),
-                        )
-                            : tastemates.map((user) => _buildGridTile(user)).toList(),
+                            return _buildGridTile(user, subtitle: '${user['count']} shared lists');
+                          }).toList();
+                        }(),
                       ),
                     ],
                   );
