@@ -108,7 +108,9 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Remix This List')),
+      appBar: AppBar(title: const Text('Remix This List',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(

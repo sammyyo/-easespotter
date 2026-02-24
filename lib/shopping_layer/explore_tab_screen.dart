@@ -16,7 +16,12 @@ class ExploreTabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Explore')),
+      appBar: AppBar(title: const Text('Explore',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      )),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

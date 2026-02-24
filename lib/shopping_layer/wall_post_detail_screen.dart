@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easespotter/services/notification_service.dart';
 
 class WallPostDetailScreen extends StatefulWidget {
   final String postId;
@@ -121,7 +122,15 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Post Details')),
+      appBar: AppBar(
+        title: const Text(
+          'Post Details',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance.collection('shopping_wall').doc(widget.postId).get(),
         builder: (context, snapshot) {
@@ -132,7 +141,7 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
           final imageUrl = data['imageUrl'];
           final tags = (data['tags'] as List?)?.join(', ') ?? '';
           final emoji = data['emoji'] ?? '🛍️';
-          final postOwnerId = data['creatorUid']; // required!
+          final postOwnerId = data['creatorUid'];
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -238,7 +247,7 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                                         title: const Text('Delete Comment'),
                                         content: const Text('Are you sure you want to delete this comment?'),
                                         actions: [
-                                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                                           ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
                                         ],
                                       ),
@@ -289,18 +298,17 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
 
                           // Send notification if not the post owner
                           if (postOwnerId != null && postOwnerId != user.uid) {
-                            await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(postOwnerId)
-                                .collection('notifications')
-                                .add({
-                              'type': 'comment',
-                              'message': '${user.displayName ?? "Someone"} commented on your post',
-                              'sourceUid': user.uid,
-                              'relatedId': widget.postId,
-                              'createdAt': FieldValue.serverTimestamp(),
-                              'isRead': false,
-                            });
+                            final myHandleOrName = user.displayName ?? "Someone";
+                            await NotificationService().notifyUser(
+                              toUid: postOwnerId,
+                              type: "comment",
+                              message: "$myHandleOrName commented on your post",
+                              itemType: "shopping_wall",
+                              itemId: widget.postId,
+                              actorUid: user.uid,
+                              actorName: myHandleOrName,
+                              actorAvatarUrl: user.photoURL,
+                            );
                           }
                         }
                       },

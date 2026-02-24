@@ -8,7 +8,9 @@ class AllMissionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Shopping Missions')),
+      appBar: AppBar(title: const Text('All Shopping Missions',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('missions')

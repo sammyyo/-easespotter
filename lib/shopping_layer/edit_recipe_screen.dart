@@ -76,7 +76,12 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Recipe')),
+      appBar: AppBar(title: const Text('Edit Recipe',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      )),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

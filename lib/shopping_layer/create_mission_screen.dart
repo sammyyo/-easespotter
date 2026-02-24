@@ -51,7 +51,12 @@ class _CreateMissionScreenState extends State<CreateMissionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Shopping Mission')),
+      appBar: AppBar(title: const Text('Create Shopping Mission',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      )),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(

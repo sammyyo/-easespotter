@@ -1,85 +1,560 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/shopping_layer/community_recipes_screen.dart';
-import 'package:easespotter/shopping_layer/my_recipes_screen.dart';
-import 'package:easespotter/shopping_layer/new_glowup_screen.dart';
 import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
 import 'package:easespotter/widgets/public_profile_widget.dart';
-//import 'package:easespotter/shopping_layer/new_recipe_screen.dart';
-import 'package:easespotter/widgets/inline_recipe_composer.dart';
 import '../shopping_layer/notification_feed_screen.dart';
-import '../widgets/recipe_card.dart';
+import '../widgets/recipe_card/recipe_card.dart';
+import '../shopping_layer/inbox_screen.dart';
 
 class SocialProfileScreen extends StatefulWidget {
   final String? viewedUid;
+  final Map<String, dynamic>? initialProfileHint;
   final VoidCallback? onToggleToSettings;
+  static bool _openInFlight = false;
 
-  const SocialProfileScreen({super.key, this.viewedUid, this.onToggleToSettings});
+  const SocialProfileScreen({
+    super.key,
+    this.viewedUid,
+    this.initialProfileHint,
+    this.onToggleToSettings,
+  });
+
+  static Future<Map<String, dynamic>?> _hydrateProfileHint(
+    String uid,
+    Map<String, dynamic>? initialHint,
+  ) async {
+    final hint = <String, dynamic>{...?initialHint};
+    try {
+      final snap =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = snap.data();
+      if (data != null) {
+        final displayName = (data['displayName'] ?? '').toString().trim();
+        final avatarUrl = (data['avatarUrl'] ?? '').toString().trim();
+        final handle =
+            (data['handle'] ?? data['socialHandle'] ?? '').toString().trim();
+
+        if ((hint['displayName'] ?? '').toString().trim().isEmpty &&
+            displayName.isNotEmpty) {
+          hint['displayName'] = displayName;
+        }
+        if ((hint['avatarUrl'] ?? '').toString().trim().isEmpty &&
+            avatarUrl.isNotEmpty) {
+          hint['avatarUrl'] = avatarUrl;
+        }
+        if ((hint['handle'] ?? '').toString().trim().isEmpty &&
+            handle.isNotEmpty) {
+          hint['handle'] = handle;
+        }
+        if ((hint['socialHandle'] ?? '').toString().trim().isEmpty &&
+            handle.isNotEmpty) {
+          hint['socialHandle'] = handle;
+        }
+      }
+    } catch (_) {
+      // non-fatal: keep initial hint
+    }
+    return hint.isEmpty ? null : hint;
+  }
+
+  static Future<void> open(
+    BuildContext context, {
+    required String viewedUid,
+    Map<String, dynamic>? initialProfileHint,
+    VoidCallback? onToggleToSettings,
+  }) async {
+    if (_openInFlight) return;
+    _openInFlight = true;
+    final hydrated = await _hydrateProfileHint(viewedUid, initialProfileHint);
+    if (!context.mounted) {
+      _openInFlight = false;
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!context.mounted) return;
+        await Future<void>.delayed(const Duration(milliseconds: 12));
+        if (!context.mounted) return;
+        await Navigator.of(context).push(
+          route(
+            viewedUid: viewedUid,
+            initialProfileHint: hydrated,
+            onToggleToSettings: onToggleToSettings,
+          ),
+        );
+      } finally {
+        _openInFlight = false;
+      }
+    });
+  }
+
+  static Route<void> route({
+    String? viewedUid,
+    Map<String, dynamic>? initialProfileHint,
+    VoidCallback? onToggleToSettings,
+  }) {
+    return PageRouteBuilder<void>(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      pageBuilder:
+          (_, __, ___) => SocialProfileScreen(
+            viewedUid: viewedUid,
+            initialProfileHint: initialProfileHint,
+            onToggleToSettings: onToggleToSettings,
+          ),
+    );
+  }
 
   @override
   State<SocialProfileScreen> createState() => _SocialProfileScreenState();
 }
 
-class _SocialProfileScreenState extends State<SocialProfileScreen> {
+class _SocialProfileScreenState extends State<SocialProfileScreen>
+    with AutomaticKeepAliveClientMixin {
+  User? _authUser;
+  StreamSubscription<User?>? _authSub;
   bool _isFollowing = false;
   bool _isLoading = false;
 
-  String? currentUid;
-  String? viewedUid;
+  String? _currentProfileUid;
+  Stream<QuerySnapshot>? _profileRecipesStream;
+  List<QueryDocumentSnapshot> _cachedRecipeDocs = [];
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _topCollaboratorsStream;
+  String? _topCollaboratorsUid;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedTopCollaboratorDocs =
+      [];
+  final Map<String, List<QueryDocumentSnapshot>> _recipeCacheByUid = {};
+  final Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+  _topCacheByUid = {};
+
+  // --- Search state ---
+  final TextEditingController _searchController = TextEditingController();
+  bool _showSearch = false;
+  String _query = "";
+
+  // --- Curated Top Collaborators UI cache (prevents flicker) ---
+  final Map<String, Map<String, dynamic>> _userCache =
+      {}; // otherUid -> user data
+  List<String> _myFollowingCache = []; // updated from a single stream
+  final Set<String> _queuedWarmUids = {}; // prevents duplicate warm requests
+  final Set<String> _missingCollaboratorUids =
+      {}; // warm attempted but user doc missing
+  bool _warmQueuedThisFrame = false;
+
+  // Avoid re-checking follow status repeatedly
+  bool _didCheckFollow = false;
+  String? _activeViewedUid;
+  Map<String, dynamic>? _activeProfileHint;
 
   @override
   void initState() {
     super.initState();
-    currentUid = FirebaseAuth.instance.currentUser?.uid;
-    viewedUid = widget.viewedUid ?? currentUid;
-    _checkFollowStatus();
+    _authUser = FirebaseAuth.instance.currentUser;
+    _activeProfileHint = widget.initialProfileHint;
+
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!mounted) return;
+      if (_authUser?.uid == user?.uid) return;
+
+      setState(() => _authUser = user);
+      _didCheckFollow = false;
+      _checkFollowStatusOnce();
+    });
+
+    _checkFollowStatusOnce();
+  }
+
+  @override
+  void didUpdateWidget(covariant SocialProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.viewedUid != widget.viewedUid) {
+      _activeViewedUid = null;
+      _activeProfileHint = widget.initialProfileHint;
+      _didCheckFollow = false;
+      _checkFollowStatusOnce();
+    }
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _getResolvedUid() {
+    final authUid = _authUser?.uid;
+    return _activeViewedUid ?? widget.viewedUid ?? authUid ?? 'dev-user';
+  }
+
+  Future<void> _checkFollowStatusOnce() async {
+    if (_didCheckFollow) return;
+    _didCheckFollow = true;
+    await _checkFollowStatus();
   }
 
   Future<void> _checkFollowStatus() async {
-    if (currentUid == null || viewedUid == null || currentUid == viewedUid) return;
-    final snap = await FirebaseFirestore.instance.collection('users').doc(currentUid).get();
-    final following = List<String>.from(snap.data()?['following'] ?? []);
-    setState(() => _isFollowing = following.contains(viewedUid));
+    final authUid = _authUser?.uid;
+    final resolvedUid = _getResolvedUid();
+    if (authUid == null || resolvedUid.isEmpty) return;
+
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(authUid)
+              .get();
+      if (!mounted) return;
+      final following = List<String>.from(snap.data()?['following'] ?? []);
+      setState(() {
+        _myFollowingCache = following;
+        _isFollowing =
+            authUid == resolvedUid ? false : following.contains(resolvedUid);
+      });
+    } catch (_) {
+      // silent
+    }
   }
-
-  Future<List<DocumentSnapshot>> _fetchUserRecipes() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('recipes')
-        .where('uid', isEqualTo: viewedUid)
-        .where('isPublic', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .get();
-
-    return snapshot.docs;
-  }
-
 
   Future<void> _toggleFollow() async {
-    if (currentUid == null || viewedUid == null || currentUid == viewedUid) return;
+    final authUid = _authUser?.uid;
+    final resolvedUid = _getResolvedUid();
+    if (authUid == null || resolvedUid.isEmpty || authUid == resolvedUid)
+      return;
+
     setState(() => _isLoading = true);
 
     final userRef = FirebaseFirestore.instance.collection('users');
-    if (_isFollowing) {
-      await userRef.doc(currentUid).update({
-        'following': FieldValue.arrayRemove([viewedUid])
+    try {
+      if (_isFollowing) {
+        await userRef.doc(authUid).update({
+          'following': FieldValue.arrayRemove([resolvedUid]),
+        });
+        await userRef.doc(resolvedUid).update({
+          'followers': FieldValue.arrayRemove([authUid]),
+        });
+      } else {
+        await userRef.doc(authUid).set({
+          'following': FieldValue.arrayUnion([resolvedUid]),
+        }, SetOptions(merge: true));
+        await userRef.doc(resolvedUid).set({
+          'followers': FieldValue.arrayUnion([authUid]),
+        }, SetOptions(merge: true));
+      }
+      if (mounted) {
+        setState(() {
+          _isFollowing = !_isFollowing;
+          if (_isFollowing) {
+            if (!_myFollowingCache.contains(resolvedUid)) {
+              _myFollowingCache = [..._myFollowingCache, resolvedUid];
+            }
+          } else {
+            _myFollowingCache =
+                _myFollowingCache.where((u) => u != resolvedUid).toList();
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // per-card follow/unfollow
+  Future<void> _toggleFollowUser(String otherUid) async {
+    final authUid = _authUser?.uid;
+    if (authUid == null || otherUid.isEmpty || otherUid == authUid) return;
+
+    final userRef = FirebaseFirestore.instance.collection('users');
+
+    try {
+      final myDoc = await userRef.doc(authUid).get();
+      final following = List<String>.from(myDoc.data()?['following'] ?? []);
+      final isFollowing = following.contains(otherUid);
+
+      if (isFollowing) {
+        await userRef.doc(authUid).update({
+          'following': FieldValue.arrayRemove([otherUid]),
+        });
+        await userRef.doc(otherUid).update({
+          'followers': FieldValue.arrayRemove([authUid]),
+        });
+      } else {
+        await userRef.doc(authUid).set({
+          'following': FieldValue.arrayUnion([otherUid]),
+        }, SetOptions(merge: true));
+        await userRef.doc(otherUid).set({
+          'followers': FieldValue.arrayUnion([authUid]),
+        }, SetOptions(merge: true));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        if (isFollowing) {
+          _myFollowingCache =
+              _myFollowingCache.where((u) => u != otherUid).toList();
+        } else if (!_myFollowingCache.contains(otherUid)) {
+          _myFollowingCache = [..._myFollowingCache, otherUid];
+        }
       });
-      await userRef.doc(viewedUid!).update({
-        'followers': FieldValue.arrayRemove([currentUid])
-      });
-    } else {
-      await userRef.doc(currentUid).set({
-        'following': FieldValue.arrayUnion([viewedUid])
-      }, SetOptions(merge: true));
-      await userRef.doc(viewedUid!).set({
-        'followers': FieldValue.arrayUnion([currentUid])
-      }, SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  // ✅ helper to save Top Collaborator doc from the app
+  Future<void> addToTopCollaborators({
+    required String profileUid,
+    required String otherUid,
+    required int rank, // 1..4
+  }) async {
+    Map<String, dynamic> collaboratorSnapshot = {};
+    try {
+      final userSnap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(otherUid)
+              .get();
+      if (userSnap.exists) {
+        final data = userSnap.data() ?? {};
+        collaboratorSnapshot = {
+          'displayName': (data['displayName'] ?? '').toString(),
+          'handle': (data['handle'] ?? '').toString(),
+          'socialHandle': (data['socialHandle'] ?? '').toString(),
+          'avatarUrl': (data['avatarUrl'] ?? '').toString(),
+        };
+      }
+    } catch (_) {
+      // keep write resilient even if snapshot fetch fails
     }
 
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(profileUid)
+        .collection('top_collaborators')
+        .doc(otherUid);
+
+    await ref.set({
+      'rank': rank,
+      'createdAt': FieldValue.serverTimestamp(),
+      if (collaboratorSnapshot.isNotEmpty) ...collaboratorSnapshot,
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _showAddToTopSheet(String otherUid) async {
+    final authUid = _authUser?.uid;
+    if (authUid == null || otherUid.isEmpty || otherUid == authUid) return;
+
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        Widget item(int rank) {
+          return ListTile(
+            leading: const Icon(Icons.star_rounded, color: Colors.deepPurple),
+            title: Text(
+              'Add to Top Collaborators (#$rank)',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            onTap: () => Navigator.pop(ctx, rank),
+          );
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                height: 5,
+                width: 44,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Choose a position',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+              ),
+              const SizedBox(height: 6),
+              item(1),
+              item(2),
+              item(3),
+              item(4),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (picked == null) return;
+
+    try {
+      await addToTopCollaborators(
+        profileUid: authUid,
+        otherUid: otherUid,
+        rank: picked,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added to Top Collaborators (#$picked)')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  void _toggleSearch() {
     setState(() {
-      _isFollowing = !_isFollowing;
-      _isLoading = false;
+      _showSearch = !_showSearch;
+      if (!_showSearch) {
+        _searchController.clear();
+        _query = "";
+      }
     });
+  }
+
+  void _onSearchChanged(String v) {
+    setState(() => _query = v.trim().toLowerCase());
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _searchController.clear();
+      _query = "";
+    });
+  }
+
+  bool _matchesRecipe(Map<String, dynamic> data) {
+    if (_query.isEmpty) return true;
+    final title = (data['title'] ?? '').toString().toLowerCase();
+    return title.contains(_query);
+  }
+
+  // batch warmup users with one setState
+  Future<void> _warmUsersBatch(List<String> uids) async {
+    if (!mounted) return;
+
+    final refs =
+        uids
+            .where((u) => u.trim().isNotEmpty)
+            .map(
+              (u) =>
+                  FirebaseFirestore.instance.collection('users').doc(u.trim()),
+            )
+            .toList();
+
+    if (refs.isEmpty) return;
+
+    try {
+      final snaps = await Future.wait(refs.map((r) => r.get()));
+
+      final Map<String, Map<String, dynamic>> newUsers = {};
+      for (final snap in snaps) {
+        final uid = snap.id;
+        if (!snap.exists) continue;
+        final data = (snap.data() ?? {});
+        newUsers[uid] = data;
+        _missingCollaboratorUids.remove(uid);
+
+        // Keep collaborator docs denormalized for instant render on next loads.
+        final profileUid = _currentProfileUid;
+        if (profileUid != null && profileUid.isNotEmpty) {
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(profileUid)
+              .collection('top_collaborators')
+              .doc(uid)
+              .set({
+                'displayName': (data['displayName'] ?? '').toString(),
+                'handle': (data['handle'] ?? '').toString(),
+                'socialHandle': (data['socialHandle'] ?? '').toString(),
+                'avatarUrl': (data['avatarUrl'] ?? '').toString(),
+              }, SetOptions(merge: true))
+              .catchError((_) {});
+        }
+      }
+
+      // Mark missing user docs so they don't block section rendering forever.
+      for (final snap in snaps) {
+        if (!snap.exists) {
+          _missingCollaboratorUids.add(snap.id);
+        }
+      }
+
+      if (!mounted) return;
+
+      var changed = false;
+      newUsers.forEach((k, v) {
+        if (!_userCache.containsKey(k)) {
+          _userCache[k] = v;
+          changed = true;
+        }
+      });
+
+      if (changed && mounted) {
+        setState(() {});
+      }
+    } catch (_) {
+      // silent
+    }
+  }
+
+  Widget _safeAvatarImage({
+    required double size,
+    required String? url,
+    required Widget fallback,
+  }) {
+    final clean = (url ?? '').trim();
+    if (clean.isEmpty || !clean.startsWith('http')) return fallback;
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            fallback,
+            Image.network(
+              clean,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded || frame != null) return child;
+                return const SizedBox.shrink();
+              },
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSliverToolbar() {
@@ -88,125 +563,1376 @@ class _SocialProfileScreenState extends State<SocialProfileScreen> {
       floating: true,
       snap: true,
       backgroundColor: Colors.deepPurple,
-      title: const Text('My Social Profile', style: TextStyle(color: Colors.white)),
+      automaticallyImplyLeading: false,
+      titleSpacing: 0,
+      title:
+          _showSearch
+              ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.20),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          onChanged: _onSearchChanged,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          cursorColor: Colors.white,
+                          decoration: InputDecoration(
+                            hintText: "Search people, recipes...",
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.75),
+                              fontWeight: FontWeight.w500,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      if (_query.isNotEmpty)
+                        GestureDetector(
+                          onTap: _clearSearch,
+                          child: const Padding(
+                            padding: EdgeInsets.all(6),
+                            child: Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      GestureDetector(
+                        onTap: _toggleSearch,
+                        child: const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.search_off,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.explore, color: Colors.white),
+                    tooltip: 'Explore Feed',
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CommunityRecipesScreen(),
+                          ),
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.local_fire_department_outlined,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Glow-Up Feed',
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const GlowUpFeedScreen(),
+                          ),
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.forum_outlined, color: Colors.white),
+                    tooltip: 'Inbox',
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const InboxScreen(),
+                          ),
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search, color: Colors.white),
+                    tooltip: 'Search',
+                    onPressed: _toggleSearch,
+                  ),
+                  IconButton(
+                    icon: _buildNotificationIcon(),
+                    tooltip: 'Notifications',
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationCenterScreen(),
+                          ),
+                        ),
+                  ),
+                ],
+              ),
       iconTheme: const IconThemeData(color: Colors.white),
-      actions: [
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.book),
-                tooltip: 'My Recipes',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MyRecipesScreen())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.explore),
-                tooltip: 'Explore Feed',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityRecipesScreen())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.flash_on),
-                tooltip: 'Submit Glow-Up',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewGlowUpScreen())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.auto_awesome),
-                tooltip: 'Glow-Up Feed',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GlowUpFeedScreen())),
-              ),
-              IconButton(
-                icon: const Icon(Icons.notifications),
-                tooltip: 'Notifications',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationCenterScreen())),
-              ),
-            ],
-          ),
-        )
-      ],
     );
   }
 
+  SliverToBoxAdapter _searchEmptyState() {
+    return const SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Text("Type to search…"),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+          color: Colors.deepPurple,
+        ),
+      ),
+    );
+  }
+
+  void _openSocialProfile(String uid, {Map<String, dynamic>? hint}) async {
+    if (uid.isEmpty || uid == _getResolvedUid()) return;
+    final hydrated = await SocialProfileScreen._hydrateProfileHint(uid, hint);
+    final prefetched = await _prefetchProfileContent(uid);
+    if (!mounted) return;
+    setState(() {
+      _activeViewedUid = uid;
+      _activeProfileHint = hydrated;
+      _didCheckFollow = false;
+      _showSearch = false;
+      _query = "";
+      _searchController.clear();
+      if (prefetched.$1.isNotEmpty) {
+        _cachedTopCollaboratorDocs = prefetched.$1;
+        _topCacheByUid[uid] = prefetched.$1;
+      }
+      if (prefetched.$2.isNotEmpty) {
+        _cachedRecipeDocs = prefetched.$2;
+        _recipeCacheByUid[uid] = prefetched.$2;
+      }
+    });
+    _checkFollowStatusOnce();
+  }
+
+  Future<
+    (
+      List<QueryDocumentSnapshot<Map<String, dynamic>>>,
+      List<QueryDocumentSnapshot>,
+    )
+  >
+  _prefetchProfileContent(String uid) async {
+    try {
+      final topFuture =
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('top_collaborators')
+              .orderBy('rank')
+              .limit(6)
+              .get();
+      final recipeFuture =
+          FirebaseFirestore.instance
+              .collection('recipes')
+              .where('uid', isEqualTo: uid)
+              .where('isPublic', isEqualTo: true)
+              .orderBy('serverCreatedAt', descending: true)
+              .get();
+      final results = await Future.wait([topFuture, recipeFuture]);
+      return (
+        (results[0] as QuerySnapshot<Map<String, dynamic>>).docs,
+        (results[1] as QuerySnapshot).docs,
+      );
+    } catch (_) {
+      return (
+        <QueryDocumentSnapshot<Map<String, dynamic>>>[],
+        <QueryDocumentSnapshot>[],
+      );
+    }
+  }
+
+  Widget _buildNotificationIcon() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Icon(Icons.notifications, color: Colors.white);
+    }
+
+    final stream =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('notifications')
+            .where('isRead', isEqualTo: false)
+            .limit(1)
+            .snapshots();
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications, color: Colors.white),
+            if (hasUnread)
+              Positioned(
+                right: -1,
+                top: -1,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- SEARCH STREAMS ---
+  Stream<QuerySnapshot<Map<String, dynamic>>> _peopleByHandleStream(String q) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .where('handleLower', isGreaterThanOrEqualTo: q)
+        .where('handleLower', isLessThan: '$q\uf8ff')
+        .limit(6)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _peopleByNameStream(String q) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .where('displayNameLower', isGreaterThanOrEqualTo: q)
+        .where('displayNameLower', isLessThan: '$q\uf8ff')
+        .limit(6)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _recipesStream(String q) {
+    return FirebaseFirestore.instance
+        .collection('recipes')
+        .where('isPublic', isEqualTo: true)
+        .where('titleLower', isGreaterThanOrEqualTo: q)
+        .where('titleLower', isLessThan: '$q\uf8ff')
+        .limit(6)
+        .snapshots();
+  }
+
+  List<Widget> _peopleTilesFromDocs(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    return docs.map((doc) {
+      final d = doc.data();
+      final avatarUrl = (d['avatarUrl'] ?? '').toString();
+      final displayName = (d['displayName'] ?? 'Unknown').toString().trim();
+      final handle = (d['handle'] ?? d['socialHandle'] ?? '').toString().trim();
+
+      return ListTile(
+        leading: _safeAvatarImage(
+          size: 40,
+          url: avatarUrl,
+          fallback: const CircleAvatar(radius: 20, child: Icon(Icons.person)),
+        ),
+        title: Text(displayName.isNotEmpty ? displayName : 'Unknown'),
+        subtitle: handle.isNotEmpty ? Text(handle) : null,
+        trailing:
+            FirebaseAuth.instance.currentUser?.uid == _getResolvedUid()
+                ? TextButton(
+                  onPressed: () => _showAddToTopSheet(doc.id),
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                )
+                : null,
+        onTap: () {
+          _openSocialProfile(
+            doc.id,
+            hint: {
+              'displayName': displayName,
+              'handle': handle,
+              'socialHandle': handle,
+              'avatarUrl': avatarUrl,
+            },
+          );
+        },
+      );
+    }).toList();
+  }
+
+  // --- TOP COLLABORATORS (CURATED) ---
+  Stream<QuerySnapshot<Map<String, dynamic>>> _curatedTopCollaboratorsStream(
+    String uid,
+  ) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('top_collaborators')
+        .orderBy('rank')
+        .limit(6)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getTopCollaboratorsStream(
+    String uid,
+  ) {
+    if (_topCollaboratorsStream != null && _topCollaboratorsUid == uid) {
+      return _topCollaboratorsStream!;
+    }
+    _topCollaboratorsUid = uid;
+    _topCollaboratorsStream = _curatedTopCollaboratorsStream(uid);
+    return _topCollaboratorsStream!;
+  }
+
+  DocumentReference<Map<String, dynamic>> _topRef(
+    String profileUid,
+    String otherUid,
+  ) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(profileUid)
+        .collection('top_collaborators')
+        .doc(otherUid);
+  }
+
+  Future<void> _swapRank({
+    required String profileUid,
+    required String movedUid,
+    required int newRank,
+    required int currentRank,
+  }) async {
+    final db = FirebaseFirestore.instance;
+    final movedRef = _topRef(profileUid, movedUid);
+
+    try {
+      final querySnap =
+          await db
+              .collection('users')
+              .doc(profileUid)
+              .collection('top_collaborators')
+              .where('rank', isEqualTo: newRank)
+              .limit(1)
+              .get();
+
+      final DocumentReference<Map<String, dynamic>>? occupiedRef =
+          querySnap.docs.isNotEmpty ? querySnap.docs.first.reference : null;
+
+      await db.runTransaction((tx) async {
+        final movedSnap = await tx.get(movedRef);
+        if (!movedSnap.exists) return;
+
+        if (occupiedRef != null && occupiedRef.path != movedRef.path) {
+          final occupiedSnap = await tx.get(occupiedRef);
+          if (occupiedSnap.exists) {
+            tx.set(occupiedRef, {'rank': currentRank}, SetOptions(merge: true));
+          }
+        }
+
+        tx.set(movedRef, {'rank': newRank}, SetOptions(merge: true));
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Moved to position $newRank')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _showReorderSheet({
+    required String profileUid,
+    required String otherUid,
+    required int currentRank,
+  }) async {
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        Widget item(int rank) {
+          final isSelected = rank == currentRank;
+          return ListTile(
+            title: Text(
+              'Move to position $rank',
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                color: isSelected ? Colors.deepPurple : Colors.black87,
+              ),
+            ),
+            trailing:
+                isSelected
+                    ? const Icon(Icons.check_circle, color: Colors.deepPurple)
+                    : const Icon(Icons.swap_vert, color: Colors.black38),
+            onTap: () => Navigator.pop(ctx, rank),
+          );
+        }
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                height: 5,
+                width: 44,
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Reorder Top Collaborators',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              item(1),
+              item(2),
+              item(3),
+              item(4),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (picked == null || picked == currentRank) return;
+
+    await _swapRank(
+      profileUid: profileUid,
+      movedUid: otherUid,
+      newRank: picked,
+      currentRank: currentRank,
+    );
+  }
+
+  static const Color _cardBg = Color(0xFFF4F2FF);
+  static const Color _cardBorder = Color(0x1A5E35B1);
+
+  Widget _topCollaboratorCard({
+    required String profileUid,
+    required String otherUid,
+    required Map<String, dynamic> collaboratorData,
+    required bool isOwnerViewing,
+    required int currentRank,
+  }) {
+    final authUid = _authUser?.uid;
+    final canFollow =
+        authUid != null && authUid.isNotEmpty && authUid != otherUid;
+
+    final u = _userCache[otherUid] ?? {};
+    final avatarUrl =
+        (collaboratorData['avatarUrl'] ?? u['avatarUrl'] ?? '')
+            .toString()
+            .trim();
+    final name =
+        (collaboratorData['displayName'] ?? u['displayName'] ?? '')
+            .toString()
+            .trim();
+    final handleRaw =
+        (collaboratorData['handle'] ??
+                collaboratorData['socialHandle'] ??
+                u['handle'] ??
+                u['socialHandle'] ??
+                '')
+            .toString()
+            .trim();
+    final handle = handleRaw.replaceAll('@', '');
+
+    final isFollowing =
+        canFollow ? _myFollowingCache.contains(otherUid) : false;
+
+    return GestureDetector(
+      onLongPress:
+          isOwnerViewing
+              ? () => _showReorderSheet(
+                profileUid: profileUid,
+                otherUid: otherUid,
+                currentRank: currentRank,
+              )
+              : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _cardBorder),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                _openSocialProfile(
+                  otherUid,
+                  hint: {
+                    'displayName': name,
+                    'handle': handle,
+                    'socialHandle': handle,
+                    'avatarUrl': avatarUrl,
+                  },
+                );
+              },
+              child: Column(
+                children: [
+                  _safeAvatarImage(
+                    size: 92,
+                    url: avatarUrl,
+                    fallback: const CircleAvatar(
+                      radius: 46,
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.person,
+                        size: 34,
+                        color: Colors.deepPurple,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (name.isNotEmpty)
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 12,
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  if (handle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '@$handle',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Spacer(),
+            if (!canFollow)
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: ElevatedButton(
+                  onPressed: null,
+                  style: ElevatedButton.styleFrom(
+                    disabledBackgroundColor: Colors.deepPurple.withOpacity(
+                      0.35,
+                    ),
+                    disabledForegroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    'You',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                height: 34,
+                child: ElevatedButton(
+                  onPressed: () => _toggleFollowUser(otherUid),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    isFollowing ? 'Following' : 'Follow',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ FIXED: no build-time async calls, no fixed height that clips cards,
+  // one following stream, batch warm user cards after frame.
+  Widget _topCollaboratorsSectionCurated(
+    String profileUid, {
+    required bool isOwnerViewing,
+  }) {
+    const int crossAxisCount = 2;
+    const double spacing = 12;
+    const double cardAspectRatio = 0.78; // keep in sync with card layout
+
+    return RepaintBoundary(
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _getTopCollaboratorsStream(profileUid),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return isOwnerViewing
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  child: Text(
+                    'Top Collaborators couldn’t load (rules/index).',
+                    style: TextStyle(color: Colors.black54, fontSize: 12),
+                  ),
+                )
+                : const SizedBox.shrink();
+          }
+
+          final liveDocs = snap.data?.docs;
+          if (liveDocs != null) {
+            _cachedTopCollaboratorDocs = liveDocs;
+            _topCacheByUid[profileUid] = liveDocs;
+          }
+          final docs = liveDocs ?? _cachedTopCollaboratorDocs;
+
+          if (snap.connectionState == ConnectionState.waiting && docs.isEmpty) {
+            return const SizedBox.shrink();
+          }
+
+          if (docs.isEmpty) return const SizedBox.shrink();
+
+          // stable order
+          final sorted =
+              docs.toList()..sort((a, b) {
+                final ar =
+                    (a.data()['rank'] is int) ? a.data()['rank'] as int : 999;
+                final br =
+                    (b.data()['rank'] is int) ? b.data()['rank'] as int : 999;
+                return ar.compareTo(br);
+              });
+
+          final otherUids = sorted.map((d) => d.id).toList();
+
+          // schedule warmup AFTER frame (never in build)
+          if (!_warmQueuedThisFrame) {
+            _warmQueuedThisFrame = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              _warmQueuedThisFrame = false;
+              if (!mounted) return;
+
+              final toWarm = <String>[];
+              for (final uid in otherUids) {
+                if (uid.isEmpty) continue;
+                if (_userCache.containsKey(uid)) continue;
+                if (_queuedWarmUids.contains(uid)) continue;
+                _queuedWarmUids.add(uid);
+                toWarm.add(uid);
+              }
+              if (toWarm.isEmpty) return;
+              await _warmUsersBatch(toWarm);
+            });
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Top Collaborators',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.deepPurple,
+                    height: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.zero,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
+                    childAspectRatio: cardAspectRatio,
+                  ),
+                  itemCount: sorted.length,
+                  itemBuilder: (context, i) {
+                    final d = sorted[i];
+                    final otherUid = d.id;
+                    final rank =
+                        (d.data()['rank'] is int)
+                            ? d.data()['rank'] as int
+                            : (i + 1);
+
+                    return KeyedSubtree(
+                      key: ValueKey('top_collab_$otherUid'),
+                      child: _topCollaboratorCard(
+                        profileUid: profileUid,
+                        otherUid: otherUid,
+                        collaboratorData: d.data(),
+                        isOwnerViewing: isOwnerViewing,
+                        currentRank: rank,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // --- SEARCH / FEED BUILD ---
   @override
   Widget build(BuildContext context) {
-    final isOwnProfile = viewedUid == currentUid;
+    super.build(context);
+
+    final authUid = _authUser?.uid;
+    final resolvedUid = _getResolvedUid();
+    final isMe = authUid != null && resolvedUid == authUid;
+
+    if (_currentProfileUid != resolvedUid) {
+      _currentProfileUid = resolvedUid;
+      _cachedRecipeDocs = _recipeCacheByUid[resolvedUid] ?? [];
+      _cachedTopCollaboratorDocs = _topCacheByUid[resolvedUid] ?? [];
+      _topCollaboratorsStream = null;
+      _topCollaboratorsUid = null;
+      _userCache.clear();
+      _queuedWarmUids.clear();
+      _missingCollaboratorUids.clear();
+      _warmQueuedThisFrame = false;
+      _profileRecipesStream =
+          FirebaseFirestore.instance
+              .collection('recipes')
+              .where('uid', isEqualTo: resolvedUid)
+              .where('isPublic', isEqualTo: true)
+              .orderBy('serverCreatedAt', descending: true)
+              .snapshots();
+    }
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           _buildSliverToolbar(),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (viewedUid != null) ...[
-                    PublicProfileWidget(uid: viewedUid!),
-                    const SizedBox(height: 20),
-                  ],
-                  if (isOwnProfile) ...[
-                    //const Text('Quick Post Recipe', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 8),
-                    InlineRecipeComposer(onSubmitted: () => setState(() {})),
-                    const SizedBox(height: 20),
-                  ],
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator()),
-                ],
+          if (_showSearch) ...[
+            if (_query.isEmpty)
+              _searchEmptyState()
+            else ...[
+              SliverToBoxAdapter(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _peopleByHandleStream(_query),
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionHeader("People (handle)"),
+                        ..._peopleTilesFromDocs(snap.data!.docs),
+                      ],
+                    );
+                  },
+                ),
               ),
-
+              SliverToBoxAdapter(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _peopleByNameStream(_query),
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionHeader("People"),
+                        ..._peopleTilesFromDocs(snap.data!.docs),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _recipesStream(_query),
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionHeader("Recipes"),
+                        ...snap.data!.docs.map((doc) {
+                          final d = doc.data();
+                          return ListTile(
+                            leading: const Icon(Icons.fastfood),
+                            title: Text((d['title'] ?? 'Untitled').toString()),
+                            subtitle: Text(
+                              (d['description'] ?? '').toString(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () {},
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
+            ],
+          ] else ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: PublicProfileWidget(
+                  key: ValueKey(resolvedUid),
+                  uid: resolvedUid,
+                  initialProfileHint:
+                      _activeProfileHint ?? widget.initialProfileHint,
+                  showTopCollaborators: false,
+                ),
+              ),
             ),
-
-          ),
-          SliverToBoxAdapter(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('recipes')
-                  .where('uid', isEqualTo: viewedUid)
-                  .where('isPublic', isEqualTo: true)
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _topCollaboratorsSectionCurated(
+                  resolvedUid,
+                  isOwnerViewing: isMe,
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _StoreReviewsPreview(uid: resolvedUid),
+              ),
+            ),
+            if (_isLoading) const SliverToBoxAdapter(child: SizedBox.shrink()),
+            StreamBuilder<QuerySnapshot>(
+              stream: _profileRecipesStream,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(
+                if (snapshot.hasData) {
+                  _cachedRecipeDocs = snapshot.data!.docs;
+                  _recipeCacheByUid[resolvedUid] = snapshot.data!.docs;
+                }
+                if (!snapshot.hasData && _cachedRecipeDocs.isEmpty) {
+                  return const SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(),
+                      child: SizedBox(height: 2),
                     ),
                   );
                 }
 
-                final docs = snapshot.data!.docs;
-                if (docs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                    child: Text('No posts yet.'),
+                if (_cachedRecipeDocs.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child:
+                        isMe
+                            ? const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text('No posts yet.'),
+                            )
+                            : const SizedBox.shrink(),
                   );
                 }
 
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
+                final docs = _cachedRecipeDocs;
+                final filtered =
+                    docs
+                        .where(
+                          (d) =>
+                              _matchesRecipe(d.data() as Map<String, dynamic>),
+                        )
+                        .toList();
+
+                if (filtered.isEmpty) {
+                  return const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text("No results."),
+                    ),
+                  );
+                }
+
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate((ctx, i) {
+                    final d = filtered[i].data() as Map<String, dynamic>;
                     return RecipeCard(
-                      title: data['title'] ?? '',
-                      description: data['description'] ?? '',
-                      uid: data['uid'] ?? '',
-                      recipeId: docs[index].id,
-                      upvotedBy: List<String>.from(data['upvotedBy'] ?? []),
-                      imageUrl: data['imageUrl'],
-                      category: data['category'],
+                      title: d['title'] ?? '',
+                      description: d['description'] ?? '',
+                      uid: d['uid'] ?? '',
+                      recipeId: filtered[i].id,
+                      upvotedBy: List<String>.from(d['upvotedBy'] ?? []),
+                      imageUrl: d['imageUrl'],
+                      category: d['category'],
                     );
-                  },
+                  }, childCount: filtered.length),
                 );
               },
             ),
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _StoreReviewsPreview extends StatelessWidget {
+  final String uid;
+  const _StoreReviewsPreview({required this.uid});
+
+  Widget _safeAvatarImage({
+    required double size,
+    required String? url,
+    required Widget fallback,
+  }) {
+    final clean = (url ?? '').trim();
+    if (clean.isEmpty || !clean.startsWith('http')) return fallback;
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            fallback,
+            Image.network(
+              clean,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded || frame != null) return child;
+                return const SizedBox.shrink();
+              },
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteReview(
+    BuildContext context, {
+    required String reviewId,
+    required String storeId,
+    required String userId,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Delete review?'),
+            content: const Text('This will permanently remove your review.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+
+    if (ok != true) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      final userRef = db
+          .collection('users')
+          .doc(userId)
+          .collection('store_reviews')
+          .doc(reviewId);
+      final storeRef = db
+          .collection('stores')
+          .doc(storeId)
+          .collection('reviews')
+          .doc(reviewId);
+
+      batch.delete(userRef);
+      batch.delete(storeRef);
+
+      await batch.commit();
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Review deleted')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
+    }
+  }
+
+  Widget _starsCompact(int rating) {
+    final r = rating.clamp(0, 5);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (i) {
+        final filled = i < r;
+        return Icon(
+          filled ? Icons.star_rounded : Icons.star_border_rounded,
+          size: 13,
+          color: filled ? Colors.amber : Colors.grey.shade400,
+        );
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    final isMe = authUid != null && authUid == uid;
+
+    final q = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('store_reviews')
+        .where('status', isEqualTo: 'published')
+        .where('isPublic', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .limit(6);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: q.snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: SizedBox(height: 2),
+          );
+        }
+
+        final docs = snap.data?.docs ?? [];
+        if (docs.isEmpty) {
+          if (!isMe) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'No store reviews yet. Review a visited store to show it here.',
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListView.separated(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, i) {
+                  final reviewDoc = docs[i];
+                  final data = reviewDoc.data() as Map<String, dynamic>;
+
+                  final reviewId = reviewDoc.id;
+                  final storeId = (data['storeId'] ?? '').toString().trim();
+                  final rating =
+                      (data['rating'] ?? 0) is int ? data['rating'] as int : 0;
+                  final wentWell = (data['wentWell'] ?? '').toString();
+                  final reviewUserId = (data['userId'] ?? '').toString().trim();
+
+                  final canDelete = authUid != null && authUid == reviewUserId;
+
+                  return FutureBuilder<DocumentSnapshot>(
+                    future:
+                        FirebaseFirestore.instance
+                            .collection('stores')
+                            .doc(storeId)
+                            .get(),
+                    builder: (context, storeSnap) {
+                      final storeData =
+                          storeSnap.data?.data() as Map<String, dynamic>?;
+                      final storeName =
+                          (storeData?['name'] ??
+                                  storeData?['vendorName'] ??
+                                  'Store')
+                              .toString();
+
+                      final logoUrl =
+                          (storeData?['logoUrl'] ?? storeData?['vendorLogoUrl'])
+                              ?.toString();
+
+                      return Container(
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.10),
+                            width: 1,
+                          ),
+                          boxShadow: const [],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                _safeAvatarImage(
+                                  size: 28,
+                                  url: logoUrl,
+                                  fallback: CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: Colors.white,
+                                    child: Text(
+                                      storeName.isNotEmpty
+                                          ? storeName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        storeName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                          height: 1.0,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          _starsCompact(rating),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '$rating/5',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              height: 1.0,
+                                              color: Colors.grey.shade700,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.black.withOpacity(0.12),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        child: Text(
+                                          "Store Review",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            height: 1.0,
+                                            color: Colors.grey.shade700,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (canDelete)
+                                      SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: PopupMenuButton<String>(
+                                          padding: EdgeInsets.zero,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            side: BorderSide(
+                                              color: Colors.black.withOpacity(
+                                                0.12,
+                                              ),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          color: Colors.white,
+                                          icon: const Icon(
+                                            Icons.more_horiz,
+                                            size: 18,
+                                            color: Colors.grey,
+                                          ),
+                                          onSelected: (v) async {
+                                            if (v == 'delete') {
+                                              await _deleteReview(
+                                                context,
+                                                reviewId: reviewId,
+                                                storeId: storeId,
+                                                userId: reviewUserId,
+                                              );
+                                            }
+                                          },
+                                          itemBuilder:
+                                              (_) => const [
+                                                PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.delete,
+                                                        size: 18,
+                                                        color: Colors.red,
+                                                      ),
+                                                      SizedBox(width: 10),
+                                                      Text(
+                                                        'Delete',
+                                                        style: TextStyle(
+                                                          color: Colors.black,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            if (wentWell.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                wentWell,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.grey.shade800,
+                                  fontSize: 12.8,
+                                  height: 1.15,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

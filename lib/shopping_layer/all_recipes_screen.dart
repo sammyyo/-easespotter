@@ -8,7 +8,9 @@ class AllRecipesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Top Recipes')),
+      appBar: AppBar(title: const Text('Top Recipes',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('recipes')

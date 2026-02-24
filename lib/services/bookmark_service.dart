@@ -30,4 +30,10 @@ class BookmarkService {
     bookmarks.removeWhere((e) => jsonEncode(item) == e);
     await prefs.setStringList('bookmarked_items', bookmarks);
   }
+
+  Future<void> saveBookmarks(List<Map<String, dynamic>> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = items.map((e) => jsonEncode(e)).toList();
+    await prefs.setStringList('bookmarked_items', encoded);
+  }
 }

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/presence_service.dart';
+import '../screens/intro_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -9,6 +12,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final PresenceService _presence = PresenceService();
   String _selectedCurrency = 'USD';
   final List<String> _currencies = ['USD', 'EUR', 'GBP', 'JPY', 'NGN'];
 
@@ -82,6 +86,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _performLogout() async {
+    _presence.stopHeartbeat();
+    _presence.setOffline();
+    await FirebaseAuth.instance.signOut();
+  }
+
+  Future<void> _confirmLogout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You will need to sign in again to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      await _performLogout();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const IntroScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = [
@@ -90,12 +130,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'title': 'Currency',
         'subtitle': '$_selectedCurrency (${_currencySymbols[_selectedCurrency]})',
         'onTap': _selectCurrency,
-      },
-      {
-        'icon': Icons.notifications,
-        'title': 'Notifications',
-        'subtitle': 'Manage notifications',
-        'onTap': () {},
       },
       {
         'icon': Icons.lock,
@@ -109,48 +143,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'subtitle': 'App version & info',
         'onTap': () {},
       },
+      {
+        'icon': Icons.logout,
+        'title': 'Log out',
+        'subtitle': 'Sign out of your account',
+        'onTap': _confirmLogout,
+        'isDanger': true,
+      },
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(color: Colors.white)),
+        centerTitle: true,
+        title: const Text(
+          'Settings',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: GridView.count(
-        crossAxisCount: 2,
+      body: ListView.separated(
         padding: const EdgeInsets.all(16),
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        children: settings.map((setting) {
-          return GestureDetector(
+        itemCount: settings.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final setting = settings[index];
+          final isDanger = setting['isDanger'] == true;
+          final iconColor = isDanger ? Colors.red : Colors.deepPurple;
+          final titleColor = isDanger ? Colors.red : Colors.black87;
+
+          return ListTile(
             onTap: setting['onTap'] as void Function(),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(setting['icon'] as IconData, size: 40, color: Colors.deepPurple),
-                    const SizedBox(height: 10),
-                    Text(setting['title'] as String,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 6),
-                    Text(
-                      setting['subtitle'] as String,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
+            tileColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            leading: CircleAvatar(
+              backgroundColor: iconColor.withValues(alpha: 0.12),
+              child: Icon(setting['icon'] as IconData, color: iconColor),
+            ),
+            title: Text(
+              setting['title'] as String,
+              style: TextStyle(fontWeight: FontWeight.w700, color: titleColor),
+            ),
+            subtitle: Text(
+              setting['subtitle'] as String,
+              style: TextStyle(color: isDanger ? Colors.redAccent : Colors.grey),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: isDanger ? Colors.redAccent : Colors.grey,
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }

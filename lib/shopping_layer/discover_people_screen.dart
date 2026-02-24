@@ -125,7 +125,12 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Discover People')),
+      appBar: AppBar(title: const Text('Discover People',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w800,
+        ),
+      )),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(

@@ -86,7 +86,8 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favorite Lists', style: TextStyle(color: Colors.white)),
+        title: const Text('Favorite Lists',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.deepPurple,
       ),

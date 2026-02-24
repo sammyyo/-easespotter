@@ -126,7 +126,9 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('🧱 Shopping Wall')),
+      appBar: AppBar(title: const Text('Shopping Wall',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),)
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

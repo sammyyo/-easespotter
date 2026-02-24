@@ -3,13 +3,54 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/attribution_tag.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:easespotter/screens/grocery_list_screen.dart';
+import '../widgets/attribution_tag.dart';
 
 class RecipeDetailScreen extends StatelessWidget {
   final String recipeId;
 
   const RecipeDetailScreen({super.key, required this.recipeId});
+
+  List<Map<String, dynamic>> _readIngredients(Map<String, dynamic> data) {
+    final raw = data['ingredients'];
+    if (raw == null) return [];
+
+    if (raw is List) {
+      final out = <Map<String, dynamic>>[];
+
+      for (final item in raw) {
+        if (item == null) continue;
+
+        if (item is String) {
+          final name = item.trim();
+          if (name.isNotEmpty) out.add({'name': name});
+          continue;
+        }
+
+        if (item is Map) {
+          final name = item['name'];
+          if (name is String && name.trim().isNotEmpty) {
+            out.add({'name': name.trim()});
+          }
+          continue;
+        }
+      }
+
+      final seen = <String>{};
+      final deduped = <Map<String, dynamic>>[];
+      for (final i in out) {
+        final n = (i['name'] ?? '').toString().trim().toLowerCase();
+        if (n.isEmpty || seen.contains(n)) continue;
+        seen.add(n);
+        deduped.add({'name': i['name']});
+      }
+
+      return deduped;
+    }
+
+    return [];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +61,7 @@ class RecipeDetailScreen extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Recipe Details",
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(
@@ -33,9 +74,14 @@ class RecipeDetailScreen extends StatelessWidget {
         ],
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance.collection('recipes').doc(recipeId).get(),
+        future: FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(recipeId)
+            .get(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
           final title = data['title'] ?? '';
@@ -43,24 +89,51 @@ class RecipeDetailScreen extends StatelessWidget {
           final uid = data['uid'] ?? '';
           final imageUrl = data['imageUrl'];
           final category = data['category'];
-          final ingredients = List<Map<String, dynamic>>.from(data['ingredients'] ?? []);
-          final upvotedBy = List<String>.from(data['upvotedBy'] ?? []);
-          final currentUser = FirebaseAuth.instance.currentUser;
-          final isUpvoted = currentUser != null && upvotedBy.contains(currentUser.uid);
 
-          Future<void> toggleUpvote() async {
-            final docRef = FirebaseFirestore.instance.collection('recipes').doc(recipeId);
-            if (isUpvoted) {
-              await docRef.update({
-                'upvotedBy': FieldValue.arrayRemove([currentUser.uid]),
-                'upvotesCount': FieldValue.increment(-1),
-              });
-            } else {
-              await docRef.update({
-                'upvotedBy': FieldValue.arrayUnion([currentUser!.uid]),
-                'upvotesCount': FieldValue.increment(1),
-              });
-            }
+          final ingredients = _readIngredients(data);
+
+          Future<Set<String>> getInventoryNamesLower() async {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user == null) return {};
+
+            final snap = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('home_inventory')
+                .get();
+
+            return snap.docs
+                .map((d) => (d.data()['name'] ?? '').toString().trim().toLowerCase())
+                .where((s) => s.isNotEmpty)
+                .toSet();
+          }
+
+          Future<bool> confirmAddEvenIfOwned({
+            required int alreadyHaveCount,
+            required List<String> alreadyHaveNames,
+          }) async {
+            return (await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Already in your Home Inventory'),
+                content: Text(
+                  alreadyHaveCount == 1
+                      ? 'You already have: ${alreadyHaveNames.first}\n\nAdd it to your Grocery List anyway?'
+                      : 'You already have $alreadyHaveCount items.\n\nAdd them to your Grocery List anyway?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Skip owned'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Add anyway'),
+                  ),
+                ],
+              ),
+            )) ??
+                false;
           }
 
           Future<void> addIngredientsToGroceryList() async {
@@ -68,71 +141,210 @@ class RecipeDetailScreen extends StatelessWidget {
             final storedJson = prefs.getString('grocery_list') ?? '[]';
             final existingList = List<Map<String, dynamic>>.from(jsonDecode(storedJson));
 
-            final taggedIngredients = ingredients.map((item) => {
-              ...item,
-              'source': 'recipe',
-            }).toList();
+            final existingNames = existingList
+                .map((e) => (e['title'] ?? '').toString().trim().toLowerCase())
+                .where((s) => s.isNotEmpty)
+                .toSet();
 
-            final updatedList = [...existingList, ...taggedIngredients];
-            await prefs.setString('grocery_list', jsonEncode(updatedList));
+            final inventoryNames = await getInventoryNamesLower();
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Ingredients added to Grocery List!")),
-            );
+            final alreadyOwned = <String>[];
+            for (final ing in ingredients) {
+              final nameRaw = (ing['name'] ?? '').toString().trim();
+              final n = nameRaw.toLowerCase();
+              if (n.isEmpty) continue;
+              if (inventoryNames.contains(n)) alreadyOwned.add(nameRaw);
+            }
+
+            bool addOwnedToo = true;
+            if (alreadyOwned.isNotEmpty) {
+              addOwnedToo = await confirmAddEvenIfOwned(
+                alreadyHaveCount: alreadyOwned.length,
+                alreadyHaveNames: alreadyOwned.take(3).toList(),
+              );
+            }
+
+            int addedCount = 0;
+
+            for (final ing in ingredients) {
+              final nameRaw = (ing['name'] ?? '').toString().trim();
+              final name = nameRaw.toLowerCase();
+              if (name.isEmpty) continue;
+
+              if (!addOwnedToo && inventoryNames.contains(name)) continue;
+              if (existingNames.contains(name)) continue;
+
+              existingList.add({
+                'title': nameRaw,
+                'checked': false,
+                'category': 'General',
+                'quantity': 1,
+                'unitPrice': 0.0,
+                'price': 0.0,
+                'source': 'recipe',
+                'recipeId': recipeId,
+                'recipeTitle': title,
+              });
+
+              existingNames.add(name);
+              addedCount++;
+            }
+
+            await prefs.setString('grocery_list', jsonEncode(existingList));
+
+            if (!context.mounted) return;
+
+            final nav = Navigator.of(context);
+            bool found = false;
+
+            nav.popUntil((route) {
+              if (route.settings.name == '/grocery-list') {
+                found = true;
+                return true;
+              }
+              return false;
+            });
+
+            if (found) {
+              GroceryListScreenController.switchTabAndRefresh?.call(
+                tabIndex: 1,
+                addedCount: addedCount,
+                recipeTitle: title.toString(),
+              );
+            } else {
+              nav.pushNamed('/grocery-list');
+              Future.microtask(() {
+                GroceryListScreenController.switchTabAndRefresh?.call(
+                  tabIndex: 1,
+                  addedCount: addedCount,
+                  recipeTitle: title.toString(),
+                );
+              });
+            }
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (imageUrl != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(imageUrl, fit: BoxFit.cover),
-                  ),
-                const SizedBox(height: 20),
-                Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if (category != null)
-                  Text('Category: $category', style: const TextStyle(color: Colors.deepPurple)),
-                const SizedBox(height: 12),
-                AttributionTag(uid: uid),
-                const SizedBox(height: 20),
-                Text(description, style: const TextStyle(fontSize: 16)),
-                const SizedBox(height: 20),
+          final hasImage = imageUrl != null && imageUrl.toString().isNotEmpty;
 
-                Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        isUpvoted ? Icons.favorite : Icons.favorite_border,
-                        color: isUpvoted ? Colors.red : Colors.grey,
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasImage)
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(18),
+                        topRight: Radius.circular(18),
                       ),
-                      onPressed: toggleUpvote,
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 220,
+                      ),
                     ),
-                    Text('${upvotedBy.length} upvotes'),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (upvotedBy.isNotEmpty) ...[
-                  const Text('Upvoted by:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Column(
-                    children: upvotedBy.map((u) => AttributionTag(uid: u)).toList(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: IntrinsicWidth(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(40),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AttributionTag(uid: uid),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        /// TITLE SIZE REDUCED HERE
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        ),
+
+                        const SizedBox(height: 6),
+                        if (category != null)
+                          Text(
+                            category,
+                            style: const TextStyle(
+                              color: Colors.deepPurple,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        Text(
+                          description,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.4,
+                          ),
+                        ),
+
+                        if (ingredients.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          const Text(
+                            'Ingredients',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 10),
+                          ...ingredients.map((i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              '• ${(i['name'] ?? '').toString()}',
+                              style: const TextStyle(fontSize: 15, height: 1.3),
+                            ),
+                          )),
+                        ],
+
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.playlist_add, color: Colors.white),
+                            label: const Text(
+                              "Make This → Add to Grocery List",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              minimumSize: const Size(double.infinity, 54),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: addIngredientsToGroceryList,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.playlist_add, color: Colors.white),
-                  label: const Text(
-                    "Make This → Add to Grocery List",
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-                  onPressed: addIngredientsToGroceryList,
-                ),
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
           );
         },

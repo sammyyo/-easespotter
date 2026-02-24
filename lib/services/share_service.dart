@@ -28,7 +28,7 @@ class ShareService {
         'expiresAt': expiresAt,
       });
     } catch (e) {
-      print('🔥 Error sharing grocery list: $e');
+      print('Error sharing grocery list: $e');
       rethrow;
     }
 
@@ -56,7 +56,7 @@ class ShareService {
       List<dynamic> rawList = data['list'];
       return rawList.map((item) => Map<String, dynamic>.from(item)).toList();
     } catch (e) {
-      print('🔥 Error fetching grocery list: $e');
+      print('Error fetching grocery list: $e');
       return null;
     }
   }

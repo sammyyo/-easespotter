@@ -1,48 +1,74 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/presence_service.dart';
+import '../widgets/app_bottom_nav.dart';
 import 'home_screen.dart';
 import 'qr_scanner_screen.dart';
-import 'bookmarks_screen.dart';
 import 'social_profile_screen.dart';
 
-
-
 class MainScaffold extends StatefulWidget {
-  const MainScaffold({super.key});
+  final int initialIndex;
+  const MainScaffold({super.key, this.initialIndex = 0});
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
-  int _currentIndex = 0;
+class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver {
+  late int _currentIndex;
+  int _profileResetNonce = 0;
   String? _avatarUrl;
   final bool _isPublicView = false;
+  final PresenceService _presence = PresenceService();
 
   final List<String?> _titles = [
     null,
     'Scan Store QR Code',
-    'Bookmarks',
     'Menu',
     'Profile',
   ];
 
   final List<Color> _tileColors = [
-    Color(0xFFDBF0F7),
-    Color(0xFFF5F5F5),
-    Color(0xFFFAF1BE),
-    Color(0xFFDBF1D8),
-    Color(0xFFEEE2F4),
-    Color(0xFFD8D0C3),
-    Color(0xFFF0EFEB),
-    Color(0xFFFFE0E0),
+    Color(0xFFDBF0F7), // Followed
+    Color(0xFFFFE0B2), // My Stores
+    Color(0xFFFAF1BE), // Bookmarks (New color slot or reused)
+    Color(0xFFDBF1D8), // Promotions
+    Color(0xFFEEE2F4), // Grocery List
+    Color(0xFFD8D0C3), // Motivation
+    Color(0xFFF0EFEB), // Settings
+    Color(0xFFFFE0E0), // About
   ];
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addObserver(this);
+    _presence.setOnline();
+    _presence.startHeartbeat();
     _loadAvatar();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presence.stopHeartbeat();
+    _presence.setOffline();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _presence.setOnline();
+      _presence.startHeartbeat();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _presence.setOffline();
+      _presence.stopHeartbeat();
+    }
   }
 
   Future<void> _loadAvatar() async {
@@ -57,12 +83,14 @@ class _MainScaffoldState extends State<MainScaffold> {
     }
   }
 
+
   Widget _buildMenuScreen() {
     final List<Map<String, dynamic>> items = [
       {'icon': Icons.store, 'label': 'Followed Stores', 'route': '/followed-stores'},
+      {'icon': Icons.history, 'label': 'My Stores', 'route': '/my-stores'},
+      {'icon': Icons.bookmark, 'label': 'Bookmarks', 'route': '/bookmarks'},
       {'icon': Icons.campaign, 'label': 'Promotions', 'route': '/promotions'},
       {'icon': Icons.list_alt, 'label': 'Grocery List', 'route': '/grocery-list'},
-      {'icon': Icons.lightbulb, 'label': 'Motivation Preview', 'route': '/motivation-preview'},
       {'icon': Icons.settings, 'label': 'Settings', 'route': '/settings'},
       {'icon': Icons.info, 'label': 'About', 'route': '/about'},
     ];
@@ -117,15 +145,17 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final isProfileTab = _currentIndex == 4;
+    // Profile is now index 3 (0: Home, 1: Scan, 2: Menu, 3: Profile)
+    final isProfileTab = _currentIndex == 3;
+    final appBarTitleStyle =
+        Theme.of(context).appBarTheme.titleTextStyle ??
+        Theme.of(context).textTheme.titleLarge;
 
     List<Widget> screens = [
       HomeScreen(onScanPressed: () => setState(() => _currentIndex = 1)),
       const QRScannerScreen(),
-      BookmarksScreen(),
       _buildMenuScreen(),
-      const SocialProfileScreen(),
-
+      SocialProfileScreen(key: ValueKey('profile_tab_$_profileResetNonce')),
     ];
 
     return Scaffold(
@@ -133,38 +163,38 @@ class _MainScaffoldState extends State<MainScaffold> {
           ? null // Remove AppBar entirely when on SocialProfileScreen
           : AppBar(
         title: _titles[_currentIndex] != null
-            ? Text(_titles[_currentIndex]!, style: const TextStyle(color: Colors.white))
+            ? Text(
+                _titles[_currentIndex]!,
+                style: (appBarTitleStyle ?? const TextStyle()).copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              )
             : null,
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: const [],
       ),
       body: screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
+        avatarUrl: _avatarUrl,
         onTap: (index) async {
+          if (index == 3) {
+            final alreadyOnProfile = _currentIndex == 3;
+            setState(() {
+              _currentIndex = 3;
+              if (alreadyOnProfile) {
+                // Recreate SocialProfileScreen so it resolves back to my profile.
+                _profileResetNonce++;
+              }
+            });
+            await _loadAvatar();
+            return;
+          }
           setState(() => _currentIndex = index);
-          if (index == 4) await _loadAvatar();
         },
-        items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          const BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
-          const BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Bookmarks'),
-          const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Menu'),
-          BottomNavigationBarItem(
-            icon: _avatarUrl != null
-                ? CircleAvatar(radius: 12, backgroundImage: NetworkImage(_avatarUrl!))
-                : const CircleAvatar(
-              radius: 12,
-              backgroundColor: Colors.deepPurple,
-              child: Icon(Icons.person, size: 16, color: Colors.white),
-            ),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

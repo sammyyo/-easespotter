@@ -24,54 +24,95 @@ class _CommentInputFieldState extends State<CommentInputField> {
   Future<void> _submitComment() async {
     final text = _controller.text.trim();
     final user = FirebaseAuth.instance.currentUser;
+
     if (text.isEmpty || user == null) return;
 
     setState(() => _isSending = true);
-    print("🧪 Writing to: ${widget.parentPath}/comments");
+    debugPrint("Writing to: ${widget.parentPath}/comments");
 
-    await FirebaseFirestore.instance
-        .collection('${widget.parentPath}/comments')
-        .add({
-      'uid': user.uid,
-      'text': text,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    // Prefer user profile doc for freshest displayName/avatar; fall back to auth fields.
+    String authorName = user.displayName ?? '';
+    String authorAvatar = user.photoURL ?? '';
 
-    // Optional: Add to activity feed
-    if (widget.itemOwnerUid != user.uid) {
-      await ActivityService.add(
-        toUid: widget.itemOwnerUid,
-        type: 'comment',
-        message: '${user.displayName ?? 'Someone'} commented on your post',
-        actorUid: user.uid,
-        actorName: user.displayName ?? '',
-        actorAvatarUrl: user.photoURL,
-        itemType: widget.parentPath.split('/').first,
-        itemId: widget.parentPath.split('/').last,
-      );
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final udata = userDoc.data();
+      if (udata != null) {
+        authorName = (udata['displayName'] ?? authorName).toString();
+        authorAvatar = (udata['avatarUrl'] ?? authorAvatar).toString();
+      }
+    } catch (_) {
+      // non-fatal: we’ll just use auth values
     }
 
-    setState(() {
+    try {
+      await FirebaseFirestore.instance
+          .doc(widget.parentPath) // e.g. 'glowups/{glowUpId}'
+          .collection('comments')
+          .add({
+        'uid': user.uid,
+        'text': text,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+
+        // denormalized fields so CommentList doesn’t need to read /users/*
+        'authorDisplayName': authorName,
+        'authorAvatarUrl': authorAvatar,
+      });
+
+      if (widget.itemOwnerUid != user.uid) {
+        await ActivityService.add(
+          toUid: widget.itemOwnerUid,
+          type: 'comment',
+          message: '${authorName.isEmpty ? 'Someone' : authorName} commented on your post',
+          actorUid: user.uid,
+          actorName: authorName,
+          actorAvatarUrl: authorAvatar.isEmpty ? null : authorAvatar,
+          itemType: widget.parentPath.split('/').first,
+          itemId: widget.parentPath.split('/').last,
+        );
+      }
+
       _controller.clear();
-      _isSending = false;
-    });
+    } on FirebaseException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to comment: ${e.message ?? e.code}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: TextField(
             controller: _controller,
-            decoration: const InputDecoration(
+            minLines: 1,
+            maxLines: 3,
+            textInputAction: TextInputAction.newline,
+            decoration: InputDecoration(
               hintText: 'Leave a comment...',
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
         ),
+        const SizedBox(width: 8),
         IconButton(
-          icon: const Icon(Icons.send),
+          icon: _isSending
+              ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+              : const Icon(Icons.send, color: Colors.deepPurple),
           onPressed: _isSending ? null : _submitComment,
         ),
       ],

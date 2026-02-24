@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:shimmer/shimmer.dart';
 import '../shopping_layer/glowup_detail_screen.dart';
 
 class MyGlowUpsGrid extends StatelessWidget {
@@ -34,7 +35,7 @@ class MyGlowUpsGrid extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('My Glow-Ups', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('My Glow-Ups', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 12),
               MasonryGridView.count(
                 shrinkWrap: true,
@@ -59,7 +60,26 @@ class MyGlowUpsGrid extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (data['imageUrl'] != null)
-                            Image.network(data['imageUrl'], height: 150, fit: BoxFit.cover),
+                            AspectRatio(
+                              aspectRatio: 1, // ✅ Set to 1:1 square ratio
+                              child: Image.network(
+                                data['imageUrl'],
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Shimmer.fromColors(
+                                    baseColor: Colors.grey.shade300,
+                                    highlightColor: Colors.grey.shade100,
+                                    child: Container(
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                                ),
+                              ),
+                            ),
                           Padding(
                             padding: const EdgeInsets.all(10),
                             child: Text(

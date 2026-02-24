@@ -75,7 +75,12 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mission Details')),
+      appBar: AppBar(title: const Text('Mission Details',
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      )),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('missions').doc(widget.missionId).snapshots(),
         builder: (context, snapshot) {

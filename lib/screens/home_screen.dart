@@ -33,6 +33,8 @@ class HomeScreen extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 40),
+
+          // Scan Store QR
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
@@ -49,12 +51,19 @@ class HomeScreen extends StatelessWidget {
                 SizedBox(width: 10),
                 Text(
                   'Scan Store QR',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
           ),
+
           const SizedBox(height: 20),
+
+          // Subtle search-focused Discover button
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
@@ -69,15 +78,20 @@ class HomeScreen extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
-                Icon(Icons.explore, color: Colors.white, size: 28),
+                Icon(Icons.search, color: Colors.white, size: 28),
                 SizedBox(width: 10),
                 Text(
                   'Discover',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
           ),
+
           const SizedBox(height: 40),
           Image.asset(
             'assets/images/easespotter.png',

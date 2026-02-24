@@ -73,7 +73,9 @@ class _NewWallPostScreenState extends State<NewWallPostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New ShoppingWall Post')),
+      appBar: AppBar(title: const Text('New ShoppingWall Post',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(

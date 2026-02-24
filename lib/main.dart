@@ -1,3 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easespotter/screens/auth_gate.dart';
+import 'package:easespotter/screens/followed_stores_screen.dart';
+import 'package:easespotter/screens/intro_screen.dart';
+import 'package:easespotter/screens/login_screen.dart';
+import 'package:easespotter/screens/promotions_screen.dart';
+import 'package:easespotter/screens/signup_screen.dart';
+import 'package:easespotter/screens/upgrade_account_screen.dart';
 import 'package:easespotter/shopping_layer/new_wall_post_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -7,13 +15,29 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:easespotter/screens/qr_scanner_screen.dart';
 import 'package:easespotter/screens/search_screen.dart';
 import 'package:easespotter/screens/bookmarks_screen.dart';
-import 'package:easespotter/screens/main_scaffold.dart';
-import 'package:easespotter/screens/placeholder_screen.dart';
+import 'package:easespotter/screens/about_screen.dart';
 import 'package:easespotter/screens/grocery_list_screen.dart';
 import 'package:easespotter/settings/settings_screen.dart';
 import 'package:easespotter/discover/discover_screen.dart';
 import 'package:easespotter/services/motivation_service.dart';
-import 'package:easespotter/motivation/motivation_preview_screen.dart';
+import 'package:easespotter/screens/my_visited_stores_screen.dart'; 
+
+Future<void> ensureUserProfileExistsForAnyUser(User user) async {
+  final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+  if (!(await ref.get()).exists) {
+    await ref.set({
+      'uid': user.uid,
+      'displayName': user.displayName?.trim().isNotEmpty == true
+          ? user.displayName
+          : (user.isAnonymous ? 'Guest' : 'User'),
+      'avatarUrl': user.photoURL ?? '',
+      'bio': '',
+      'publicProfile': !user.isAnonymous, // keep guests private by default
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+}
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +45,25 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await FirebaseAuth.instance.signInAnonymously();
+
+  // Ensure a single authenticated user ALWAYS exists (anonymous or real)
+  User? user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    final cred = await FirebaseAuth.instance.signInAnonymously();
+    user = cred.user;
+    debugPrint("Signed in anonymously as ${user?.uid}");
+  } else {
+    debugPrint("Existing user detected: ${user.uid}");
+  }
+
+  // Make sure this user has a Firestore profile entry
+  await ensureUserProfileExistsForAnyUser(user!);
+
+  // Load motivations
   await MotivationService.loadMotivations();
+
+  // Start app
   runApp(const MyApp());
 }
 
@@ -38,77 +79,24 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.indigo,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const FirebaseInitializer(),
+      home: const AuthGate(),
       routes: {
         '/scan': (context) => const QRScannerScreen(),
         '/search': (context) => const SearchScreen(),
         '/bookmarks': (context) => BookmarksScreen(),
         '/discover': (context) => const DiscoverScreen(),
-        '/followed-stores': (context) => const PlaceholderScreen(title: 'Followed Stores'),
-        '/promotions': (context) => const PlaceholderScreen(title: 'Promotions'),
+        '/followed-stores': (context) => const FollowedStoresScreen(),
+        '/promotions': (context) => const PromotionsScreen(),
         '/settings': (context) => const SettingsScreen(),
-        '/about': (context) => const PlaceholderScreen(title: 'About'),
+        '/about': (context) => const AboutScreen(),
         '/grocery-list': (context) => const GroceryListScreen(),
-        '/motivation-preview': (context) => MotivationPreviewScreen(), 
         '/test-webview': (context) => const TestWebViewScreen(),
         '/newWallPost': (_) => const NewWallPostScreen(),
-      },
-    );
-  }
-}
-
-class FirebaseInitializer extends StatefulWidget {
-  const FirebaseInitializer({super.key});
-
-  @override
-  State<FirebaseInitializer> createState() => _FirebaseInitializerState();
-}
-
-class _FirebaseInitializerState extends State<FirebaseInitializer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: Firebase.initializeApp(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            body: Center(
-              child: RotationTransition(
-                turns: _controller,
-                child: Image.asset(
-                  'assets/images/easespotter.png',
-                  height: 100,
-                ),
-              ),
-            ),
-          );
-        } else if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(
-              child: Text('Firebase Init Error: ${snapshot.error}'),
-            ),
-          );
-        } else {
-          return const MainScaffold();
-        }
+        '/intro': (context) => const IntroScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignupScreen(),
+        '/upgrade': (context) => const UpgradeAccountScreen(),
+        '/my-stores': (context) => const MyVisitedStoresScreen(), // ✅ Added route
       },
     );
   }

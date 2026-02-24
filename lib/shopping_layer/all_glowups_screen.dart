@@ -8,7 +8,9 @@ class AllGlowUpsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Glow-Up Stories')),
+      appBar: AppBar(title: const Text('All Glow-Up Stories',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('glowups')

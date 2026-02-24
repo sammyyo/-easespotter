@@ -32,7 +32,9 @@ class PublicListDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Shared List'),
+        title: const Text('Shared List',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),

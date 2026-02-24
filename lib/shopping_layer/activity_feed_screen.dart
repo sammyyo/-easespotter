@@ -8,10 +8,12 @@ class ActivityFeedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text("Not logged in"));
+    if (uid == null) return const Center(child: Text("Not logged in",));
 
     return Scaffold(
-      appBar: AppBar(title: const Text("📬 Activity Feed")),
+      appBar: AppBar(title: const Text("Activity Feed",
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      )),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')

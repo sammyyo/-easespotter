@@ -14,7 +14,7 @@ class FirebaseStorageService {
     }
   }
 
-  // 🔸 NEW: Used to list all overlays in a folder (like 'tryon_assets/hat')
+  // NEW: Used to list all overlays in a folder (like 'tryon_assets/hat')
   Future<List<String>> listOverlays(String folderPath) async {
     try {
       final ListResult result = await _storage.ref(folderPath).listAll();
