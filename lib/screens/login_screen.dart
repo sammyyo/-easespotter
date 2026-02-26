@@ -91,6 +91,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ignore: unused_element
+  // ignore: unused_element
   Future<void> _signInWithGoogle() async {
     setState(() => _loading = true);
     try {
@@ -101,18 +103,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _showSnack(_mapAuthError(e));
     } catch (_) {
       _showSnack('Google sign-in failed. Please try again.');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _continueAsGuest() async {
-    setState(() => _loading = true);
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-      // AuthGate will route to UpgradeAccountScreen for guests
-    } catch (e) {
-      _showSnack('Could not sign in as guest. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -134,6 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  // ignore: unused_element
   Widget _googleLogo({double size = 18}) {
     return Image.network(
       'https://developers.google.com/identity/images/g-logo.png',
@@ -395,72 +386,66 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 14),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Divider(
-                                            color: Colors.grey.shade400,
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          child: Text(
-                                            'or',
-                                            style: theme.textTheme.labelMedium
-                                                ?.copyWith(
-                                                  color: const Color(
-                                                    0xFF4F6074,
-                                                  ),
-                                                ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          child: Divider(
-                                            color: Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    SizedBox(
-                                      height: 46,
-                                      child: OutlinedButton.icon(
-                                        onPressed:
-                                            _loading ? null : _signInWithGoogle,
-                                        icon: _googleLogo(),
-                                        label: const Text(
-                                          'Sign in with Google',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(
-                                            0xFF1F3042,
-                                          ),
-                                          backgroundColor: Colors.white
-                                              .withValues(alpha: 0.75),
-                                          side: BorderSide(
-                                            color: Colors.grey.shade300,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    // const SizedBox(height: 14),
+                                    // Row(
+                                    //   children: [
+                                    //     Expanded(
+                                    //       child: Divider(
+                                    //         color: Colors.grey.shade400,
+                                    //       ),
+                                    //     ),
+                                    //     Padding(
+                                    //       padding: const EdgeInsets.symmetric(
+                                    //         horizontal: 8,
+                                    //       ),
+                                    //       child: Text(
+                                    //         'or',
+                                    //         style: theme.textTheme.labelMedium
+                                    //             ?.copyWith(
+                                    //               color: const Color(
+                                    //                 0xFF4F6074,
+                                    //               ),
+                                    //             ),
+                                    //       ),
+                                    //     ),
+                                    //     Expanded(
+                                    //       child: Divider(
+                                    //         color: Colors.grey.shade400,
+                                    //       ),
+                                    //     ),
+                                    //   ],
+                                    // ),
+                                    // const SizedBox(height: 12),
+                                    // SizedBox(
+                                    //   height: 46,
+                                    //   child: OutlinedButton.icon(
+                                    //     onPressed:
+                                    //         _loading ? null : _signInWithGoogle,
+                                    //     icon: _googleLogo(),
+                                    //     label: const Text(
+                                    //       'Sign in with Google',
+                                    //       style: TextStyle(
+                                    //         fontWeight: FontWeight.w600,
+                                    //       ),
+                                    //     ),
+                                    //     style: OutlinedButton.styleFrom(
+                                    //       foregroundColor: const Color(
+                                    //         0xFF1F3042,
+                                    //       ),
+                                    //       backgroundColor: Colors.white
+                                    //           .withValues(alpha: 0.75),
+                                    //       side: BorderSide(
+                                    //         color: Colors.grey.shade300,
+                                    //       ),
+                                    //       shape: RoundedRectangleBorder(
+                                    //         borderRadius: BorderRadius.circular(
+                                    //           14,
+                                    //         ),
+                                    //       ),
+                                    //     ),
+                                    //   ),
+                                    // ),
                                     const SizedBox(height: 10),
-                                    TextButton(
-                                      onPressed:
-                                          _loading ? null : _continueAsGuest,
-                                      child: const Text('Continue as guest'),
-                                    ),
-                                    const SizedBox(height: 8),
                                     Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
