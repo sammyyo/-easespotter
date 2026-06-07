@@ -948,67 +948,79 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     const SizedBox(height: 10),
                     ..._collaborations.map((collab) {
                       final isActive = _activeCollabCode == collab['code'];
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          isActive
-                              ? 'Code: ${collab['code']} (Active)'
-                              : 'Code: ${collab['code']}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      final code = collab['code'].toString();
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (!isActive)
-                              ElevatedButton(
-                                onPressed:
-                                    () => _joinCollaboration(collab['code']),
-                                child: const Text('Switch'),
+                            Text(
+                              isActive ? 'Code: $code (Active)' : 'Code: $code',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                               ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.ios_share,
-                                color: Colors.teal,
-                              ),
-                              tooltip: 'Share invite link',
-                              onPressed:
-                                  () => _showCollaborationInviteDialog(
-                                    collab['code'],
-                                  ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              tooltip: 'Leave this collaboration',
-                              onPressed: () async {
-                                setState(() {
-                                  _collaborations.removeWhere(
-                                    (c) => c['code'] == collab['code'],
-                                  );
-                                  if (_activeCollabCode == collab['code']) {
-                                    _activeCollabCode = null;
-                                  }
-                                });
-
-                                final prefs =
-                                    await SharedPreferences.getInstance();
-                                await prefs.setString(
-                                  'collaborations',
-                                  jsonEncode(_collaborations),
-                                );
-
-                                if (!dialogContext.mounted) return;
-                                Navigator.of(dialogContext).pop();
-                                _onGroupIconPressed();
-
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Left the collaboration'),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!isActive)
+                                  ElevatedButton(
+                                    onPressed: () => _joinCollaboration(code),
+                                    child: const Text('Switch'),
                                   ),
-                                );
-                              },
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.ios_share,
+                                    color: Colors.teal,
+                                  ),
+                                  tooltip: 'Share invite link',
+                                  onPressed:
+                                      () =>
+                                          _showCollaborationInviteDialog(code),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  tooltip: 'Leave this collaboration',
+                                  onPressed: () async {
+                                    setState(() {
+                                      _collaborations.removeWhere(
+                                        (c) => c['code'] == code,
+                                      );
+                                      if (_activeCollabCode == code) {
+                                        _activeCollabCode = null;
+                                      }
+                                    });
+
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.setString(
+                                      'collaborations',
+                                      jsonEncode(_collaborations),
+                                    );
+
+                                    if (!dialogContext.mounted) return;
+                                    Navigator.of(dialogContext).pop();
+                                    _onGroupIconPressed();
+
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Left the collaboration'),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ],
                         ),
