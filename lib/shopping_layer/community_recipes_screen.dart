@@ -6,6 +6,7 @@ import '../widgets/recipe_card/recipe_card.dart';
 import '../services/home_inventory_service.dart';
 import 'new_recipe_screen.dart';
 import 'new_glowup_screen.dart';
+import 'new_reel_screen.dart';
 import '../services/grocery_list_service.dart';
 
 class CommunityRecipesScreen extends StatefulWidget {
@@ -36,10 +37,11 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
 
   Future<void> _fetchRecipes() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('recipes')
-          .limit(20)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('recipes')
+              .limit(20)
+              .get();
 
       setState(() {
         _recipes = snapshot.docs;
@@ -47,9 +49,9 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading recipes: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading recipes: $e')));
       }
       setState(() => _isLoading = false);
     }
@@ -93,7 +95,9 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
     return [];
   }
 
-  Set<String> _normalizeInventoryNames(List<QueryDocumentSnapshot<Map<String, dynamic>>> invDocs) {
+  Set<String> _normalizeInventoryNames(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> invDocs,
+  ) {
     return invDocs
         .map((d) => (d.data()['name'] as String?) ?? '')
         .map((s) => s.trim().toLowerCase())
@@ -125,9 +129,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
     final ingredients = _extractIngredientNames(recipeData);
     if (ingredients.isEmpty) return [];
 
-    return ingredients
-        .where((ing) => !inventoryNames.contains(ing))
-        .toList();
+    return ingredients.where((ing) => !inventoryNames.contains(ing)).toList();
   }
 
   Future<String?> _pickCategoryDialog(BuildContext context) async {
@@ -137,26 +139,28 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
 
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add missing items to Grocery List'),
-        content: DropdownButtonFormField<String>(
-          value: selected,
-          items: categories
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (v) => selected = v ?? 'General',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Add missing items to Grocery List'),
+            content: DropdownButtonFormField<String>(
+              value: selected,
+              items:
+                  categories
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+              onChanged: (v) => selected = v ?? 'General',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, selected),
+                child: const Text('Add'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, selected),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -199,7 +203,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
 
     return SizedBox(
       width: 260,
-      height: 220,
+      height: 280,
       child: Stack(
         clipBehavior: Clip.none,
         alignment: Alignment.bottomRight,
@@ -208,7 +212,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
             duration: animDuration,
             curve: Curves.fastOutSlowIn,
             right: _fabExpanded ? 70 : 0,
-            bottom: _fabExpanded ? 150 : 20,
+            bottom: _fabExpanded ? 210 : 20,
             child: AnimatedOpacity(
               duration: animDuration,
               curve: Curves.easeInOutCubic,
@@ -224,6 +228,33 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
                       MaterialPageRoute(
                         builder: (_) => const NewGlowUpScreen(),
                       ),
+                    ).then((_) {
+                      if (!mounted) return;
+                      setState(() => _fabExpanded = false);
+                    });
+                  },
+                ),
+              ),
+            ),
+          ),
+          AnimatedPositioned(
+            duration: animDuration,
+            curve: Curves.fastOutSlowIn,
+            right: _fabExpanded ? 70 : 0,
+            bottom: _fabExpanded ? 150 : 20,
+            child: AnimatedOpacity(
+              duration: animDuration,
+              curve: Curves.easeInOutCubic,
+              opacity: _fabExpanded ? 1 : 0,
+              child: IgnorePointer(
+                ignoring: !_fabExpanded,
+                child: _buildFabOption(
+                  icon: Icons.movie_creation_outlined,
+                  label: "New Reel",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NewReelScreen()),
                     ).then((_) {
                       if (!mounted) return;
                       setState(() => _fabExpanded = false);
@@ -293,10 +324,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
         centerTitle: true,
         title: const Text(
           'Community Recipes',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         actions: [
           if (signedIn)
@@ -321,21 +349,22 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
             ),
         ],
       ),
-      body: (!_cookWithWhatIHave || !signedIn)
-          ? _buildNormalBody()
-          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _inventory.streamInventory(),
-        builder: (context, invSnap) {
-          if (invSnap.connectionState == ConnectionState.waiting) {
-            return _buildNormalBody(showOverlayLoader: true);
-          }
+      body:
+          (!_cookWithWhatIHave || !signedIn)
+              ? _buildNormalBody()
+              : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _inventory.streamInventory(),
+                builder: (context, invSnap) {
+                  if (invSnap.connectionState == ConnectionState.waiting) {
+                    return _buildNormalBody(showOverlayLoader: true);
+                  }
 
-          final invDocs = invSnap.data?.docs ?? const [];
-          final inventoryNames = _normalizeInventoryNames(invDocs);
+                  final invDocs = invSnap.data?.docs ?? const [];
+                  final inventoryNames = _normalizeInventoryNames(invDocs);
 
-          return _buildCookWithWhatIHaveBody(inventoryNames);
-        },
-      ),
+                  return _buildCookWithWhatIHaveBody(inventoryNames);
+                },
+              ),
       floatingActionButton: _buildFloatingMenu(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
@@ -388,11 +417,15 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
       return const Center(child: Text("No recipes found."));
     }
 
-    final scored = _recipes.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      final score = _scoreRecipe(recipeData: data, inventoryNames: inventoryNames);
-      return (doc: doc, data: data, score: score);
-    }).toList();
+    final scored =
+        _recipes.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final score = _scoreRecipe(
+            recipeData: data,
+            inventoryNames: inventoryNames,
+          );
+          return (doc: doc, data: data, score: score);
+        }).toList();
 
     scored.sort((a, b) {
       final aTotal = a.score.total;
@@ -423,55 +456,60 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
           inventoryNames: inventoryNames,
         );
 
-        final matchLine = (s.total == 0)
-            ? null
-            : Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: Row(
-            children: [
-              const Icon(Icons.check_circle, size: 14, color: Colors.green),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${s.have}/${s.total} · Missing ${s.missing}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              if (missing.isNotEmpty)
-                TextButton(
-                  onPressed: () async {
-                    final category = await _pickCategoryDialog(context);
-                    if (category == null) return;
-
-                    final added = await _groceryList.addRecipeItems(
-                      ingredientNames: missing,
-                      category: category,
-                      recipeId: item.doc.id,
-                      recipeTitle: (data['title'] ?? '').toString(),
-                    );
-
-                    if (!mounted) return;
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          added == 0
-                              ? 'All missing items already in your list'
-                              : 'Added $added missing item(s) to Grocery List',
-                        ),
-                        behavior: SnackBarBehavior.floating,
+        final matchLine =
+            (s.total == 0)
+                ? null
+                : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        size: 14,
+                        color: Colors.green,
                       ),
-                    );
-                  },
-                  child: Text('Add ${missing.length} missing'),
-                ),
-            ],
-          ),
-        );
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${s.have}/${s.total} · Missing ${s.missing}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (missing.isNotEmpty)
+                        TextButton(
+                          onPressed: () async {
+                            final category = await _pickCategoryDialog(context);
+                            if (category == null) return;
+
+                            final added = await _groceryList.addRecipeItems(
+                              ingredientNames: missing,
+                              category: category,
+                              recipeId: item.doc.id,
+                              recipeTitle: (data['title'] ?? '').toString(),
+                            );
+
+                            if (!mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  added == 0
+                                      ? 'All missing items already in your list'
+                                      : 'Added $added missing item(s) to Grocery List',
+                                ),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          child: Text('Add ${missing.length} missing'),
+                        ),
+                    ],
+                  ),
+                );
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

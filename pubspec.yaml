@@ -4,7 +4,7 @@ description: "A new Flutter project."
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.7.0
@@ -37,6 +37,7 @@ dependencies:
   geolocator: ^14.0.2
   google_maps_flutter: ^2.10.0
   shimmer: ^3.0.0
+  video_player: ^2.9.2
 
 
 

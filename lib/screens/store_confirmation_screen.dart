@@ -294,6 +294,40 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     return '$storeId|$name';
   }
 
+  String _imageUrlFromItem(Map<String, dynamic> item) {
+    return (item['imageUrl'] ??
+            item['imageURL'] ??
+            item['image'] ??
+            item['photoUrl'] ??
+            item['photoURL'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  Widget _productThumbnail(Map<String, dynamic> item) {
+    final imageUrl = _imageUrlFromItem(item);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 48,
+        height: 48,
+        color: Colors.deepPurple.shade50,
+        child: imageUrl.isNotEmpty
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.shopping_bag,
+                  color: Colors.deepPurple,
+                ),
+              )
+            : const Icon(Icons.shopping_bag, color: Colors.deepPurple),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -308,6 +342,8 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
         'category': category,
         'storeName': widget.storeData['vendorName'] ?? 'Unknown Store',
         'price': item['price'] ?? '',
+        'imageUrl': item['imageUrl'] ?? item['image'],
+        'image': item['image'] ?? item['imageUrl'],
         'barcode': item['barcode'],
         'aisle': item['location']['aisle'],
         'shelf': item['location']['shelf'],
@@ -1064,7 +1100,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 elevation: 2,
                 margin: const EdgeInsets.symmetric(vertical: 6),
                 child: ListTile(
-                  leading: const Icon(Icons.shopping_bag, color: Colors.deepPurple),
+                  leading: _productThumbnail(item),
                   title: Text(item['name']),
                   subtitle: Text(item['location']),
                   trailing: Row(

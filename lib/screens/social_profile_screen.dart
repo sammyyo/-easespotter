@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/shopping_layer/community_recipes_screen.dart';
 import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
+import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
 import 'package:easespotter/widgets/public_profile_widget.dart';
 import '../shopping_layer/notification_feed_screen.dart';
 import '../widgets/recipe_card/recipe_card.dart';
@@ -113,6 +114,24 @@ class SocialProfileScreen extends StatefulWidget {
   State<SocialProfileScreen> createState() => _SocialProfileScreenState();
 }
 
+class _PeopleSuggestion {
+  final String uid;
+  final String displayName;
+  final String handle;
+  final String avatarUrl;
+  final int score;
+  final List<String> reasons;
+
+  const _PeopleSuggestion({
+    required this.uid,
+    required this.displayName,
+    required this.handle,
+    required this.avatarUrl,
+    required this.score,
+    required this.reasons,
+  });
+}
+
 class _SocialProfileScreenState extends State<SocialProfileScreen>
     with AutomaticKeepAliveClientMixin {
   User? _authUser;
@@ -149,6 +168,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   bool _didCheckFollow = false;
   String? _activeViewedUid;
   Map<String, dynamic>? _activeProfileHint;
+  Future<List<_PeopleSuggestion>>? _peopleSuggestionsFuture;
+  String? _peopleSuggestionsUid;
 
   @override
   void initState() {
@@ -308,6 +329,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         } else if (!_myFollowingCache.contains(otherUid)) {
           _myFollowingCache = [..._myFollowingCache, otherUid];
         }
+        _peopleSuggestionsFuture = null;
       });
     } catch (e) {
       if (mounted) {
@@ -427,6 +449,463 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         context,
       ).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
+  }
+
+  Future<Set<String>> _storeIdsForUser(String uid) async {
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('followedStores')
+              .limit(40)
+              .get();
+
+      return snap.docs
+          .map((doc) {
+            final data = doc.data();
+            return (data['storeId'] ?? data['vendorId'] ?? doc.id)
+                .toString()
+                .trim();
+          })
+          .where((id) => id.isNotEmpty)
+          .toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<List<_PeopleSuggestion>> _loadPeopleSuggestions(String uid) async {
+    final precomputed =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('recommendations')
+            .orderBy('score', descending: true)
+            .limit(8)
+            .get();
+
+    if (precomputed.docs.isNotEmpty) {
+      return precomputed.docs.map((doc) {
+        final data = doc.data();
+        return _PeopleSuggestion(
+          uid: (data['uid'] ?? doc.id).toString(),
+          displayName: (data['displayName'] ?? 'Suggested profile').toString(),
+          handle: (data['handle'] ?? '').toString(),
+          avatarUrl: (data['avatarUrl'] ?? '').toString(),
+          score: (data['score'] is int) ? data['score'] as int : 0,
+          reasons:
+              (data['reasons'] is List)
+                  ? List<String>.from(data['reasons'])
+                  : const ['Suggested profile'],
+        );
+      }).toList();
+    }
+
+    final topSnap =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('top_collaborators')
+            .limit(20)
+            .get();
+    final topCollaboratorIds = topSnap.docs.map((doc) => doc.id).toSet();
+    final excluded = <String>{uid, ...topCollaboratorIds, ..._myFollowingCache};
+    final myStoreIds = await _storeIdsForUser(uid);
+
+    final usersSnap =
+        await FirebaseFirestore.instance.collection('users').limit(80).get();
+    final candidates = <_PeopleSuggestion>[];
+
+    for (final doc in usersSnap.docs) {
+      if (excluded.contains(doc.id)) continue;
+
+      final data = doc.data();
+      if (data['publicProfile'] == false) continue;
+
+      final displayName = (data['displayName'] ?? '').toString().trim();
+      final handle = (data['handle'] ?? data['socialHandle'] ?? '')
+          .toString()
+          .trim()
+          .replaceFirst(RegExp(r'^@+'), '');
+      final avatarUrl = (data['avatarUrl'] ?? '').toString().trim();
+      if (displayName.isEmpty && handle.isEmpty) continue;
+
+      int score = 0;
+      final reasons = <String>[];
+
+      if (avatarUrl.isNotEmpty) score += 2;
+      if (handle.isNotEmpty) score += 1;
+      if (displayName.isNotEmpty) score += 1;
+
+      final candidateStoreIds =
+          myStoreIds.isEmpty ? <String>{} : await _storeIdsForUser(doc.id);
+      final sharedStores = myStoreIds.intersection(candidateStoreIds).length;
+      if (sharedStores > 0) {
+        score += 3 + sharedStores.clamp(0, 3);
+        reasons.add(
+          sharedStores == 1 ? 'Shared store' : '$sharedStores shared stores',
+        );
+      }
+
+      if (reasons.isEmpty) {
+        reasons.add(handle.isNotEmpty ? 'Active profile' : 'Suggested profile');
+      }
+
+      candidates.add(
+        _PeopleSuggestion(
+          uid: doc.id,
+          displayName: displayName.isNotEmpty ? displayName : '@$handle',
+          handle: handle,
+          avatarUrl: avatarUrl,
+          score: score,
+          reasons: reasons,
+        ),
+      );
+    }
+
+    candidates.sort((a, b) {
+      final scoreCompare = b.score.compareTo(a.score);
+      if (scoreCompare != 0) return scoreCompare;
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+
+    return candidates.take(8).toList();
+  }
+
+  Future<List<_PeopleSuggestion>> _peopleSuggestionsFor(String uid) {
+    if (_peopleSuggestionsUid != uid || _peopleSuggestionsFuture == null) {
+      _peopleSuggestionsUid = uid;
+      _peopleSuggestionsFuture = _loadPeopleSuggestions(uid);
+    }
+    return _peopleSuggestionsFuture!;
+  }
+
+  Widget _peopleSuggestionsSection(String uid) {
+    return FutureBuilder<List<_PeopleSuggestion>>(
+      future: _peopleSuggestionsFor(uid),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+
+        final suggestions = snap.data ?? [];
+        if (suggestions.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 18, 10, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'People you might know',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.deepPurple,
+                  height: 1.0,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 178,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: suggestions.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    return _peopleSuggestionCard(suggestions[index]);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _peopleSuggestionCard(_PeopleSuggestion person) {
+    return SizedBox(
+      width: 138,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          _openSocialProfile(
+            person.uid,
+            hint: {
+              'displayName': person.displayName,
+              'handle': person.handle,
+              'socialHandle': person.handle,
+              'avatarUrl': person.avatarUrl,
+            },
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE9E4FF)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _safeAvatarImage(
+                size: 54,
+                url: person.avatarUrl,
+                fallback: const CircleAvatar(
+                  radius: 27,
+                  backgroundColor: Color(0xFFF3EDFF),
+                  child: Icon(Icons.person, color: Colors.deepPurple),
+                ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                person.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (person.handle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '@${person.handle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+              ],
+              const Spacer(),
+              Text(
+                person.reasons.first,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.deepPurple,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _profileReelsStream({
+    required String uid,
+    required bool isOwnerViewing,
+  }) {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection('reels')
+        .where('uid', isEqualTo: uid);
+
+    if (!isOwnerViewing) {
+      query = query.where('isPublic', isEqualTo: true);
+    }
+
+    return query.orderBy('createdAt', descending: true).limit(8).snapshots();
+  }
+
+  Widget _profileReelsSection({
+    required String uid,
+    required bool isOwnerViewing,
+  }) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _profileReelsStream(uid: uid, isOwnerViewing: isOwnerViewing),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        if (docs.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(10, 18, 10, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Reels',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.deepPurple,
+                      height: 1.0,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ReelsFeedScreen(
+                                authorUid: uid,
+                                includePrivate: isOwnerViewing,
+                              ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.video_collection_outlined, size: 18),
+                    label: const Text('View all'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 178,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    return _profileReelCard(
+                      uid: uid,
+                      doc: docs[index],
+                      isOwnerViewing: isOwnerViewing,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _profileReelCard({
+    required String uid,
+    required QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    required bool isOwnerViewing,
+  }) {
+    final data = doc.data();
+    final title = (data['title'] ?? 'Untitled reel').toString();
+    final isPublic = data['isPublic'] == true;
+    final durationSeconds = (data['durationSeconds'] as num?)?.toInt();
+
+    return SizedBox(
+      width: 118,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => ReelsFeedScreen(
+                    authorUid: uid,
+                    initialReelId: doc.id,
+                    includePrivate: isOwnerViewing,
+                  ),
+            ),
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5DFFF)),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2B193D), Color(0xFF6D43B8)],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.deepPurple.withValues(alpha: 0.10),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: Icon(
+                    Icons.play_circle_fill,
+                    color: Colors.white24,
+                    size: 54,
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  top: 8,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isPublic ? 'Public' : 'Private',
+                          style: const TextStyle(
+                            color: Colors.deepPurple,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (durationSeconds != null)
+                        Text(
+                          '${durationSeconds}s',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 10,
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _toggleSearch() {
@@ -662,6 +1141,20 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                         ),
                   ),
                   IconButton(
+                    icon: const Icon(
+                      Icons.video_collection_outlined,
+                      color: Colors.white,
+                    ),
+                    tooltip: 'Reels',
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ReelsFeedScreen(),
+                          ),
+                        ),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.forum_outlined, color: Colors.white),
                     tooltip: 'Inbox',
                     onPressed:
@@ -820,23 +1313,38 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     );
   }
 
-  // --- SEARCH STREAMS ---
-  Stream<QuerySnapshot<Map<String, dynamic>>> _peopleByHandleStream(String q) {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .where('handleLower', isGreaterThanOrEqualTo: q)
-        .where('handleLower', isLessThan: '$q\uf8ff')
-        .limit(6)
-        .snapshots();
-  }
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _peopleSearch(
+    String rawQuery,
+  ) async {
+    final q = rawQuery.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+    if (q.isEmpty) return [];
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _peopleByNameStream(String q) {
-    return FirebaseFirestore.instance
-        .collection('users')
-        .where('displayNameLower', isGreaterThanOrEqualTo: q)
-        .where('displayNameLower', isLessThan: '$q\uf8ff')
-        .limit(6)
-        .snapshots();
+    final snap =
+        await FirebaseFirestore.instance.collection('users').limit(120).get();
+
+    return snap.docs
+        .where((doc) {
+          final data = doc.data();
+          final displayName =
+              (data['displayName'] ?? '').toString().toLowerCase();
+          final displayNameLower =
+              (data['displayNameLower'] ?? '').toString().toLowerCase();
+          final handle =
+              (data['handle'] ?? data['socialHandle'] ?? '')
+                  .toString()
+                  .toLowerCase();
+          final handleLower =
+              (data['handleLower'] ?? data['socialHandleLower'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+          return displayName.contains(q) ||
+              displayNameLower.contains(q) ||
+              handle.replaceFirst(RegExp(r'^@+'), '').contains(q) ||
+              handleLower.replaceFirst(RegExp(r'^@+'), '').contains(q);
+        })
+        .take(8)
+        .toList();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _recipesStream(String q) {
@@ -1366,6 +1874,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       _queuedWarmUids.clear();
       _missingCollaboratorUids.clear();
       _warmQueuedThisFrame = false;
+      _peopleSuggestionsFuture = null;
+      _peopleSuggestionsUid = null;
       _profileRecipesStream =
           FirebaseFirestore.instance
               .collection('recipes')
@@ -1384,34 +1894,19 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               _searchEmptyState()
             else ...[
               SliverToBoxAdapter(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _peopleByHandleStream(_query),
+                child: FutureBuilder<
+                  List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                >(
+                  future: _peopleSearch(_query),
                   builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.docs.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionHeader("People (handle)"),
-                        ..._peopleTilesFromDocs(snap.data!.docs),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _peopleByNameStream(_query),
-                  builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                    if (!snap.hasData || snap.data!.isEmpty) {
                       return const SizedBox.shrink();
                     }
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _sectionHeader("People"),
-                        ..._peopleTilesFromDocs(snap.data!.docs),
+                        ..._peopleTilesFromDocs(snap.data!),
                       ],
                     );
                   },
@@ -1470,10 +1965,26 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 ),
               ),
             ),
+            if (isMe)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: _peopleSuggestionsSection(resolvedUid),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 5),
                 child: _StoreReviewsPreview(uid: resolvedUid),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                child: _profileReelsSection(
+                  uid: resolvedUid,
+                  isOwnerViewing: isMe,
+                ),
               ),
             ),
             if (_isLoading) const SliverToBoxAdapter(child: SizedBox.shrink()),

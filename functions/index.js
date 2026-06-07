@@ -7,6 +7,7 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore, FieldValue} = require("firebase-admin/firestore");
 
@@ -78,6 +79,155 @@ async function sendNotification(recipientUid, payload) {
     console.error("Error sending notification:", e);
   }
 }
+
+/**
+ * Read followed store IDs for a user.
+ * @param {string} uid User ID.
+ * @return {Promise<Set<string>>} Followed store IDs.
+ */
+async function getFollowedStoreIds(uid) {
+  try {
+    const snap = await db.collection("users")
+        .doc(uid)
+        .collection("followedStores")
+        .limit(40)
+        .get();
+
+    return new Set(snap.docs
+        .map((doc) => {
+          const data = doc.data() || {};
+          return String(data.storeId || data.vendorId || doc.id).trim();
+        })
+        .filter((id) => id));
+  } catch (e) {
+    console.error("Error fetching followed stores:", uid, e);
+    return new Set();
+  }
+}
+
+/**
+ * Read top collaborator IDs for a user.
+ * @param {string} uid User ID.
+ * @return {Promise<Set<string>>} Top collaborator IDs.
+ */
+async function getTopCollaboratorIds(uid) {
+  try {
+    const snap = await db.collection("users")
+        .doc(uid)
+        .collection("top_collaborators")
+        .limit(20)
+        .get();
+    return new Set(snap.docs.map((doc) => doc.id));
+  } catch (e) {
+    console.error("Error fetching top collaborators:", uid, e);
+    return new Set();
+  }
+}
+
+/**
+ * Build and store people recommendations for one user.
+ * @param {string} uid User ID.
+ * @param {Array<FirebaseFirestore.QueryDocumentSnapshot>} userDocs Users.
+ * @return {Promise<void>}
+ */
+async function rebuildRecommendationsForUser(uid, userDocs) {
+  const userSnap = await db.collection("users").doc(uid).get();
+  if (!userSnap.exists) return;
+
+  const userData = userSnap.data() || {};
+  const following = new Set(Array.isArray(userData.following) ?
+    userData.following : []);
+  const topCollaborators = await getTopCollaboratorIds(uid);
+  const myStoreIds = await getFollowedStoreIds(uid);
+  const excluded = new Set([uid, ...following, ...topCollaborators]);
+
+  const candidates = [];
+
+  for (const doc of userDocs) {
+    if (excluded.has(doc.id)) continue;
+
+    const data = doc.data() || {};
+    if (data.publicProfile === false) continue;
+
+    const displayName = String(data.displayName || "").trim();
+    const rawHandle = String(data.handle || data.socialHandle || "").trim();
+    const handle = rawHandle.replace(/^@+/, "");
+    const avatarUrl = String(data.avatarUrl || "").trim();
+    if (!displayName && !handle) continue;
+
+    let score = 0;
+    const reasons = [];
+
+    if (avatarUrl) score += 2;
+    if (handle) score += 1;
+    if (displayName) score += 1;
+
+    if (myStoreIds.size > 0) {
+      // eslint-disable-next-line no-await-in-loop
+      const candidateStores = await getFollowedStoreIds(doc.id);
+      let sharedStores = 0;
+      for (const storeId of myStoreIds) {
+        if (candidateStores.has(storeId)) sharedStores++;
+      }
+      if (sharedStores > 0) {
+        score += 3 + Math.min(sharedStores, 3);
+        reasons.push(sharedStores === 1 ?
+          "Shared store" :
+          `${sharedStores} shared stores`);
+      }
+    }
+
+    if (reasons.length === 0) {
+      reasons.push(handle ? "Active profile" : "Suggested profile");
+    }
+
+    candidates.push({
+      uid: doc.id,
+      displayName: displayName || `@${handle}`,
+      handle: handle,
+      avatarUrl: avatarUrl,
+      score: score,
+      reasons: reasons,
+    });
+  }
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.displayName.toLowerCase()
+        .localeCompare(b.displayName.toLowerCase());
+  });
+
+  const top = candidates.slice(0, 10);
+  const recRef = db.collection("users").doc(uid).collection("recommendations");
+  const existing = await recRef.get();
+  const batch = db.batch();
+
+  existing.docs.forEach((doc) => batch.delete(doc.ref));
+  top.forEach((item) => {
+    batch.set(recRef.doc(item.uid), {
+      ...item,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+}
+
+/**
+ * Scheduled version-two people recommendation rebuild.
+ */
+exports.rebuildPeopleRecommendations = onSchedule(
+    "every 24 hours",
+    async () => {
+      const usersSnap = await db.collection("users").limit(200).get();
+      const userDocs = usersSnap.docs;
+
+      for (const doc of userDocs) {
+        // eslint-disable-next-line no-await-in-loop
+        await rebuildRecommendationsForUser(doc.id, userDocs);
+      }
+    },
+);
 
 // --- Messages ---
 

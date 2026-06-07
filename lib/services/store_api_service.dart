@@ -42,6 +42,48 @@ class StoreApiService {
     }
   }
 
+  /// Store addresses from the Neon-backed website data.
+  static Future<List<Map<String, dynamic>>> fetchStoreAddresses(int storeId) async {
+    final uri = Uri.parse('$baseUrl/api/stores/$storeId/addresses');
+    debugPrint('StoreApiService: fetching addresses $uri');
+
+    try {
+      final res = await http.get(uri, headers: {
+        'Content-Type': 'application/json',
+      }).timeout(const Duration(seconds: 15));
+
+      debugPrint('StoreApiService Addresses: Response ${res.statusCode} ${res.body}');
+
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        throw Exception('API error ${res.statusCode}: ${res.body}');
+      }
+
+      final decoded = jsonDecode(res.body);
+
+      if (decoded is Map<String, dynamic>) {
+        final data = decoded['data'];
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList();
+        }
+      }
+
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+
+      throw Exception('Malformed API response: expected address list');
+    } catch (e) {
+      debugPrint('StoreApiService Addresses Exception: $e');
+      rethrow;
+    }
+  }
+
   /// Directory payload (all products with locations)
   static Future<Map<String, dynamic>> fetchStoreDirectory(int storeId) async {
     final uri = Uri.parse('$baseUrl/api/qr/store-directory?storeId=$storeId');

@@ -23,6 +23,8 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
   // Track if user tapped UNDO for a given deletion
   bool _didUndoLastDelete = false;
+  final Set<String> _armedDeleteKeys = {};
+  final Map<String, double> _deleteDragProgress = {};
 
   @override
   void initState() {
@@ -95,7 +97,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final int originalIndex = _bookmarks.indexOf(item);
     if (originalIndex < 0) return;
 
+    final key = _bookmarkKey(item);
     setState(() => _bookmarks.removeAt(originalIndex));
+    _armedDeleteKeys.remove(key);
+    _deleteDragProgress.remove(key);
     _didUndoLastDelete = false;
 
     final snackBarController = ScaffoldMessenger.of(context).showSnackBar(
@@ -119,6 +124,71 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       await _bookmarkService.removeBookmark(item);
       await _loadBookmarks();
     }
+  }
+
+  String _bookmarkKey(Map<String, dynamic> item) {
+    final name = (item['name'] ?? '').toString();
+    final location = (item['location'] ?? '').toString();
+    final storeName = (item['storeName'] ?? 'Unknown Store').toString();
+    final price = item['price'];
+
+    return '$storeName|$name|$location|${price ?? ''}';
+  }
+
+  Widget _deleteBackground(String keyStr) {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      decoration: BoxDecoration(
+        color: isArmed ? Colors.red.shade700 : Colors.red.shade500,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isArmed ? Icons.delete_forever : Icons.delete_outline,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isArmed ? 'Release to delete' : 'Swipe again',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmBookmarkDismiss(String keyStr, Map<String, dynamic> item) async {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+    final progress = _deleteDragProgress[keyStr] ?? 0;
+    final isFullSwipe = progress >= 0.85;
+
+    _deleteDragProgress.remove(keyStr);
+
+    if (isArmed || isFullSwipe) {
+      _armedDeleteKeys.remove(keyStr);
+      return true;
+    }
+
+    setState(() => _armedDeleteKeys.add(keyStr));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Swipe “${item['name']}” again to delete'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return false;
   }
 
   Future<void> _clearAllBookmarks() async {
@@ -199,6 +269,44 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         .trim();
   }
 
+  String _imageUrlFromItem(Map<String, dynamic> item) {
+    return (item['imageUrl'] ??
+            item['imageURL'] ??
+            item['image'] ??
+            item['photoUrl'] ??
+            item['photoURL'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  Widget _productThumbnail(
+    Map<String, dynamic> item, {
+    double width = 48,
+    double height = 48,
+  }) {
+    final imageUrl = _imageUrlFromItem(item);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: width,
+        height: height,
+        color: Colors.deepPurple.shade50,
+        child: imageUrl.isNotEmpty
+            ? Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.shopping_bag,
+                  color: Colors.deepPurple,
+                ),
+              )
+            : const Icon(Icons.shopping_bag, color: Colors.deepPurple),
+      ),
+    );
+  }
+
   Future<void> _backfillBookmarkLogos(
     List<Map<String, dynamic>> items,
   ) async {
@@ -273,23 +381,20 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final storeName = (item['storeName'] ?? 'Unknown Store').toString();
     final price = item['price'];
     final logoUrl = _logoUrlFromItem(item);
-
-    // stable-ish key based on content
-    final keyStr = '$storeName|$name|$location|${price ?? ''}';
+    final keyStr = _bookmarkKey(item);
 
     return Dismissible(
       key: ValueKey(keyStr),
       direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        decoration: BoxDecoration(
-          color: Colors.red.shade600,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 16),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
+      dismissThresholds: const {DismissDirection.endToStart: 0.35},
+      background: _deleteBackground(keyStr),
+      confirmDismiss: (_) => _confirmBookmarkDismiss(keyStr, item),
+      onUpdate: (details) {
+        final current = _deleteDragProgress[keyStr] ?? 0;
+        if (details.progress > current) {
+          _deleteDragProgress[keyStr] = details.progress;
+        }
+      },
       onDismissed: (_) => _removeBookmarkWithUndo(item),
       child: Card(
         shape: RoundedRectangleBorder(
@@ -297,28 +402,115 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         ),
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         elevation: 2,
-        child: ListTile(
-          leading: _storeAvatar(storeName: storeName, logoUrl: logoUrl, size: 26),
-          title: Text(name),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (location.isNotEmpty) Text(location),
-              if (price != null) Text('€$price'),
-              const SizedBox(height: 4),
-              Text(
-                storeName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+        child: Stack(
+          children: [
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: _storeAvatar(
+                  storeName: storeName,
+                  logoUrl: logoUrl,
+                  size: 30,
                 ),
               ),
-            ],
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => _removeBookmarkWithUndo(item),
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 54, 12),
+              child: Row(
+                children: [
+                  _productThumbnail(item, width: 92, height: 92),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                          ),
+                        ),
+                        const SizedBox(height: 9),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            if (location.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F0FF),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            if (price != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF3E0),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '€$price',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFB45F06),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          storeName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

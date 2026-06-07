@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easespotter/services/share_service.dart';
 import 'package:easespotter/screens/favorites_list_screen.dart';
@@ -10,17 +10,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
 
 class GroceryListScreenController {
-  static void Function({required int tabIndex, int? addedCount, String? recipeTitle})?
+  static void Function({
+    required int tabIndex,
+    int? addedCount,
+    String? recipeTitle,
+  })?
   switchTabAndRefresh;
 }
 
 class GroceryListScreen extends StatefulWidget {
   final int initialViewIndex; // 0 = My List, 1 = From Recipes
 
-  const GroceryListScreen({
-    super.key,
-    this.initialViewIndex = 0,
-  });
+  const GroceryListScreen({super.key, this.initialViewIndex = 0});
 
   @override
   State<GroceryListScreen> createState() => _GroceryListScreenState();
@@ -32,7 +33,13 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   final TextEditingController _controller = TextEditingController();
   final Map<int, TextEditingController> _priceControllers = {};
 
-  final List<String> _categories = ['General', 'Snacks', 'Drinks', 'Fruits', 'Vegetables'];
+  final List<String> _categories = [
+    'General',
+    'Snacks',
+    'Drinks',
+    'Fruits',
+    'Vegetables',
+  ];
   String _selectedCategory = 'General';
 
   List<Map<String, dynamic>> _groceryItems = [];
@@ -48,7 +55,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   late ScrollController _scrollController;
 
   final GlobalKey _categoryFieldKey = GlobalKey();
-  int _selectedViewIndex = 0; 
+  int _selectedViewIndex = 0;
 
   @override
   void initState() {
@@ -59,8 +66,11 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     _viewingFromRecipe = _selectedViewIndex == 1;
 
     // Controller hook so other screens can force tab switch + refresh
-    GroceryListScreenController.switchTabAndRefresh =
-        ({required int tabIndex, int? addedCount, String? recipeTitle}) async {
+    GroceryListScreenController.switchTabAndRefresh = ({
+      required int tabIndex,
+      int? addedCount,
+      String? recipeTitle,
+    }) async {
       if (!mounted) return;
 
       setState(() {
@@ -74,14 +84,12 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
       // Optional: show a nice confirmation snack when coming from RecipeDetail
       if (addedCount != null) {
-        final msg = addedCount == 0
-            ? "Nothing new was added."
-            : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
+        final msg =
+            addedCount == 0
+                ? "Nothing new was added."
+                : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
         );
       }
     };
@@ -126,23 +134,43 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     }
   }
 
+  String _shareLinkForCode(String code) =>
+      'https://easespotter.com/share/$code';
+
+  String _collaborationCodeFromInput(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null &&
+        uri.host.toLowerCase() == 'easespotter.com' &&
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments.first.toLowerCase() == 'share') {
+      return uri.pathSegments[1].trim().toUpperCase();
+    }
+
+    return trimmed.toUpperCase();
+  }
+
   Future<void> _startNewCollaboration() async {
     try {
       if (FirebaseAuth.instance.currentUser == null) {
         await FirebaseAuth.instance.signInAnonymously();
       }
 
-      final code = await _shareService.shareGroceryList(_groceryItems);
-      final docRef = FirebaseFirestore.instance.collection('grocery_shares').doc();
-      await docRef.set({
-        'code': code,
-        'creatorUid': FirebaseAuth.instance.currentUser!.uid,
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.now().toDate().add(const Duration(days: 7)),
-        'list': _groceryItems,
-      });
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw Exception(
+          'Could not authenticate before starting collaboration.',
+        );
+      }
 
-      final newCollab = {'code': code, 'docId': docRef.id};
+      final code = await _shareService.shareGroceryList(
+        _groceryItems,
+        creatorUid: uid,
+      );
+
+      final newCollab = {'code': code, 'docId': code};
 
       setState(() {
         _collaborations.add(newCollab);
@@ -154,15 +182,124 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
       _listenToCollaboration(code);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('New collaboration started with code: $code')),
-      );
+      if (!mounted) return;
+      _showCollaborationInviteDialog(code);
     } catch (e) {
       debugPrint('Error starting collaboration: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to start collaboration.')),
       );
     }
+  }
+
+  void _showCollaborationInviteDialog(String code) {
+    final link = _shareLinkForCode(code);
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Invite Collaborators',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Share this invite link. Friends who already have EaseSpotter can join directly; new users can open the link first.',
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  SelectableText(
+                    link,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black87, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Code: $code',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: link));
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.teal,
+                          behavior: SnackBarBehavior.floating,
+                          content: Row(
+                            children: const [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text('Invite link copied to clipboard!'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy),
+                    label: const Text(
+                      'Copy Invite Link',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await SharePlus.instance.share(
+                        ShareParams(
+                          text: 'Join my EaseSpotter grocery list:\n$link',
+                          subject: 'EaseSpotter Grocery List Collaboration',
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.ios_share),
+                    label: const Text(
+                      'Share Invite Link',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  Future<void> _joinCollaborationFromInput(String input) async {
+    final code = _collaborationCodeFromInput(input);
+    if (code.isEmpty) return;
+
+    await _joinCollaboration(code);
   }
 
   void _handleScroll() {
@@ -181,34 +318,38 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         .limit(1)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isEmpty) return;
+          if (snapshot.docs.isEmpty) return;
 
-      final doc = snapshot.docs.first;
-      final updatedBy = doc['updatedBy'];
-      final currentUser = FirebaseAuth.instance.currentUser?.uid;
+          final doc = snapshot.docs.first;
+          final updatedBy = doc['updatedBy'];
+          final currentUser = FirebaseAuth.instance.currentUser?.uid;
 
-      if (updatedBy != null && updatedBy != currentUser) {
-        final list = List<Map<String, dynamic>>.from(doc['list']);
-        setState(() {
-          _groceryItems = list;
+          if (updatedBy != null && updatedBy != currentUser) {
+            final list = List<Map<String, dynamic>>.from(doc['list']);
+            if (!mounted) return;
+            setState(() {
+              _groceryItems = list;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('List updated by a collaborator'),
+                backgroundColor: Colors.teal,
+              ),
+            );
+          }
         });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('List updated by a collaborator'),
-            backgroundColor: Colors.teal,
-          ),
-        );
-      }
-    });
   }
 
   Future<void> _joinCollaboration(String code) async {
-    final query = await FirebaseFirestore.instance
-        .collection('grocery_shares')
-        .where('code', isEqualTo: code)
-        .limit(1)
-        .get();
+    final query =
+        await FirebaseFirestore.instance
+            .collection('grocery_shares')
+            .where('code', isEqualTo: code)
+            .limit(1)
+            .get();
+
+    if (!mounted) return;
 
     if (query.docs.isNotEmpty) {
       final doc = query.docs.first;
@@ -236,11 +377,12 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   Future<void> _updateCollaboration() async {
     if (_activeCollabCode == null) return;
 
-    final query = await FirebaseFirestore.instance
-        .collection('grocery_shares')
-        .where('code', isEqualTo: _activeCollabCode)
-        .limit(1)
-        .get();
+    final query =
+        await FirebaseFirestore.instance
+            .collection('grocery_shares')
+            .where('code', isEqualTo: _activeCollabCode)
+            .limit(1)
+            .get();
 
     if (query.docs.isNotEmpty) {
       final doc = query.docs.first;
@@ -282,8 +424,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         final quantity = int.tryParse(item['quantity']?.toString() ?? '') ?? 1;
         final unitPrice =
             double.tryParse(item['unitPrice']?.toString() ?? '') ??
-                double.tryParse(item['price']?.toString() ?? '') ??
-                0.0;
+            double.tryParse(item['price']?.toString() ?? '') ??
+            0.0;
 
         final totalPrice = unitPrice * quantity;
 
@@ -295,7 +437,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         };
 
         _groceryItems.add(updatedItem);
-        _priceControllers[i] = TextEditingController(text: totalPrice.toStringAsFixed(2));
+        _priceControllers[i] = TextEditingController(
+          text: totalPrice.toStringAsFixed(2),
+        );
       }
 
       setState(() {});
@@ -312,7 +456,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (value == null) return null;
     final raw = value.toString().trim();
     if (raw.isEmpty) return null;
-    final cleaned = raw.replaceAll(RegExp(r'[^0-9.,-]'), '').replaceAll(',', '');
+    final cleaned = raw
+        .replaceAll(RegExp(r'[^0-9.,-]'), '')
+        .replaceAll(',', '');
     if (cleaned.isEmpty || cleaned == '-' || cleaned == '.') return null;
     return double.tryParse(cleaned);
   }
@@ -332,7 +478,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (text.isEmpty) return;
 
     final exists = _groceryItems.any(
-          (item) => item['title'].toString().toLowerCase() == text.toLowerCase(),
+      (item) => item['title'].toString().toLowerCase() == text.toLowerCase(),
     );
 
     if (exists) {
@@ -364,9 +510,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     double total = 0.0;
     for (final item in _groceryItems) {
       final lineTotal = (item['price'] ?? 0);
-      total += (lineTotal is num)
-          ? lineTotal.toDouble()
-          : double.tryParse(lineTotal.toString()) ?? 0.0;
+      total +=
+          (lineTotal is num)
+              ? lineTotal.toDouble()
+              : double.tryParse(lineTotal.toString()) ?? 0.0;
     }
     return total;
   }
@@ -376,7 +523,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     for (int i = 0; i < _groceryItems.length; i++) {
       final item = _groceryItems[i];
       final source = item['source'] ?? 'manual';
-      final include = _viewingFromRecipe ? source == 'recipe' : source != 'recipe';
+      final include =
+          _viewingFromRecipe ? source == 'recipe' : source != 'recipe';
       if (!include) continue;
 
       final liveInputValue = _parseMoney(_priceControllers[i]?.text);
@@ -386,9 +534,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       }
 
       final lineTotal = (item['price'] ?? 0);
-      total += (lineTotal is num)
-          ? lineTotal.toDouble()
-          : double.tryParse(lineTotal.toString()) ?? 0.0;
+      total +=
+          (lineTotal is num)
+              ? lineTotal.toDouble()
+              : double.tryParse(lineTotal.toString()) ?? 0.0;
     }
     return total;
   }
@@ -413,10 +562,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       return {'id': doc.id, ...doc.data()!};
     }
 
-    final snap = await col
-        .where('name', isEqualTo: name.trim())
-        .limit(1)
-        .get();
+    final snap = await col.where('name', isEqualTo: name.trim()).limit(1).get();
 
     if (snap.docs.isEmpty) return null;
     final d = snap.docs.first;
@@ -437,9 +583,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     int selected = 1;
     final c = TextEditingController(text: '1');
 
-    final subtitle = existingQty == null
-        ? 'How many do you want to add to Home Inventory?'
-        : 'Already in Home Inventory (Qty: ${existingQty.toString()}).\n\nHow many more do you want to add?';
+    final subtitle =
+        existingQty == null
+            ? 'How many do you want to add to Home Inventory?'
+            : 'Already in Home Inventory (Qty: ${existingQty.toString()}).\n\nHow many more do you want to add?';
 
     return showDialog<int>(
       context: context,
@@ -468,9 +615,21 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      _QtyChip(label: '+1', selected: selected == 1, onTap: () => setAmount(1)),
-                      _QtyChip(label: '+2', selected: selected == 2, onTap: () => setAmount(2)),
-                      _QtyChip(label: '+3', selected: selected == 3, onTap: () => setAmount(3)),
+                      _QtyChip(
+                        label: '+1',
+                        selected: selected == 1,
+                        onTap: () => setAmount(1),
+                      ),
+                      _QtyChip(
+                        label: '+2',
+                        selected: selected == 2,
+                        onTap: () => setAmount(2),
+                      ),
+                      _QtyChip(
+                        label: '+3',
+                        selected: selected == 3,
+                        onTap: () => setAmount(3),
+                      ),
                     ],
                   ),
 
@@ -498,12 +657,20 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
                   onPressed: () {
-                    final amount = _parsePositiveInt(c.text, fallback: selected);
+                    final amount = _parsePositiveInt(
+                      c.text,
+                      fallback: selected,
+                    );
                     Navigator.pop(ctx, amount);
                   },
-                  child: const Text('Add', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -579,7 +746,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   void _toggleCheck(int index) async {
     setState(() {
-      _groceryItems[index]['checked'] = !(_groceryItems[index]['checked'] == true);
+      _groceryItems[index]['checked'] =
+          !(_groceryItems[index]['checked'] == true);
     });
 
     _saveGroceryList();
@@ -625,7 +793,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       _groceryItems[index]['unitPrice'] = unit;
       _groceryItems[index]['price'] = parsed;
       if (normalizeText) {
-        _priceControllers[index]?.text = parsed == 0 ? '' : parsed.toStringAsFixed(2);
+        _priceControllers[index]?.text =
+            parsed == 0 ? '' : parsed.toStringAsFixed(2);
       }
     });
     _saveGroceryList();
@@ -637,60 +806,73 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Save as Favorite List', style: TextStyle(fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(hintText: 'Enter list title'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text(
+              'Save as Favorite List',
+              style: TextStyle(fontSize: 18),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: storeController,
-              decoration: const InputDecoration(hintText: 'Enter store name (optional)'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter list title',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: storeController,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter store name (optional)',
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final title = titleController.text.trim();
+                  final store = storeController.text.trim();
+
+                  if (title.isNotEmpty) {
+                    final prefs = await SharedPreferences.getInstance();
+                    final String? favJson = prefs.getString('favorite_lists');
+                    List<Map<String, dynamic>> currentFavorites = [];
+
+                    if (favJson != null) {
+                      currentFavorites = List<Map<String, dynamic>>.from(
+                        jsonDecode(favJson),
+                      );
+                    }
+
+                    currentFavorites.add({
+                      'title': title,
+                      'store': store,
+                      'items': List<Map<String, dynamic>>.from(_groceryItems),
+                    });
+
+                    await prefs.setString(
+                      'favorite_lists',
+                      jsonEncode(currentFavorites),
+                    );
+
+                    setState(() {
+                      _favoriteLists = currentFavorites;
+                    });
+
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final title = titleController.text.trim();
-              final store = storeController.text.trim();
-
-              if (title.isNotEmpty) {
-                final prefs = await SharedPreferences.getInstance();
-                final String? favJson = prefs.getString('favorite_lists');
-                List<Map<String, dynamic>> currentFavorites = [];
-
-                if (favJson != null) {
-                  currentFavorites = List<Map<String, dynamic>>.from(jsonDecode(favJson));
-                }
-
-                currentFavorites.add({
-                  'title': title,
-                  'store': store,
-                  'items': List<Map<String, dynamic>>.from(_groceryItems),
-                });
-
-                await prefs.setString('favorite_lists', jsonEncode(currentFavorites));
-
-                setState(() {
-                  _favoriteLists = currentFavorites;
-                });
-
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -709,25 +891,36 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     String newCategory = _groceryItems[index]['category'];
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Category'),
-        content: DropdownButtonFormField<String>(
-          value: newCategory,
-          items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-          onChanged: (value) => newCategory = value!,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => _groceryItems[index]['category'] = newCategory);
-              _saveGroceryList();
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Change Category'),
+            content: DropdownButtonFormField<String>(
+              value: newCategory,
+              items:
+                  _categories
+                      .map(
+                        (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
+                      )
+                      .toList(),
+              onChanged: (value) => newCategory = value!,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(
+                    () => _groceryItems[index]['category'] = newCategory,
+                  );
+                  _saveGroceryList();
+                  Navigator.pop(context);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -736,93 +929,132 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Collaborate on Grocery List', style: TextStyle(fontSize: 18)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_collaborations.isNotEmpty) ...[
-                const Text('Your Collaborations:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                ..._collaborations.map((collab) {
-                  final isActive = _activeCollabCode == collab['code'];
-                  return ListTile(
-                    dense: true,
-                    title: Text(
-                      isActive ? 'Code: ${collab['code']} (Active)' : 'Code: ${collab['code']}',
-                      style: const TextStyle(fontSize: 14),
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text(
+              'Collaborate on Grocery List',
+              style: TextStyle(fontSize: 18),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_collaborations.isNotEmpty) ...[
+                    const Text(
+                      'Your Collaborations:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!isActive)
-                          ElevatedButton(
-                            onPressed: () => _joinCollaboration(collab['code']),
-                            child: const Text('Switch'),
-                          ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          tooltip: 'Leave this collaboration',
-                          onPressed: () async {
-                            setState(() {
-                              _collaborations.removeWhere((c) => c['code'] == collab['code']);
-                              if (_activeCollabCode == collab['code']) _activeCollabCode = null;
-                            });
-
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.setString('collaborations', jsonEncode(_collaborations));
-
-                            Navigator.of(context).pop();
-                            _onGroupIconPressed();
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Left the collaboration')),
-                            );
-                          },
+                    const SizedBox(height: 10),
+                    ..._collaborations.map((collab) {
+                      final isActive = _activeCollabCode == collab['code'];
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          isActive
+                              ? 'Code: ${collab['code']} (Active)'
+                              : 'Code: ${collab['code']}',
+                          style: const TextStyle(fontSize: 14),
                         ),
-                      ],
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isActive)
+                              ElevatedButton(
+                                onPressed:
+                                    () => _joinCollaboration(collab['code']),
+                                child: const Text('Switch'),
+                              ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.ios_share,
+                                color: Colors.teal,
+                              ),
+                              tooltip: 'Share invite link',
+                              onPressed:
+                                  () => _showCollaborationInviteDialog(
+                                    collab['code'],
+                                  ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Leave this collaboration',
+                              onPressed: () async {
+                                setState(() {
+                                  _collaborations.removeWhere(
+                                    (c) => c['code'] == collab['code'],
+                                  );
+                                  if (_activeCollabCode == collab['code']) {
+                                    _activeCollabCode = null;
+                                  }
+                                });
+
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString(
+                                  'collaborations',
+                                  jsonEncode(_collaborations),
+                                );
+
+                                if (!dialogContext.mounted) return;
+                                Navigator.of(dialogContext).pop();
+                                _onGroupIconPressed();
+
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Left the collaboration'),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const Divider(thickness: 1),
+                  ],
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Start New Collaboration'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
                     ),
-                  );
-                }),
-                const Divider(thickness: 1),
-              ],
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Start New Collaboration'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                  _startNewCollaboration();
-                },
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      _startNewCollaboration();
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Or enter a code or invite link to join:'),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: codeController,
+                    decoration: const InputDecoration(
+                      hintText: 'Code or https://easespotter.com/share/ABC123',
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              const Text('Or enter a code to join:'),
-              const SizedBox(height: 10),
-              TextField(
-                controller: codeController,
-                decoration: const InputDecoration(hintText: 'Enter Code'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                child: const Text('Join'),
+                onPressed: () {
+                  final invite = codeController.text.trim();
+                  Navigator.pop(dialogContext);
+                  if (invite.isNotEmpty) _joinCollaborationFromInput(invite);
+                },
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            child: const Text('Join'),
-            onPressed: () {
-              final code = codeController.text.trim();
-              Navigator.pop(context);
-              if (code.isNotEmpty) _joinCollaboration(code);
-            },
-          ),
-        ],
-      ),
     );
   }
 
@@ -837,88 +1069,119 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       return;
     }
 
-    final String code = await _shareService.shareGroceryList(_groceryItems);
-    final String link = 'https://easespotter.com/share/$code';
+    late final String link;
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw Exception('Could not authenticate before sharing.');
+      }
+
+      final code = await _shareService.shareGroceryList(
+        _groceryItems,
+        creatorUid: uid,
+      );
+      link = _shareLinkForCode(code);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create share link: $e')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Share Your Grocery List',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Send it easily to friends or family!',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              SelectableText(
-                link,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.black87, fontSize: 16),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: link));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: Colors.teal,
-                      behavior: SnackBarBehavior.floating,
-                      content: Row(
-                        children: const [
-                          Icon(Icons.check_circle, color: Colors.white),
-                          SizedBox(width: 10),
-                          Expanded(child: Text('Link copied to clipboard!')),
-                        ],
-                      ),
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Share Your Grocery List',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.deepPurple,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.copy),
-                label: const Text('Copy Link', style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Send it easily to friends or family!',
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  SelectableText(
+                    link,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black87, fontSize: 16),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: link));
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: Colors.teal,
+                          behavior: SnackBarBehavior.floating,
+                          content: Row(
+                            children: const [
+                              Icon(Icons.check_circle, color: Colors.white),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text('Link copied to clipboard!'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy),
+                    label: const Text(
+                      'Copy Link',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await SharePlus.instance.share(
+                        ShareParams(
+                          text: 'Here is my EaseSpotter grocery list:\n$link',
+                          subject: 'EaseSpotter Grocery List',
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.ios_share),
+                    label: const Text(
+                      'Share Link',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final Uri whatsappUrl = Uri.parse('https://wa.me/?text=$link');
-                  if (await canLaunchUrl(whatsappUrl)) {
-                    await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Could not open WhatsApp')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.send),
-                label: const Text('Send via WhatsApp', style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -934,12 +1197,14 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (t.isNotEmpty) return t;
 
     final id = (item['recipeId'] ?? '').toString().trim();
-    if (id.isNotEmpty) return 'Recipe · ${id.substring(0, id.length >= 6 ? 6 : id.length)}';
+    if (id.isNotEmpty)
+      return 'Recipe · ${id.substring(0, id.length >= 6 ? 6 : id.length)}';
 
     return 'Recipe (Unknown)';
   }
 
-  Map<String, Map<String, List<Map<String, dynamic>>>> _groupRecipeItemsByRecipeThenCategory() {
+  Map<String, Map<String, List<Map<String, dynamic>>>>
+  _groupRecipeItemsByRecipeThenCategory() {
     final Map<String, Map<String, List<Map<String, dynamic>>>> grouped = {};
 
     for (final item in _visibleItems) {
@@ -983,8 +1248,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   }
 
   Future<void> _openCategoryMenu() async {
-    final RenderBox box = _categoryFieldKey.currentContext!.findRenderObject() as RenderBox;
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final RenderBox box =
+        _categoryFieldKey.currentContext!.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
 
     final Offset offset = box.localToGlobal(Offset.zero);
     final Size overlaySize = overlay.size;
@@ -1000,38 +1267,52 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       constraints: BoxConstraints.tightFor(width: popupWidth),
-      position: RelativeRect.fromLTRB(left, top, right, overlaySize.height - top),
-      items: _categories.asMap().entries.map((entry) {
-        final i = entry.key;
-        final cat = entry.value;
-        final isLast = i == _categories.length - 1;
-        final isSelected = cat == _selectedCategory;
+      position: RelativeRect.fromLTRB(
+        left,
+        top,
+        right,
+        overlaySize.height - top,
+      ),
+      items:
+          _categories.asMap().entries.map((entry) {
+            final i = entry.key;
+            final cat = entry.value;
+            final isLast = i == _categories.length - 1;
+            final isSelected = cat == _selectedCategory;
 
-        return PopupMenuItem<String>(
-          value: cat,
-          padding: EdgeInsets.zero,
-          child: Container(
-            width: popupWidth,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFFF3EDFF) : Colors.transparent,
-              border: isLast
-                  ? null
-                  : const Border(
-                bottom: BorderSide(color: Color(0xFFE6E6E6), width: 1),
+            return PopupMenuItem<String>(
+              value: cat,
+              padding: EdgeInsets.zero,
+              child: Container(
+                width: popupWidth,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected ? const Color(0xFFF3EDFF) : Colors.transparent,
+                  border:
+                      isLast
+                          ? null
+                          : const Border(
+                            bottom: BorderSide(
+                              color: Color(0xFFE6E6E6),
+                              width: 1,
+                            ),
+                          ),
+                ),
+                child: Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? Colors.deepPurple : Colors.black87,
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              cat,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.deepPurple : Colors.black87,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
 
     if (selected != null && selected != _selectedCategory) {
@@ -1052,8 +1333,15 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
-            suffixIcon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.deepPurple, size: 28),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 14,
+            ),
+            suffixIcon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.deepPurple,
+              size: 28,
+            ),
           ),
           child: Text(
             _selectedCategory,
@@ -1064,7 +1352,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     );
   }
 
-  Widget _buildCategorySection(String category, List<Map<String, dynamic>> items) {
+  Widget _buildCategorySection(
+    String category,
+    List<Map<String, dynamic>> items,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1087,7 +1378,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
           return ListTile(
             key: ValueKey(index),
-            contentPadding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 12.0),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 6.0,
+              horizontal: 12.0,
+            ),
             leading: Checkbox(
               value: item['checked'],
               onChanged: (_) => _toggleCheck(index),
@@ -1101,7 +1395,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    decoration: item['checked'] ? TextDecoration.lineThrough : null,
+                    decoration:
+                        item['checked'] ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 if (source == 'store' && loc.isNotEmpty) ...[
@@ -1118,7 +1413,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Text('Qty: ${item['quantity'].toInt()}', style: const TextStyle(fontSize: 14)),
+                    Text(
+                      'Qty: ${item['quantity'].toInt()}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline, size: 18),
@@ -1137,12 +1435,15 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 const SizedBox(height: 4),
                 TextFormField(
                   controller: _priceControllers[index],
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Price',
                     isDense: true,
                   ),
-                  onChanged: (val) => _updatePrice(index, val, normalizeText: false),
+                  onChanged:
+                      (val) => _updatePrice(index, val, normalizeText: false),
                   onFieldSubmitted: (val) => _updatePrice(index, val),
                 ),
               ],
@@ -1154,42 +1455,45 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 if (value == 'move') _changeCategoryDialog(index);
                 if (value == 'delete') _deleteItem(index);
               },
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 8,
               color: Colors.white,
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'brought',
-                  child: Row(
-                    children: [
-                      Icon(Icons.kitchen, color: Colors.deepPurple),
-                      SizedBox(width: 10),
-                      Text('Brought home'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'move',
-                  child: Row(
-                    children: [
-                      Icon(Icons.swap_horiz, color: Colors.deepPurple),
-                      SizedBox(width: 10),
-                      Text('Change Category'),
-                    ],
-                  ),
-                ),
-                PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 10),
-                      Text('Delete'),
-                    ],
-                  ),
-                ),
-              ],
+              itemBuilder:
+                  (context) => const [
+                    PopupMenuItem(
+                      value: 'brought',
+                      child: Row(
+                        children: [
+                          Icon(Icons.kitchen, color: Colors.deepPurple),
+                          SizedBox(width: 10),
+                          Text('Brought home'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'move',
+                      child: Row(
+                        children: [
+                          Icon(Icons.swap_horiz, color: Colors.deepPurple),
+                          SizedBox(width: 10),
+                          Text('Change Category'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, color: Colors.red),
+                          SizedBox(width: 10),
+                          Text('Delete'),
+                        ],
+                      ),
+                    ),
+                  ],
               icon: const Icon(Icons.more_vert, color: Colors.grey),
             ),
           );
@@ -1249,15 +1553,25 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Grocery List',
+        title: const Text(
+          'Grocery List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(icon: const Icon(Icons.favorite_border), onPressed: _saveAsFavorite),
-          IconButton(icon: const Icon(Icons.list), onPressed: _openFavoritesScreen),
-          IconButton(icon: const Icon(Icons.group), onPressed: _onGroupIconPressed),
+          IconButton(
+            icon: const Icon(Icons.favorite_border),
+            onPressed: _saveAsFavorite,
+          ),
+          IconButton(
+            icon: const Icon(Icons.list),
+            onPressed: _openFavoritesScreen,
+          ),
+          IconButton(
+            icon: const Icon(Icons.group),
+            onPressed: _onGroupIconPressed,
+          ),
         ],
       ),
       body: Padding(
@@ -1275,9 +1589,11 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     Expanded(child: _buildPillToggle()),
                     const SizedBox(width: 10),
                     _HeaderIconButton(
-                      icon: _showOptions ? Icons.expand_less : Icons.expand_more,
+                      icon:
+                          _showOptions ? Icons.expand_less : Icons.expand_more,
                       tooltip: 'Show/Hide Options',
-                      onPressed: () => setState(() => _showOptions = !_showOptions),
+                      onPressed:
+                          () => setState(() => _showOptions = !_showOptions),
                     ),
                   ],
                 ),
@@ -1295,8 +1611,13 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       hintText: 'Enter item name...',
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 10,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -1309,14 +1630,22 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     child: ElevatedButton(
                       onPressed: _addItem,
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
                         backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         side: const BorderSide(color: Colors.teal),
                       ),
                       child: const Text(
                         'Add',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
                       ),
                     ),
                   ),
@@ -1326,13 +1655,18 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _shareGroceryList,
                       icon: const Icon(Icons.share),
-                      label: const Text('Share List', style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: const Text(
+                        'Share List',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.teal,
                         side: const BorderSide(color: Colors.teal),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
                   ),
@@ -1345,7 +1679,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.shopping_cart_outlined, color: Colors.deepPurple),
+                    const Icon(
+                      Icons.shopping_cart_outlined,
+                      color: Colors.deepPurple,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '$_uncheckedItemCount',
@@ -1381,63 +1718,75 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             Expanded(
               child: ListView(
                 controller: _scrollController,
-                children: !_viewingFromRecipe
-                    ? groupedItems.entries.map((entry) {
-                  final category = entry.key;
-                  final items = entry.value;
+                children:
+                    !_viewingFromRecipe
+                        ? groupedItems.entries.map((entry) {
+                          final category = entry.key;
+                          final items = entry.value;
 
-                  return _buildCategorySection(category, items);
-                }).toList()
-                    : groupedRecipeItems.entries.map((recipeEntry) {
-                  final recipeKey = recipeEntry.key;
-                  final byCategory = recipeEntry.value;
+                          return _buildCategorySection(category, items);
+                        }).toList()
+                        : groupedRecipeItems.entries.map((recipeEntry) {
+                          final recipeKey = recipeEntry.key;
+                          final byCategory = recipeEntry.value;
 
-                  final firstItem = byCategory.values.isNotEmpty && byCategory.values.first.isNotEmpty
-                      ? byCategory.values.first.first
-                      : <String, dynamic>{};
+                          final firstItem =
+                              byCategory.values.isNotEmpty &&
+                                      byCategory.values.first.isNotEmpty
+                                  ? byCategory.values.first.first
+                                  : <String, dynamic>{};
 
-                  final recipeLabel = _recipeGroupLabel(firstItem);
+                          final recipeLabel = _recipeGroupLabel(firstItem);
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 18),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 18),
 
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3EDFF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.deepPurple.withOpacity(0.12)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.restaurant_menu, color: Colors.deepPurple, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                recipeLabel,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.deepPurple,
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
                                 ),
-                                overflow: TextOverflow.ellipsis,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3EDFF),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.deepPurple.withOpacity(0.12),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.restaurant_menu,
+                                      color: Colors.deepPurple,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        recipeLabel,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.deepPurple,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
 
-                      ...byCategory.entries.map((catEntry) {
-                        final category = catEntry.key;
-                        final items = catEntry.value;
-                        return _buildCategorySection(category, items);
-                      }),
-                    ],
-                  );
-                }).toList(),
+                              ...byCategory.entries.map((catEntry) {
+                                final category = catEntry.key;
+                                final items = catEntry.value;
+                                return _buildCategorySection(category, items);
+                              }),
+                            ],
+                          );
+                        }).toList(),
               ),
             ),
           ],
@@ -1560,9 +1909,13 @@ class _QtyChip extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
+            color:
+                selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
           ),
-          color: selected ? Colors.deepPurple.withOpacity(0.12) : Colors.transparent,
+          color:
+              selected
+                  ? Colors.deepPurple.withOpacity(0.12)
+                  : Colors.transparent,
         ),
         child: Text(
           label,

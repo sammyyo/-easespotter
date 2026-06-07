@@ -325,11 +325,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final handleRaw = _handleController.text.trim();
       final handleNormalized = _normalizeHandle(handleRaw);
+      final displayName = _nameController.text.trim();
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
         {
-          'displayName': _nameController.text.trim(),
+          'displayName': displayName,
+          'displayNameLower': displayName.toLowerCase(),
           'bio': _bioController.text.trim(),
+          'handle': handleRaw,
+          'handleLower': handleNormalized.isEmpty ? null : handleNormalized,
           'socialHandle': handleRaw,
           'socialHandleLower': handleNormalized.isEmpty ? null : handleNormalized,
           'tagline': _taglineController.text.trim(),

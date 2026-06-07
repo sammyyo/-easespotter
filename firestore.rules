@@ -1,0 +1,857 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+  	
+    // ---------- Helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwnerByUID() {
+      return isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+    function isExistingOwner() {
+      return isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+    function uidUnchanged() {
+      return request.resource.data.uid == resource.data.uid;
+    }
+    function strOK(s, min, max) {
+      return !(s is string) || (s.size() >= min && s.size() <= max);
+    }
+
+    // --- Minimal extra helpers (used by the narrow update rules below) ---
+    function onlyChanged(keys) {
+      return resource.data.diff(request.resource.data).changedKeys().hasOnly(keys)
+        && resource.data.diff(request.resource.data).addedKeys().size() == 0
+        && resource.data.diff(request.resource.data).removedKeys().size() == 0;
+    }
+    function beforeList(field) {
+      return (resource.data[field] is list) ? resource.data[field] : [];
+    }
+    function afterList(field) {
+      return (request.resource.data[field] is list) ? request.resource.data[field] : [];
+    }
+
+    function hasVisitedStore(uid, storeId) {
+      return exists(/databases/$(database)/documents/users/$(uid)/visitedStores/$(storeId));
+    }
+
+    function isValidRating(n) {
+      return n is int && n >= 1 && n <= 5;
+    }
+
+    function isValidStatus(s) {
+      return s is string && (s == "published" || s == "flagged" || s == "hidden");
+    }
+
+    function isValidDevice(d) {
+      return !(d is string) || (d == "android" || d == "ios" || d == "web");
+    }
+
+    // signals is optional map. If present, only allow known keys and each must be 1–5.
+    function isValidSignals(sig) {
+      return !(sig is map) || (
+        sig.keys().hasOnly(["checkout","staff","cleanliness","findability"]) &&
+        (!("checkout" in sig) || isValidRating(sig.checkout)) &&
+        (!("staff" in sig) || isValidRating(sig.staff)) &&
+        (!("cleanliness" in sig) || isValidRating(sig.cleanliness)) &&
+        (!("findability" in sig) || isValidRating(sig.findability))
+      );
+    }
+
+    function safeStr(s, min, max) {
+      return !(s is string) || (s.size() >= min && s.size() <= max);
+    }
+
+    // ---------- Messaging helpers ----------
+    function isInMyInbox(conversationId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid)/inbox/$(conversationId));
+    }
+
+    function isParticipantDoc(c) {
+      return (c.participantMap is map && c.participantMap[request.auth.uid] == true)
+        || (c.participants is list && request.auth.uid in c.participants);
+    }
+
+    // USERS (profiles)
+    // ================================
+    match /users/{userId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && isOwnerByUID()
+        && strOK(request.resource.data.displayName, 1, 80)
+        && strOK(request.resource.data.bio, 0, 1000);
+
+      // NOTE: Presence fields are NO LONGER updated on /users/{userId}.
+      // They live under /users/{userId}/presence/{docId} (Option A).
+      allow update, delete: if isSignedIn()
+        && request.auth.uid == userId
+        && uidUnchanged()
+        && strOK(request.resource.data.displayName, 1, 80)
+        && strOK(request.resource.data.bio, 0, 1000);
+
+      // Presence subcollection (Option A)
+      // Use ONE doc in code like: /users/{uid}/presence/state
+      match /presence/{docId} {
+        // choose: allow read: if true;  (public presence)
+        allow read: if isSignedIn();    // private presence (signed-in only)
+
+        allow create, update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['isOnline','lastActive'])
+          && (!('isOnline' in request.resource.data) || request.resource.data.isOnline is bool)
+          && (!('lastActive' in request.resource.data) || request.resource.data.lastActive is timestamp);
+
+        allow delete: if false;
+      }
+
+      // followers array toggle (non-owner)
+      allow update: if isSignedIn()
+        && request.auth.uid != userId
+        && onlyChanged(['followers'])
+        && (
+          (
+            !beforeList('followers').hasAny([request.auth.uid]) &&
+            afterList('followers').hasAny([request.auth.uid]) &&
+            afterList('followers').size() == beforeList('followers').size() + 1
+          )
+          ||
+          (
+            beforeList('followers').hasAny([request.auth.uid]) &&
+            !afterList('followers').hasAny([request.auth.uid]) &&
+            afterList('followers').size() == beforeList('followers').size() - 1
+          )
+        );
+
+      match /followedStores/{storeId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create, update, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /notifications/{notifId} {
+        allow read, create, update, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Keep inbox nested rule ONLY for owner access (simple & safe).
+      // The “other participant can write recipient inbox” rule is defined below at ROOT level.
+      match /inbox/{conversationId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // TOP COLLABORATORS (manual curation)
+      // users/{me}/top_collaborators/{otherUid}
+      match /top_collaborators/{otherUid} {
+
+        allow read: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['createdAt', 'addedBy', 'rank'])
+          && request.resource.data.addedBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && (!('rank' in request.resource.data) ||
+              (request.resource.data.rank is int &&
+               request.resource.data.rank >= 1 &&
+               request.resource.data.rank <= 999));
+
+        // allow rank to be ADDED (first time) OR CHANGED (reorder)
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).removedKeys().size() == 0
+          && request.resource.data.diff(resource.data).addedKeys().hasOnly(['rank'])
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['rank'])
+          && request.resource.data.rank is int
+          && request.resource.data.rank >= 1
+          && request.resource.data.rank <= 999;
+
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /visitedStores/{storeId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      match /home_inventory/{docId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /store_reviews/{reviewId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.storeId is string
+          && request.resource.data.storeId.size() > 0
+          && hasVisitedStore(request.auth.uid, request.resource.data.storeId)
+          && isValidRating(request.resource.data.rating)
+          && (!('signals' in request.resource.data) || isValidSignals(request.resource.data.signals))
+          && (!('wentWell' in request.resource.data) || safeStr(request.resource.data.wentWell, 0, 180))
+          && (!('suggestion' in request.resource.data) || safeStr(request.resource.data.suggestion, 0, 180))
+          && (!('visitRefId' in request.resource.data) || request.resource.data.visitRefId is string)
+          && request.resource.data.isPublic is bool
+          && request.resource.data.status == "published"
+          && request.resource.data.edited is bool
+          && isValidDevice(request.resource.data.device)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.storeId == resource.data.storeId
+          && request.resource.data.reviewId == resource.data.reviewId
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+    
+    //----- RECOMMENDATION -------
+    match /users/{userId}/recommendations/{otherUid} {
+  	allow read: if request.auth != null && request.auth.uid == userId;
+  	allow write: if false;
+		}
+
+    // ==========================================================
+    // ROOT-LEVEL INBOX RULE (SEND PERMISSION)
+    // Allows sender to write the recipient's inbox doc
+    // Path: /users/{userId}/inbox/{conversationId}
+    // ==========================================================
+    match /users/{userId}/inbox/{conversationId} {
+
+      function convoExists() {
+        return exists(/databases/$(database)/documents/conversations/$(conversationId));
+      }
+
+      function convo() {
+        return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+      }
+
+      function isParticipant(uid) {
+        return (convo().participantMap is map && convo().participantMap[uid] == true)
+          || (convo().participants is list && uid in convo().participants);
+      }
+
+      allow read: if isSignedIn()
+        && convoExists()
+        && (
+          request.auth.uid == userId ||
+          (isParticipant(request.auth.uid) && isParticipant(userId))
+        );
+
+      allow create, update: if isSignedIn()
+        && convoExists()
+        && (
+          request.auth.uid == userId ||
+          (
+            isParticipant(request.auth.uid) && isParticipant(userId)
+            && request.resource.data.keys().hasOnly([
+              "conversationId",
+              "otherUid",
+              "lastMessage",
+              "lastMessageAt",
+              "unreadCount",
+              "updatedAt",
+              "archived",
+              "archivedAt",
+              "deleted",
+              "deletedAt"
+            ])
+            && request.resource.data.conversationId == conversationId
+            && request.resource.data.otherUid is string
+            && request.resource.data.lastMessage is string
+            && request.resource.data.lastMessage.size() <= 2000
+            && request.resource.data.lastMessageAt is timestamp
+            && request.resource.data.unreadCount is int
+            && request.resource.data.unreadCount >= 0
+            && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp)
+            && (!("archived" in request.resource.data) || request.resource.data.archived is bool)
+            && (!("archivedAt" in request.resource.data) || request.resource.data.archivedAt is timestamp)
+            && (!("deleted" in request.resource.data) || request.resource.data.deleted is bool)
+            && (!("deletedAt" in request.resource.data) || request.resource.data.deletedAt is timestamp)
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // PUBLIC LISTS
+    // ================================
+    match /public_lists/{listId} {
+      allow read: if true;
+      allow create: if isOwnerByUID();
+      allow update, delete: if isExistingOwner() && uidUnchanged();
+    }
+
+    // GLOW-UPS
+    // ================================
+    match /glowups/{glowupId} {
+      allow read: if true;
+
+      allow create: if isOwnerByUID()
+        && hasRequiredGlowupFields()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isExistingOwner()
+        && uidUnchanged()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).addedKeys().size() == 0
+        && request.resource.data.diff(resource.data).removedKeys().size() == 0
+        && request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly(['likedBy', 'fireBy', 'updatedAt'])
+        && request.resource.data.diff(resource.data).changedKeys()
+          .hasAny(['likedBy', 'fireBy'])
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            !beforeList('likedBy').hasAny([request.auth.uid]) &&
+            afterList('likedBy').hasAny([request.auth.uid]) &&
+            afterList('likedBy').size() == beforeList('likedBy').size() + 1 &&
+            (
+              afterList('fireBy') == beforeList('fireBy') ||
+              (
+                beforeList('fireBy').hasAny([request.auth.uid]) &&
+                !afterList('fireBy').hasAny([request.auth.uid]) &&
+                afterList('fireBy').size() == beforeList('fireBy').size() - 1
+              )
+            )
+          )
+          ||
+          (
+            beforeList('likedBy').hasAny([request.auth.uid]) &&
+            !afterList('likedBy').hasAny([request.auth.uid]) &&
+            afterList('likedBy').size() == beforeList('likedBy').size() - 1 &&
+            afterList('fireBy') == beforeList('fireBy')
+          )
+          ||
+          (
+            !beforeList('fireBy').hasAny([request.auth.uid]) &&
+            afterList('fireBy').hasAny([request.auth.uid]) &&
+            afterList('fireBy').size() == beforeList('fireBy').size() + 1 &&
+            (
+              afterList('likedBy') == beforeList('likedBy') ||
+              (
+                beforeList('likedBy').hasAny([request.auth.uid]) &&
+                !afterList('likedBy').hasAny([request.auth.uid]) &&
+                afterList('likedBy').size() == beforeList('likedBy').size() - 1
+              )
+            )
+          )
+          ||
+          (
+            beforeList('fireBy').hasAny([request.auth.uid]) &&
+            !afterList('fireBy').hasAny([request.auth.uid]) &&
+            afterList('fireBy').size() == beforeList('fireBy').size() - 1 &&
+            afterList('likedBy') == beforeList('likedBy')
+          )
+        );
+
+      allow delete: if isExistingOwner();
+
+      function hasRequiredGlowupFields() {
+        return request.resource.data.keys().hasAll(['uid'])
+          && request.resource.data.uid is string;
+      }
+
+      match /comments/{commentId} {
+        allow read: if true;
+
+        allow create: if request.auth != null
+          && request.resource.data.keys().hasOnly(
+            ['uid','text','createdAt','updatedAt','authorDisplayName','authorAvatarUrl','upvotedBy']
+          )
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.updatedAt is timestamp
+          && (
+            !request.resource.data.keys().hasAny(['upvotedBy']) ||
+            request.resource.data.upvotedBy is list
+          );
+
+        allow update: if request.auth != null && (
+          (
+            resource.data.uid == request.auth.uid
+            && request.resource.data.keys().hasOnly(
+              ['uid','text','createdAt','updatedAt','authorDisplayName','authorAvatarUrl','upvotedBy']
+            )
+            && request.resource.data.uid == resource.data.uid
+            && request.resource.data.createdAt == resource.data.createdAt
+            && request.resource.data.authorDisplayName == resource.data.authorDisplayName
+            && request.resource.data.authorAvatarUrl == resource.data.authorAvatarUrl
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 1000
+            && request.resource.data.updatedAt == request.time
+            && (
+              !request.resource.data.keys().hasAny(['upvotedBy']) ||
+              request.resource.data.upvotedBy is list
+            )
+          )
+          ||
+          (
+            request.resource.data.keys().hasOnly([
+              'uid','text','createdAt','updatedAt','authorDisplayName','authorAvatarUrl','upvotedBy'
+            ])
+            && request.resource.data.diff(resource.data).removedKeys().size() == 0
+            && (
+              request.resource.data.diff(resource.data).addedKeys().size() == 0 ||
+              request.resource.data.diff(resource.data).addedKeys().hasOnly(['upvotedBy'])
+            )
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(['upvotedBy'])
+            && request.resource.data.upvotedBy is list
+          )
+        );
+
+        allow delete: if request.auth != null && (
+          resource.data.uid == request.auth.uid ||
+          get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid == request.auth.uid
+        );
+
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if request.auth != null
+            && request.resource.data.keys().hasOnly(['uid','text','createdAt'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 1000
+            && request.resource.data.createdAt is timestamp
+            && request.resource.data.createdAt <= request.time;
+
+          allow update: if request.auth != null && (
+            (
+              resource.data.uid == request.auth.uid
+              && request.resource.data.keys().hasOnly(['uid','text','createdAt','upvotedBy'])
+              && request.resource.data.uid == resource.data.uid
+              && request.resource.data.createdAt == resource.data.createdAt
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 1000
+              && (
+                !request.resource.data.keys().hasAny(['upvotedBy']) ||
+                request.resource.data.upvotedBy is list
+              )
+            )
+            ||
+            (
+              request.resource.data.keys().hasOnly(['uid','text','createdAt','upvotedBy'])
+              && request.resource.data.diff(resource.data).removedKeys().size() == 0
+              && (
+                request.resource.data.diff(resource.data).addedKeys().size() == 0 ||
+                request.resource.data.diff(resource.data).addedKeys().hasOnly(['upvotedBy'])
+              )
+              && request.resource.data.diff(resource.data).changedKeys().hasOnly(['upvotedBy'])
+              && request.resource.data.uid == resource.data.uid
+              && request.resource.data.text == resource.data.text
+              && request.resource.data.createdAt == resource.data.createdAt
+              && request.resource.data.upvotedBy is list
+            )
+          );
+
+          allow delete: if request.auth != null && (
+            resource.data.uid == request.auth.uid ||
+            get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid == request.auth.uid
+          );
+        }
+      }
+    }
+
+    // RECIPES (unchanged)
+    // ================================
+    function canReadRecipe(recipeId) {
+      let r = get(/databases/$(database)/documents/recipes/$(recipeId)).data;
+      return !('isPublic' in r) || r.isPublic == true ||
+        (isSignedIn() && r.uid == request.auth.uid);
+    }
+
+    function isRecipeOwner(recipeId) {
+      let r = get(/databases/$(database)/documents/recipes/$(recipeId)).data;
+      return isSignedIn() && r.uid == request.auth.uid;
+    }
+
+    match /recipes/{recipeId} {
+      allow read: if !('isPublic' in resource.data)
+        || resource.data.isPublic == true
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      allow create: if isOwnerByUID();
+      allow update: if isExistingOwner() && uidUnchanged();
+
+      allow update: if isSignedIn()
+        && canReadRecipe(recipeId)
+        && request.resource.data.diff(resource.data).addedKeys().size() == 0
+        && request.resource.data.diff(resource.data).removedKeys().size() == 0
+        && (
+          (request.resource.data.diff(resource.data).changedKeys().size() == 1
+            && ('upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+              || 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys()))
+          ||
+          (request.resource.data.diff(resource.data).changedKeys().size() == 2
+            && 'upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+            && 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys())
+        )
+        && (
+          (!(request.auth.uid in resource.data.upvotedBy)
+            && (request.auth.uid in request.resource.data.upvotedBy)
+            && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() + 1
+            && request.resource.data.upvotesCount == resource.data.upvotesCount + 1)
+          ||
+          ((request.auth.uid in resource.data.upvotedBy)
+            && !(request.auth.uid in request.resource.data.upvotedBy)
+            && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() - 1
+            && request.resource.data.upvotesCount == resource.data.upvotesCount - 1)
+        );
+
+      allow delete: if isExistingOwner();
+
+      match /comments/{commentId} {
+        allow read: if canReadRecipe(recipeId);
+
+        allow create: if isSignedIn()
+          && canReadRecipe(recipeId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.content is string
+          && request.resource.data.content.size() > 0
+          && request.resource.data.content.size() <= 1000
+          && request.resource.data.createdAt is timestamp
+          && (!('upvotedBy' in request.resource.data) || request.resource.data.upvotedBy is list)
+          && (!('upvotesCount' in request.resource.data) || request.resource.data.upvotesCount is int);
+
+        allow delete: if isSignedIn()
+          && (resource.data.userId == request.auth.uid || isRecipeOwner(recipeId));
+
+        allow update: if isSignedIn()
+          && canReadRecipe(recipeId)
+          && request.resource.data.diff(resource.data).addedKeys().size() == 0
+          && request.resource.data.diff(resource.data).removedKeys().size() == 0
+          && (
+            (request.resource.data.diff(resource.data).changedKeys().size() == 1
+              && ('upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+                || 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys()))
+            ||
+            (request.resource.data.diff(resource.data).changedKeys().size() == 2
+              && 'upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+              && 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys())
+          )
+          && (
+            (!(request.auth.uid in resource.data.upvotedBy)
+              && (request.auth.uid in request.resource.data.upvotedBy)
+              && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() + 1
+              && request.resource.data.upvotesCount == resource.data.upvotesCount + 1)
+            ||
+            ((request.auth.uid in resource.data.upvotedBy)
+              && !(request.auth.uid in request.resource.data.upvotedBy)
+              && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() - 1
+              && request.resource.data.upvotesCount == resource.data.upvotesCount - 1)
+          );
+
+        match /replies/{replyId} {
+          allow read: if canReadRecipe(recipeId);
+
+          allow create: if isSignedIn()
+            && canReadRecipe(recipeId)
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && request.resource.data.content.size() <= 1000
+            && request.resource.data.createdAt is timestamp
+            && (!('upvotedBy' in request.resource.data) || request.resource.data.upvotedBy is list)
+            && (!('upvotesCount' in request.resource.data) || request.resource.data.upvotesCount is int);
+
+          allow delete: if isSignedIn()
+            && (resource.data.userId == request.auth.uid || isRecipeOwner(recipeId));
+
+          allow update: if isSignedIn()
+            && canReadRecipe(recipeId)
+            && request.resource.data.diff(resource.data).addedKeys().size() == 0
+            && request.resource.data.diff(resource.data).removedKeys().size() == 0
+            && (
+              (request.resource.data.diff(resource.data).changedKeys().size() == 1
+                && ('upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+                  || 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys()))
+              ||
+              (request.resource.data.diff(resource.data).changedKeys().size() == 2
+                && 'upvotedBy' in request.resource.data.diff(resource.data).changedKeys()
+                && 'upvotesCount' in request.resource.data.diff(resource.data).changedKeys())
+            )
+            && (
+              (!(request.auth.uid in resource.data.upvotedBy)
+                && (request.auth.uid in request.resource.data.upvotedBy)
+                && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() + 1
+                && request.resource.data.upvotesCount == resource.data.upvotesCount + 1)
+              ||
+              ((request.auth.uid in resource.data.upvotedBy)
+                && !(request.auth.uid in request.resource.data.upvotedBy)
+                && request.resource.data.upvotedBy.size() == resource.data.upvotedBy.size() - 1
+                && request.resource.data.upvotesCount == resource.data.upvotesCount - 1)
+            );
+        }
+      }
+    }
+
+    // SHOPPING WALL
+    // ================================
+    match /shopping_wall/{postId} {
+      allow read: if true;
+      allow create: if isOwnerByUID();
+      allow update, delete: if isExistingOwner() && uidUnchanged();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isOwnerByUID();
+        allow update, delete: if isExistingOwner() && uidUnchanged();
+      }
+    }
+
+    // FOLLOWER / FOLLOWING SUBCOLLECTIONS
+    // ================================
+    match /users/{userId}/followers/{followerId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        (request.auth.uid == followerId && request.resource.data.uid == followerId) ||
+        (request.auth.uid == userId)
+      );
+    }
+
+    match /users/{userId}/following/{followedId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update, delete: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId;
+    }
+
+    // GROCERY SHARES
+    // ================================
+    match /grocery_shares/{shareId} {
+      allow read: if isSignedIn();
+      allow create: if isOwnerByUID();
+      allow update, delete: if isExistingOwner() && uidUnchanged();
+    }
+
+    // STORE VISITS
+    // ================================
+    match /store_visits/{visitId} {
+      allow get, read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow list: if request.auth != null && request.query.where('userId', '==', request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.storeId is string
+        && request.resource.data.storeId.size() > 0;
+      allow update, delete: if false;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // STORES
+    // ================================
+    match /stores/{storeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+
+      match /reviews/{reviewId} {
+        allow read: if resource.data.isPublic == true && resource.data.status == "published";
+        allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+        allow create: if isSignedIn()
+          && request.resource.data.storeId == storeId
+          && request.resource.data.userId == request.auth.uid
+          && hasVisitedStore(request.auth.uid, storeId)
+          && request.resource.data.rating is int
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5
+          && request.resource.data.isPublic is bool
+          && request.resource.data.status == "published"
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && (!("signals" in request.resource.data) || isValidSignals(request.resource.data.signals))
+          && (!("wentWell" in request.resource.data) || safeStr(request.resource.data.wentWell, 0, 180))
+          && (!("suggestion" in request.resource.data) || safeStr(request.resource.data.suggestion, 0, 180))
+          && (!("visitRefId" in request.resource.data) || request.resource.data.visitRefId is string)
+          && (!("edited" in request.resource.data) || request.resource.data.edited is bool)
+          && (!("device" in request.resource.data) || isValidDevice(request.resource.data.device));
+
+        allow update: if isSignedIn()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.storeId == resource.data.storeId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.status == resource.data.status;
+
+        allow delete: if isSignedIn()
+          && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /store_follows/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create, update: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /store_promotions/{promoId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // MESSAGING
+    // ================================
+    match /conversations/{conversationId} {
+
+      function inMyInbox() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid)/inbox/$(conversationId));
+      }
+
+      function isParticipant(d) {
+        return (d.participantMap is map && d.participantMap[request.auth.uid] == true)
+          || (d.participants is list && request.auth.uid in d.participants);
+      }
+
+      allow read: if isSignedIn() && (isParticipant(resource.data) || inMyInbox());
+
+      allow create: if isSignedIn()
+        && (
+          (request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
+          || (request.resource.data.participantMap is map && request.resource.data.participantMap[request.auth.uid] == true)
+        );
+
+      allow update: if isSignedIn()
+        && (isParticipant(resource.data) || inMyInbox())
+        && request.resource.data.diff(resource.data).removedKeys().size() == 0
+        && request.resource.data.diff(resource.data).addedKeys()
+          .hasOnly([
+            'lastMessage','lastMessageAt','lastSenderId','updatedAt',
+            'participants','participantMap','createdAt',
+            'typing','typingUpdatedAt',
+            'archivedBy','archivedAt','deletedBy','deletedAt'
+          ])
+        && request.resource.data.diff(resource.data).changedKeys()
+          .hasOnly([
+            'lastMessage','lastMessageAt','lastSenderId','updatedAt',
+            'participants','participantMap',
+            'typing','typingUpdatedAt',
+            'archivedBy','archivedAt','deletedBy','deletedAt'
+          ])
+        && (!('lastMessage' in request.resource.data) || request.resource.data.lastMessage is string)
+        && (!('lastMessage' in request.resource.data) || request.resource.data.lastMessage.size() <= 2000)
+        && (!('lastMessageAt' in request.resource.data) || request.resource.data.lastMessageAt is timestamp)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp)
+        && (!('participants' in request.resource.data) || request.resource.data.participants is list)
+        && (!('participantMap' in request.resource.data) || request.resource.data.participantMap is map)
+        && (!('typing' in request.resource.data) || request.resource.data.typing is map)
+        && (!('typingUpdatedAt' in request.resource.data) || request.resource.data.typingUpdatedAt is map)
+        && (!('typing' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.typing) ||
+            request.resource.data.typing[request.auth.uid] is bool)
+        && (!('typingUpdatedAt' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.typingUpdatedAt) ||
+            request.resource.data.typingUpdatedAt[request.auth.uid] is timestamp)
+        && (!('archivedBy' in request.resource.data) || request.resource.data.archivedBy is map)
+        && (!('archivedAt' in request.resource.data) || request.resource.data.archivedAt is map)
+        && (!('deletedBy' in request.resource.data) || request.resource.data.deletedBy is map)
+        && (!('deletedAt' in request.resource.data) || request.resource.data.deletedAt is map)
+        && (!('archivedBy' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.archivedBy) ||
+            request.resource.data.archivedBy[request.auth.uid] is bool)
+        && (!('deletedBy' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.deletedBy) ||
+            request.resource.data.deletedBy[request.auth.uid] is bool)
+        && (!('archivedAt' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.archivedAt) ||
+            request.resource.data.archivedAt[request.auth.uid] is timestamp)
+        && (!('deletedAt' in request.resource.data) ||
+            !(request.auth.uid in request.resource.data.deletedAt) ||
+            request.resource.data.deletedAt[request.auth.uid] is timestamp);
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+
+        function canAccessConversation() {
+          let c = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+          return isSignedIn() && (isParticipant(c) || inMyInbox());
+        }
+
+        allow read: if canAccessConversation();
+
+        allow create: if canAccessConversation()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.type == "text"
+          && request.resource.data.createdAt is timestamp
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo is map)
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.keys().hasOnly(['messageId','text','senderId']))
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.messageId is string)
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.text is string)
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.text.size() > 0)
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.text.size() <= 2000)
+          && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.senderId is string);
+
+        allow update: if canAccessConversation()
+          && request.resource.data.diff(resource.data).removedKeys().size() == 0
+          && request.resource.data.diff(resource.data).addedKeys()
+            .hasOnly(['seenBy','userReactions','reactionCounts'])
+          && request.resource.data.diff(resource.data).changedKeys()
+            .hasOnly(['seenBy','userReactions','reactionCounts'])
+          && (!('seenBy' in request.resource.data) || request.resource.data.seenBy is map)
+          && (!('seenBy' in request.resource.data) ||
+              !(request.auth.uid in request.resource.data.seenBy) ||
+              request.resource.data.seenBy[request.auth.uid] == true)
+          && (!('userReactions' in request.resource.data) || request.resource.data.userReactions is map)
+          && (!('userReactions' in request.resource.data) ||
+              !(request.auth.uid in request.resource.data.userReactions) ||
+              (request.resource.data.userReactions[request.auth.uid] is string
+                && request.resource.data.userReactions[request.auth.uid].size() <= 8))
+          && (!('reactionCounts' in request.resource.data) || request.resource.data.reactionCounts is map)
+          && (!('reactionCounts' in request.resource.data) ||
+              ('userReactions' in request.resource.data));
+
+        allow delete: if canAccessConversation()
+          && resource.data.senderId == request.auth.uid;
+      }
+    }
+    
+    // Reels
+    // ================================
+    match /reels/{reelId} {
+  	allow read: if resource.data.isPublic == true
+    || (request.auth != null && resource.data.uid == request.auth.uid);
+
+  	allow create: if request.auth != null
+    && request.resource.data.uid == request.auth.uid
+    && request.resource.data.authorUid == request.auth.uid
+    && request.resource.data.durationSeconds <= 60;
+
+  	allow update: if request.auth != null;
+  	allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+		}
+
+    // DENY ALL ELSE
+    // ================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

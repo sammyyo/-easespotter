@@ -143,7 +143,10 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
 
         //  Updated to save the normalized name for matching
         'ingredients': _ingredients
-            .map((i) => {'name': (i['normalized'] ?? '').toString()})
+            .map((i) => {
+                  'name': (i['name'] ?? '').toString(),
+                  'normalized': (i['normalized'] ?? '').toString(),
+                })
             .where((i) => (i['name'] ?? '').toString().isNotEmpty)
             .toList(),
       });

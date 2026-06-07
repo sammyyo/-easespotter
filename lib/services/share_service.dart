@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class ShareService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -22,13 +23,16 @@ class ShareService {
     try {
       await _firestore.collection('grocery_shares').doc(code).set({
         'code': code,
+        'uid': creatorUid ?? 'anonymous',
         'creatorUid': creatorUid ?? 'anonymous',
+        'collaborators': <String>[],
         'list': groceryItems,
         'createdAt': now,
+        'updatedAt': now,
         'expiresAt': expiresAt,
       });
     } catch (e) {
-      print('Error sharing grocery list: $e');
+      debugPrint('Error sharing grocery list: $e');
       rethrow;
     }
 
@@ -56,7 +60,7 @@ class ShareService {
       List<dynamic> rawList = data['list'];
       return rawList.map((item) => Map<String, dynamic>.from(item)).toList();
     } catch (e) {
-      print('Error fetching grocery list: $e');
+      debugPrint('Error fetching grocery list: $e');
       return null;
     }
   }

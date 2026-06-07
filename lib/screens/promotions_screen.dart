@@ -1,15 +1,12 @@
-import 'dart:async'; // Added for StreamController and StreamSubscription
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'package:easespotter/screens/store_profile_screen.dart';
+import 'package:easespotter/services/store_api_service.dart';
 
 class PromotionsScreen extends StatelessWidget {
   const PromotionsScreen({super.key});
-
-  static const int _followedLimit = 50; // load up to N followed stores
-  static const int _chunkSize = 10;     // Firestore whereIn chunk size
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +24,6 @@ class PromotionsScreen extends StatelessWidget {
         .doc(uid)
         .collection('followedStores')
         .orderBy('followedAt', descending: true)
-        .limit(_followedLimit)
         .snapshots();
 
     return Scaffold(
@@ -70,6 +66,7 @@ class PromotionsScreen extends StatelessWidget {
               .map((id) => id.trim())
               .where((id) => id.isNotEmpty)
               .toList();
+          debugPrint('Promotions: followed store IDs: $normalizedIds');
 
           if (normalizedIds.isEmpty) {
             return const _EmptyState(
@@ -79,12 +76,8 @@ class PromotionsScreen extends StatelessWidget {
             );
           }
 
-          //  Stream promotions using normalized IDs
-          final promotionsStream =
-              _multiWhereInPromotionsStream(normalizedIds);
-
-          return StreamBuilder<List<QueryDocumentSnapshot>>(
-            stream: promotionsStream,
+          return FutureBuilder<_PromotionFetchResult>(
+            future: _fetchApiPromotions(normalizedIds),
             builder: (context, promoSnap) {
               if (promoSnap.hasError) {
                 return _EmptyState(
@@ -98,46 +91,37 @@ class PromotionsScreen extends StatelessWidget {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final allPromoDocs = promoSnap.data!;
+              final result = promoSnap.data!;
+              final allPromos = result.promotions;
+              debugPrint('Promotions: backend matched promos: ${allPromos.length}');
               final now = DateTime.now();
 
-              //  Optional: show only "active" promos when endsAt exists
-              final active = allPromoDocs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-
-                final endsAt = data['endsAt'];
-                if (endsAt is Timestamp) {
-                  return endsAt.toDate().isAfter(now);
-                }
-                return true; // if no endsAt, keep it (v1)
+              //  Show active API promotions for followed stores.
+              final active = allPromos.where((promo) {
+                return promo.isActiveAt(now);
               }).toList();
 
               // Sort: earliest ending first, fallback to newest
               active.sort((a, b) {
-                final da = a.data() as Map<String, dynamic>;
-                final db = b.data() as Map<String, dynamic>;
+                final aEnd = a.endsAt;
+                final bEnd = b.endsAt;
 
-                final aEnd = da['endsAt'];
-                final bEnd = db['endsAt'];
-
-                if (aEnd is Timestamp && bEnd is Timestamp) {
+                if (aEnd != null && bEnd != null) {
                   return aEnd.compareTo(bEnd);
                 }
-                if (aEnd is Timestamp) return -1;
-                if (bEnd is Timestamp) return 1;
+                if (aEnd != null) return -1;
+                if (bEnd != null) return 1;
 
-                final aStart = da['startsAt'];
-                final bStart = db['startsAt'];
-                if (aStart is Timestamp && bStart is Timestamp) {
-                  return bStart.compareTo(aStart); // newest first
+                if (a.startsAt != null && b.startsAt != null) {
+                  return b.startsAt!.compareTo(a.startsAt!); // newest first
                 }
                 return 0;
               });
 
               if (active.isEmpty) {
-                return const _EmptyState(
+                return _EmptyState(
                   title: 'No active promotions',
-                  subtitle: 'Your followed stores don’t have active promos right now.',
+                  subtitle: 'Checked ${result.checkedStoreCount} followed store ID${result.checkedStoreCount == 1 ? '' : 's'} through the backend and found ${allPromos.length} matching promo${allPromos.length == 1 ? '' : 's'}. Backend keys: ${result.backendKeysPreview}',
                   icon: Icons.local_offer_outlined,
                 );
               }
@@ -147,33 +131,25 @@ class PromotionsScreen extends StatelessWidget {
                 itemCount: active.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
-                  final doc = active[i];
-                  final data = doc.data() as Map<String, dynamic>;
-
-                  final storeId = (data['storeId'] ?? '').toString();
-                  final title = (data['title'] ?? 'Promotion').toString();
-                  final storeName = (data['storeName'] ?? 'Store').toString();
-                  final imageUrl = (data['imageUrl'] ?? '').toString();
-
-                  final endsAt = data['endsAt'];
-                  final endsText = (endsAt is Timestamp)
-                      ? _formatEnds(endsAt.toDate())
-                      : null;
+                  final promo = active[i];
+                  final endsText = promo.endsAt == null
+                      ? null
+                      : _formatEnds(promo.endsAt!);
 
                   return _PromoCard(
-                    title: title,
-                    storeName: storeName,
+                    title: promo.title,
+                    storeName: promo.storeName,
                     endsText: endsText,
-                    imageUrl: imageUrl.isNotEmpty ? imageUrl : null,
-                    onTap: storeId.trim().isEmpty
+                    imageUrl: promo.imageUrl,
+                    onTap: promo.storeId.trim().isEmpty
                         ? null
                         : () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => StoreProfileScreen(
-                            storeId: storeId,
-                            storeName: storeName,
+                            storeId: promo.storeId,
+                            storeName: promo.storeName,
                           ),
                         ),
                       );
@@ -188,58 +164,44 @@ class PromotionsScreen extends StatelessWidget {
     );
   }
 
-  /// Returns a single stream of docs by merging multiple `whereIn` queries.
-  Stream<List<QueryDocumentSnapshot>> _multiWhereInPromotionsStream(
-      List<String> storeIds,
-      ) async* {
-    final ids = List<String>.from(storeIds);
-    final chunks = <List<String>>[];
-
-    for (int i = 0; i < ids.length; i += _chunkSize) {
-      chunks.add(ids.sublist(i, (i + _chunkSize).clamp(0, ids.length)));
+  static List<String> _uniqueStoreIds(List<String> storeIds) {
+    final ids = <String>[];
+    final seen = <String>{};
+    for (final rawId in storeIds) {
+      final id = rawId.trim();
+      if (id.isEmpty) continue;
+      if (seen.add(id)) ids.add(id);
     }
+    return ids;
+  }
 
-    // Build each chunk stream
-    final streams = chunks.map((chunk) {
-      return FirebaseFirestore.instance
-          .collection('store_promotions')
-          .where('storeId', whereIn: chunk)
-          .snapshots()
-          .map((snap) => snap.docs);
-    }).toList();
+  static Future<_PromotionFetchResult> _fetchApiPromotions(List<String> storeIds) async {
+    final promos = <_Promotion>[];
+    final backendKeys = <String>{};
+    final uniqueStoreIds = _uniqueStoreIds(storeIds);
 
-    if (streams.isEmpty) {
-      yield <QueryDocumentSnapshot>[];
-      return;
-    }
-
-    // Merge streams manually (simple merge)
-    final latest = List<List<QueryDocumentSnapshot>>.filled(streams.length, []);
-    final subs = <StreamSubscription>[];
-    final controller = StreamController<List<QueryDocumentSnapshot>>();
-
-    void emit() {
-      final merged = <QueryDocumentSnapshot>[];
-      for (final list in latest) {
-        merged.addAll(list);
+    for (final storeId in uniqueStoreIds) {
+      final numericStoreId = int.tryParse(storeId);
+      if (numericStoreId == null) {
+        debugPrint('Promotions: skipped non-numeric backend store ID: $storeId');
+        continue;
       }
-      controller.add(merged);
+
+      try {
+        final data = await StoreApiService.fetchStoreById(numericStoreId);
+        backendKeys.addAll(data.keys.map((key) => key.toString()));
+        debugPrint('Promotions: backend store $storeId keys: ${data.keys.toList()}');
+        promos.addAll(_Promotion.fromApiStoreData(storeId, data));
+      } catch (e) {
+        debugPrint('Promotions: API promo fallback failed for $storeId: $e');
+      }
     }
-
-    for (int i = 0; i < streams.length; i++) {
-      final sub = streams[i].listen((docs) {
-        latest[i] = docs;
-        emit();
-      }, onError: controller.addError);
-      subs.add(sub);
-    }
-
-    yield* controller.stream;
-
-    // ignore: unreachable_from_main
-    // Clean-up (won’t run in typical Stateless usage, but correct)
-    // for (final s in subs) { await s.cancel(); }
-    // await controller.close();
+    debugPrint('Promotions: backend API promos: ${promos.length}');
+    return _PromotionFetchResult(
+      promotions: promos,
+      checkedStoreCount: uniqueStoreIds.length,
+      backendKeys: backendKeys.toList()..sort(),
+    );
   }
 
   static String _formatEnds(DateTime dt) {
@@ -439,5 +401,301 @@ class _EmptyState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _PromotionFetchResult {
+  final List<_Promotion> promotions;
+  final int checkedStoreCount;
+  final List<String> backendKeys;
+
+  const _PromotionFetchResult({
+    required this.promotions,
+    required this.checkedStoreCount,
+    required this.backendKeys,
+  });
+
+  String get backendKeysPreview {
+    if (backendKeys.isEmpty) return 'none';
+    final preview = backendKeys.take(10).join(', ');
+    return backendKeys.length > 10 ? '$preview...' : preview;
+  }
+}
+
+class _Promotion {
+  final String storeId;
+  final String storeName;
+  final String title;
+  final String? imageUrl;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final String status;
+  final String dedupeKey;
+
+  const _Promotion({
+    required this.storeId,
+    required this.storeName,
+    required this.title,
+    required this.imageUrl,
+    required this.startsAt,
+    required this.endsAt,
+    required this.status,
+    required this.dedupeKey,
+  });
+
+  factory _Promotion.fromMap(
+    Map<String, dynamic> data, {
+    required String fallbackStoreId,
+    required String fallbackDedupeKey,
+  }) {
+    final storeId = _stringValue(
+      data,
+      const ['storeId', 'vendorId', 'vendorid', 'store_id', 'vendor_id', 'storeID', 'vendorID'],
+      fallback: fallbackStoreId,
+    );
+
+    final title = _stringValue(
+      data,
+      const ['title', 'name', 'headline', 'description', 'promoTitle'],
+      fallback: 'Promotion',
+    );
+
+    final storeName = _stringValue(
+      data,
+      const ['storeName', 'vendorName', 'store_name', 'vendor_name'],
+      fallback: 'Store',
+    );
+
+    final imageUrl = _stringValue(
+      data,
+      const ['imageUrl', 'imageURL', 'image', 'photoUrl', 'photoURL', 'logoUrl'],
+      fallback: '',
+    );
+    final status = _stringValue(
+      data,
+      const ['status', 'state'],
+      fallback: '',
+    ).toLowerCase();
+
+    return _Promotion(
+      storeId: storeId,
+      storeName: storeName,
+      title: title,
+      imageUrl: imageUrl.isEmpty ? null : imageUrl,
+      startsAt: _dateValue(data, const ['startsAt', 'startAt', 'startDate', 'validFrom']),
+      endsAt: _dateValue(data, const ['endsAt', 'endAt', 'endDate', 'validUntil', 'expiresAt']),
+      status: status,
+      dedupeKey: fallbackDedupeKey,
+    );
+  }
+
+  bool isActiveAt(DateTime now) {
+    if (status.isNotEmpty && status != 'active') return false;
+    if (startsAt != null && startsAt!.isAfter(now)) return false;
+    if (endsAt != null && !endsAt!.isAfter(now)) return false;
+    return true;
+  }
+
+  static List<_Promotion> fromApiStoreData(
+    String storeId,
+    Map<String, dynamic> storeData,
+  ) {
+    final storeName = _stringValue(
+      storeData,
+      const ['storeName', 'vendorName', 'vendorBusinessName', 'name'],
+      fallback: 'Store',
+    );
+    final storeLogoUrl = _stringValue(
+      storeData,
+      const ['logoUrl', 'vendorLogoUrl', 'storeLogoUrl', 'logo'],
+      fallback: '',
+    );
+
+    final promos = <_Promotion>[];
+    final seen = <String>{};
+
+    for (final key in const [
+      'activePromotions',
+      'promotions',
+      'deals',
+      'offers',
+      'discounts',
+    ]) {
+      _collectApiPromotions(
+        node: storeData[key],
+        storeId: storeId,
+        storeName: storeName,
+        storeLogoUrl: storeLogoUrl,
+        promos: promos,
+        seen: seen,
+        path: 'store.$key',
+        depth: 0,
+        forceParse: true,
+      );
+    }
+
+    if (promos.isEmpty) {
+      _collectApiPromotions(
+        node: storeData,
+        storeId: storeId,
+        storeName: storeName,
+        storeLogoUrl: storeLogoUrl,
+        promos: promos,
+        seen: seen,
+        path: 'store',
+        depth: 0,
+        forceParse: false,
+      );
+    }
+
+    return promos;
+  }
+
+  static void _collectApiPromotions({
+    required dynamic node,
+    required String storeId,
+    required String storeName,
+    required String storeLogoUrl,
+    required List<_Promotion> promos,
+    required Set<String> seen,
+    required String path,
+    required int depth,
+    required bool forceParse,
+  }) {
+    if (depth > 6 || node == null) return;
+
+    if (node is List) {
+      for (int i = 0; i < node.length; i++) {
+        _collectApiPromotions(
+          node: node[i],
+          storeId: storeId,
+          storeName: storeName,
+          storeLogoUrl: storeLogoUrl,
+          promos: promos,
+          seen: seen,
+          path: '$path[$i]',
+          depth: depth + 1,
+          forceParse: forceParse,
+        );
+      }
+      return;
+    }
+
+    if (node is String) {
+      final title = node.trim();
+      if (forceParse && title.isNotEmpty) {
+        promos.add(
+          _Promotion(
+            storeId: storeId,
+            storeName: storeName,
+            title: title,
+            imageUrl: null,
+            startsAt: null,
+            endsAt: null,
+            status: '',
+            dedupeKey: 'api:$storeId:$path:$title',
+          ),
+        );
+      }
+      return;
+    }
+
+    if (node is! Map) return;
+
+    final data = Map<String, dynamic>.from(node);
+    final shouldParseThisMap = forceParse || _mapLooksLikePromotion(data);
+    if (shouldParseThisMap) {
+      data.putIfAbsent('storeId', () => storeId);
+      data.putIfAbsent('storeName', () => storeName);
+      if (storeLogoUrl.isNotEmpty) {
+        data.putIfAbsent('logoUrl', () => storeLogoUrl);
+      }
+      final id = _stringValue(
+        data,
+        const ['id', 'promotionId', 'promoId', 'campaignId'],
+        fallback: '',
+      );
+      final dedupeKey = id.isNotEmpty
+          ? 'api:$storeId:$id'
+          : 'api:$storeId:$path:${data.hashCode}';
+
+      if (seen.add(dedupeKey)) {
+        promos.add(
+          _Promotion.fromMap(
+            data,
+            fallbackStoreId: storeId,
+            fallbackDedupeKey: dedupeKey,
+          ),
+        );
+      }
+    }
+
+    data.forEach((key, value) {
+      final childForceParse = forceParse || _keyLooksLikePromotion(key);
+      _collectApiPromotions(
+        node: value,
+        storeId: storeId,
+        storeName: storeName,
+        storeLogoUrl: storeLogoUrl,
+        promos: promos,
+        seen: seen,
+        path: '$path.$key',
+        depth: depth + 1,
+        forceParse: childForceParse,
+      );
+    });
+  }
+
+  static bool _keyLooksLikePromotion(Object key) {
+    final text = key.toString().toLowerCase();
+    return text.contains('promo') ||
+        text.contains('deal') ||
+        text.contains('offer') ||
+        text.contains('discount') ||
+        text.contains('coupon') ||
+        text.contains('campaign') ||
+        text.contains('sale');
+  }
+
+  static bool _mapLooksLikePromotion(Map<String, dynamic> data) {
+    if (!data.keys.any(_keyLooksLikePromotion)) return false;
+    return data.keys.any((key) {
+      final text = key.toString().toLowerCase();
+      return text.contains('title') ||
+          text.contains('name') ||
+          text.contains('headline') ||
+          text.contains('description') ||
+          text.contains('message');
+    });
+  }
+
+  static String _stringValue(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    required String fallback,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return fallback;
+  }
+
+  static DateTime? _dateValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
   }
 }

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart'; // Added for GPS
 
 import 'package:easespotter/screens/store_profile_screen.dart';
+import 'package:easespotter/services/store_api_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -511,8 +512,8 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
       );
     }
 
-    // We fetch a chunk, compute distances locally, then sort.
-    // (Firestore cannot sort by computed distance.)
+    // We fetch candidate store IDs from the app database, then resolve
+    // coordinates from the Neon-backed store address API.
     final stream = FirebaseFirestore.instance
         .collection('stores')
         .limit(80)
@@ -530,82 +531,133 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
 
         if (!snap.hasData) return const _LoadingList();
 
-        final docs = snap.data!.docs;
+        return FutureBuilder<List<_NearbyStoreItem>>(
+          future: _loadNearbyStoresFromApi(pos, snap.data!.docs),
+          builder: (context, nearbySnap) {
+            if (nearbySnap.hasError) {
+              return _InfoCard(
+                title: 'Couldn’t load nearby stores',
+                subtitle: '${nearbySnap.error}',
+              );
+            }
 
-        final items = <_NearbyStoreItem>[];
+            if (!nearbySnap.hasData) return const _LoadingList();
 
-        for (final d in docs) {
-          final data = d.data() as Map<String, dynamic>;
+            final show = nearbySnap.data!;
+            if (show.isEmpty) {
+              return const _InfoCard(
+                title: 'No nearby stores yet',
+                subtitle: 'No store addresses with coordinates were found.',
+              );
+            }
+
+            return Column(
+              children: List.generate(show.length, (i) {
+                final s = show[i];
+
+                final km = s.meters / 1000.0;
+                final kmText = km < 1
+                    ? '${(s.meters).round()} m'
+                    : '${km.toStringAsFixed(1)} km';
+
+                final variant = (i % 3 == 0)
+                    ? _CardVariant.blue
+                    : (i % 3 == 1)
+                        ? _CardVariant.green
+                        : _CardVariant.purple;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _StoreRowCard(
+                    storeName: s.storeName,
+                    meta: kmText,
+                    variant: variant,
+                    logoUrl: s.logoUrl,
+                    onTap: () => widget.onOpenStore(
+                      storeId: s.storeId,
+                      storeName: s.storeName,
+                      logoUrl: s.logoUrl,
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<_NearbyStoreItem>> _loadNearbyStoresFromApi(
+    Position pos,
+    List<QueryDocumentSnapshot> docs,
+  ) async {
+    final items = <_NearbyStoreItem>[];
+
+    for (final d in docs) {
+      final data = d.data() as Map<String, dynamic>;
+      final storeId = _storeIdFromDoc(d, data);
+      final numericStoreId = int.tryParse(storeId);
+      if (numericStoreId == null) continue;
+
+      final fallbackName =
+          (data['name'] ?? data['vendorName'] ?? data['storeName'] ?? 'Store')
+              .toString();
+      final logoUrl =
+          (data['logoUrl'] ?? data['vendorLogoUrl'] ?? '').toString().trim();
+
+      try {
+        final addresses = await StoreApiService.fetchStoreAddresses(numericStoreId);
+        for (final address in addresses) {
+          final lat = _doubleValue(address['latitude']);
+          final lng = _doubleValue(address['longitude']);
+          if (lat == null || lng == null) continue;
 
           final storeName =
-              (data['name'] ?? data['vendorName'] ?? 'Store').toString();
-          final logoUrl =
-              (data['logoUrl'] ?? data['vendorLogoUrl'] ?? '').toString();
-
-          final geo = data['geo'];
-          if (geo is! GeoPoint) continue; // skip stores without geo
+              (address['label'] ??
+                      address['vendorName'] ??
+                      address['businessName'] ??
+                      fallbackName)
+                  .toString();
 
           final meters = Geolocator.distanceBetween(
             pos.latitude,
             pos.longitude,
-            geo.latitude,
-            geo.longitude,
+            lat,
+            lng,
           );
 
           items.add(
             _NearbyStoreItem(
-              storeId: d.id,
+              storeId: storeId,
               storeName: storeName,
               logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
               meters: meters,
             ),
           );
         }
+      } catch (e) {
+        debugPrint('Nearby stores: address lookup failed for $storeId: $e');
+      }
+    }
 
-        if (items.isEmpty) {
-          return const _InfoCard(
-            title: 'No nearby stores yet',
-            subtitle: '',
-          );
-        }
+    items.sort((a, b) => a.meters.compareTo(b.meters));
+    return items.take(10).toList();
+  }
 
-        items.sort((a, b) => a.meters.compareTo(b.meters));
+  String _storeIdFromDoc(DocumentSnapshot doc, Map<String, dynamic> data) {
+    return (data['storeId'] ??
+            data['vendorId'] ??
+            data['vendorid'] ??
+            doc.id)
+        .toString()
+        .trim();
+  }
 
-        final show = items.take(10).toList();
-
-        return Column(
-          children: List.generate(show.length, (i) {
-            final s = show[i];
-
-            final km = s.meters / 1000.0;
-            final kmText = km < 1
-                ? '${(s.meters).round()} m'
-                : '${km.toStringAsFixed(1)} km';
-
-            final variant = (i % 3 == 0)
-                ? _CardVariant.blue
-                : (i % 3 == 1)
-                    ? _CardVariant.green
-                    : _CardVariant.purple;
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _StoreRowCard(
-                storeName: s.storeName,
-                meta: kmText,
-                variant: variant,
-                logoUrl: s.logoUrl,
-                onTap: () => widget.onOpenStore(
-                  storeId: s.storeId,
-                  storeName: s.storeName,
-                  logoUrl: s.logoUrl,
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    );
+  double? _doubleValue(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.trim());
+    return null;
   }
 }
 
