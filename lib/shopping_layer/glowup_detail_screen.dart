@@ -29,24 +29,27 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
   }
 
   Future<void> _loadReactions() async {
-    final doc = await FirebaseFirestore.instance
-        .collection('glowups')
-        .doc(widget.glowUpId)
-        .get();
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('glowups')
+            .doc(widget.glowUpId)
+            .get();
 
     if (!doc.exists) return;
     final data = doc.data();
     if (data == null) return;
 
-    final List<String> serverLikedBy = (data['likedBy'] is Iterable)
-        ? List<String>.from(data['likedBy'])
-        : <String>[];
+    final List<String> serverLikedBy =
+        (data['likedBy'] is Iterable)
+            ? List<String>.from(data['likedBy'])
+            : <String>[];
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (mounted) {
       setState(() {
         likedBy = serverLikedBy;
-        isLiked = currentUser != null && serverLikedBy.contains(currentUser.uid);
+        isLiked =
+            currentUser != null && serverLikedBy.contains(currentUser.uid);
       });
     }
   }
@@ -55,8 +58,9 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final docRef =
-    FirebaseFirestore.instance.collection('glowups').doc(widget.glowUpId);
+    final docRef = FirebaseFirestore.instance
+        .collection('glowups')
+        .doc(widget.glowUpId);
 
     final wasLiked = isLiked;
     // Optimistic update
@@ -71,9 +75,13 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
 
     try {
       if (wasLiked) {
-        await docRef.update({'likedBy': FieldValue.arrayRemove([user.uid])});
+        await docRef.update({
+          'likedBy': FieldValue.arrayRemove([user.uid]),
+        });
       } else {
-        await docRef.update({'likedBy': FieldValue.arrayUnion([user.uid])});
+        await docRef.update({
+          'likedBy': FieldValue.arrayUnion([user.uid]),
+        });
       }
     } catch (_) {
       // Revert on error
@@ -94,9 +102,9 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
     final url = 'https://easespotter.com/glowup/${widget.glowUpId}';
     await Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Link copied to clipboard')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
     }
   }
 
@@ -133,17 +141,15 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
         systemOverlayStyle: SystemUiOverlayStyle.light,
         title: const Text(
           'Glow-Up Story',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('glowups')
-            .doc(widget.glowUpId)
-            .get(),
+        future:
+            FirebaseFirestore.instance
+                .collection('glowups')
+                .doc(widget.glowUpId)
+                .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -158,9 +164,10 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
           final description = (raw['description'] ?? '').toString();
           final authorUid = (raw['authorUid'] ?? '').toString();
           final hotness = (raw['hotness'] ?? 0) as int;
-          final createdAt = (raw['createdAt'] is Timestamp)
-              ? (raw['createdAt'] as Timestamp).toDate()
-              : null;
+          final createdAt =
+              (raw['createdAt'] is Timestamp)
+                  ? (raw['createdAt'] as Timestamp).toDate()
+                  : null;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -187,23 +194,27 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AttributionTag(uid: authorUid),
-                        ],
+                        children: [AttributionTag(uid: authorUid)],
                       ),
                     ),
                     const Spacer(),
                     if (createdAt != null)
                       Text(
                         _timeAgo(createdAt),
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                       ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   title.isEmpty ? 'Untitled Glow-Up' : title,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -227,7 +238,9 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
                               scale: isLiked ? 1.15 : 1.0,
                               duration: const Duration(milliseconds: 150),
                               child: Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                isLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
                                 color: isLiked ? Colors.red : Colors.grey,
                               ),
                             ),
@@ -235,29 +248,36 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
                           ),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 180),
-                            transitionBuilder: (child, anim) =>
-                                ScaleTransition(scale: anim, child: child),
+                            transitionBuilder:
+                                (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
                             child: Text(
                               '${likedBy.length}',
                               key: ValueKey<int>(likedBy.length),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (likedBy.isNotEmpty) ...[
                             const SizedBox(width: 6),
-                            AvatarStack(
-                              uids: likedBy,
-                              size: 22,
-                              overlap: 10,
-                            ),
+                            AvatarStack(uids: likedBy, size: 22, overlap: 10),
                           ],
                           if (hotness > 0) ...[
                             const SizedBox(width: 12),
-                            const Icon(FontAwesomeIcons.fire, color: Colors.orange, size: 20),
+                            const Icon(
+                              FontAwesomeIcons.fire,
+                              color: Colors.orange,
+                              size: 20,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               hotness.toString(),
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ],
@@ -274,10 +294,11 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
                       onPressed: () => _openCommentsSheet(authorUid),
                     ),
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .doc('glowups/${widget.glowUpId}')
-                          .collection('comments')
-                          .snapshots(),
+                      stream:
+                          FirebaseFirestore.instance
+                              .doc('glowups/${widget.glowUpId}')
+                              .collection('comments')
+                              .snapshots(),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData || snapshot.data!.size == 0) {
                           return const SizedBox.shrink();
@@ -287,7 +308,9 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
                           child: Text(
                             snapshot.data!.size.toString(),
                             style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         );
                       },
@@ -374,11 +397,7 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
             .collection('comments')
             .doc(replyingToCommentId)
             .collection('replies')
-            .add({
-          'uid': user.uid,
-          'text': text,
-          'createdAt': Timestamp.now(), 
-        });
+            .add({'uid': user.uid, 'text': text, 'createdAt': Timestamp.now()});
       }
 
       ctrl.clear();
@@ -424,7 +443,10 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
             padding: EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text('Comments', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Comments',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
             ),
           ),
           const Divider(height: 1),
@@ -451,10 +473,11 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => setState(() {
-                      replyingToCommentId = null;
-                      replyingToName = null;
-                    }),
+                    onPressed:
+                        () => setState(() {
+                          replyingToCommentId = null;
+                          replyingToName = null;
+                        }),
                     child: const Text('Cancel'),
                   ),
                 ],
@@ -466,26 +489,38 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
               left: 16,
               right: 10,
               top: 10,
-              bottom: 10 + MediaQuery.of(context).viewInsets.bottom,
+              bottom:
+                  22 +
+                  MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.of(context).viewPadding.bottom,
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-                        theme.brightness == Brightness.dark ? 0.35 : 0.6,
-                      ),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(
+                            alpha:
+                                theme.brightness == Brightness.dark
+                                    ? 0.35
+                                    : 0.6,
+                          ),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                        color: theme.dividerColor.withOpacity(0.7),
+                        color: theme.dividerColor.withValues(alpha: 0.7),
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     child: Row(
                       children: [
                         // ✅ Avatar restored
-                        ComposerAvatar(uid: FirebaseAuth.instance.currentUser?.uid),
+                        ComposerAvatar(
+                          uid: FirebaseAuth.instance.currentUser?.uid,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
@@ -494,12 +529,16 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                             minLines: 1,
                             maxLines: 4,
                             decoration: InputDecoration(
-                              hintText: replyingToCommentId == null
-                                  ? 'Leave a comment...'
-                                  : 'Write a reply...',
+                              hintText:
+                                  replyingToCommentId == null
+                                      ? 'Leave a comment...'
+                                      : 'Write a reply...',
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 0,
+                                vertical: 4,
+                              ),
                             ),
                           ),
                         ),
@@ -510,9 +549,17 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: sending ? null : send,
-                  icon: sending
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Icon(Icons.send, color: Theme.of(context).primaryColor),
+                  icon:
+                      sending
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : Icon(
+                            Icons.send,
+                            color: Theme.of(context).primaryColor,
+                          ),
                 ),
               ],
             ),

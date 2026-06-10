@@ -504,3 +504,56 @@ exports.onGlowUpReaction = onDocumentUpdated(
       }
     },
 );
+
+/**
+ * Trigger: Reel Like (Update on likedBy array)
+ */
+exports.onReelReaction = onDocumentUpdated(
+    "reels/{reelId}",
+    async (event) => {
+      const beforeData = event.data.before.data() || {};
+      const afterData = event.data.after.data() || {};
+
+      const beforeLikes = new Set(beforeData.likedBy || []);
+      const afterLikes = Array.isArray(afterData.likedBy) ?
+        afterData.likedBy :
+        [];
+
+      const addedUids = afterLikes.filter((uid) => !beforeLikes.has(uid));
+      if (addedUids.length === 0) return;
+
+      const ownerUid = afterData.authorUid || afterData.uid;
+      if (!ownerUid) return;
+
+      const batch = db.batch();
+      let hasWrites = false;
+
+      for (const actorUid of addedUids) {
+        if (actorUid === ownerUid) continue;
+
+        // eslint-disable-next-line no-await-in-loop
+        const actor = await getActorInfo(actorUid);
+        const ref = db.collection("users")
+            .doc(ownerUid)
+            .collection("notifications")
+            .doc();
+
+        batch.set(ref, {
+          type: "like",
+          actorUid: actorUid,
+          actorName: actor.name,
+          actorAvatarUrl: actor.avatarUrl,
+          itemType: "reel",
+          itemId: event.params.reelId,
+          message: `${actor.name} liked your reel`,
+          createdAt: FieldValue.serverTimestamp(),
+          isRead: false,
+        });
+        hasWrites = true;
+      }
+
+      if (hasWrites) {
+        await batch.commit();
+      }
+    },
+);

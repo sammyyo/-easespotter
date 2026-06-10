@@ -74,10 +74,11 @@ class RecipeDetailScreen extends StatelessWidget {
         ],
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('recipes')
-            .doc(recipeId)
-            .get(),
+        future:
+            FirebaseFirestore.instance
+                .collection('recipes')
+                .doc(recipeId)
+                .get(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -96,14 +97,18 @@ class RecipeDetailScreen extends StatelessWidget {
             final user = FirebaseAuth.instance.currentUser;
             if (user == null) return {};
 
-            final snap = await FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .collection('home_inventory')
-                .get();
+            final snap =
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .collection('home_inventory')
+                    .get();
 
             return snap.docs
-                .map((d) => (d.data()['name'] ?? '').toString().trim().toLowerCase())
+                .map(
+                  (d) =>
+                      (d.data()['name'] ?? '').toString().trim().toLowerCase(),
+                )
                 .where((s) => s.isNotEmpty)
                 .toSet();
           }
@@ -113,38 +118,44 @@ class RecipeDetailScreen extends StatelessWidget {
             required List<String> alreadyHaveNames,
           }) async {
             return (await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Already in your Home Inventory'),
-                content: Text(
-                  alreadyHaveCount == 1
-                      ? 'You already have: ${alreadyHaveNames.first}\n\nAdd it to your Grocery List anyway?'
-                      : 'You already have $alreadyHaveCount items.\n\nAdd them to your Grocery List anyway?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Skip owned'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Add anyway'),
-                  ),
-                ],
-              ),
-            )) ??
+                  context: context,
+                  builder:
+                      (ctx) => AlertDialog(
+                        title: const Text('Already in your Home Inventory'),
+                        content: Text(
+                          alreadyHaveCount == 1
+                              ? 'You already have: ${alreadyHaveNames.first}\n\nAdd it to your Grocery List anyway?'
+                              : 'You already have $alreadyHaveCount items.\n\nAdd them to your Grocery List anyway?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Skip owned'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Add anyway'),
+                          ),
+                        ],
+                      ),
+                )) ??
                 false;
           }
 
           Future<void> addIngredientsToGroceryList() async {
             final prefs = await SharedPreferences.getInstance();
             final storedJson = prefs.getString('grocery_list') ?? '[]';
-            final existingList = List<Map<String, dynamic>>.from(jsonDecode(storedJson));
+            final existingList = List<Map<String, dynamic>>.from(
+              jsonDecode(storedJson),
+            );
 
-            final existingNames = existingList
-                .map((e) => (e['title'] ?? '').toString().trim().toLowerCase())
-                .where((s) => s.isNotEmpty)
-                .toSet();
+            final existingNames =
+                existingList
+                    .map(
+                      (e) => (e['title'] ?? '').toString().trim().toLowerCase(),
+                    )
+                    .where((s) => s.isNotEmpty)
+                    .toSet();
 
             final inventoryNames = await getInventoryNamesLower();
 
@@ -194,33 +205,17 @@ class RecipeDetailScreen extends StatelessWidget {
 
             if (!context.mounted) return;
 
-            final nav = Navigator.of(context);
-            bool found = false;
-
-            nav.popUntil((route) {
-              if (route.settings.name == '/grocery-list') {
-                found = true;
-                return true;
-              }
-              return false;
-            });
-
-            if (found) {
-              GroceryListScreenController.switchTabAndRefresh?.call(
-                tabIndex: 1,
-                addedCount: addedCount,
-                recipeTitle: title.toString(),
-              );
-            } else {
-              nav.pushNamed('/grocery-list');
-              Future.microtask(() {
-                GroceryListScreenController.switchTabAndRefresh?.call(
-                  tabIndex: 1,
-                  addedCount: addedCount,
-                  recipeTitle: title.toString(),
-                );
-              });
-            }
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder:
+                    (_) => GroceryListScreen(
+                      initialViewIndex: 1,
+                      showBackButton: true,
+                      initialAddedCount: addedCount,
+                      initialRecipeTitle: title.toString(),
+                    ),
+              ),
+            );
           }
 
           final hasImage = imageUrl != null && imageUrl.toString().isNotEmpty;
@@ -268,9 +263,7 @@ class RecipeDetailScreen extends StatelessWidget {
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AttributionTag(uid: uid),
-                                ],
+                                children: [AttributionTag(uid: uid)],
                               ),
                             ),
                           ),
@@ -299,33 +292,41 @@ class RecipeDetailScreen extends StatelessWidget {
                         const SizedBox(height: 16),
                         Text(
                           description,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            height: 1.4,
-                          ),
+                          style: const TextStyle(fontSize: 16, height: 1.4),
                         ),
 
                         if (ingredients.isNotEmpty) ...[
                           const SizedBox(height: 18),
                           const Text(
                             'Ingredients',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           const SizedBox(height: 10),
-                          ...ingredients.map((i) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Text(
-                              '• ${(i['name'] ?? '').toString()}',
-                              style: const TextStyle(fontSize: 15, height: 1.3),
+                          ...ingredients.map(
+                            (i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '• ${(i['name'] ?? '').toString()}',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  height: 1.3,
+                                ),
+                              ),
                             ),
-                          )),
+                          ),
                         ],
 
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            icon: const Icon(Icons.playlist_add, color: Colors.white),
+                            icon: const Icon(
+                              Icons.playlist_add,
+                              color: Colors.white,
+                            ),
                             label: const Text(
                               "Make This → Add to Grocery List",
                               style: TextStyle(color: Colors.white),

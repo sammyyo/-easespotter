@@ -2058,9 +2058,74 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   }
 }
 
-class _StoreReviewsPreview extends StatelessWidget {
+class _StoreReviewsPreview extends StatefulWidget {
   final String uid;
   const _StoreReviewsPreview({required this.uid});
+
+  @override
+  State<_StoreReviewsPreview> createState() => _StoreReviewsPreviewState();
+}
+
+class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
+  final Set<String> _armedDeleteKeys = {};
+  final Map<String, double> _deleteDragProgress = {};
+
+  String _reviewDeleteKey(String reviewId) => 'store-review-$reviewId';
+
+  Widget _deleteBackground(String keyStr) {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isArmed ? Colors.red.shade700 : Colors.red.shade500,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isArmed ? Icons.delete_forever : Icons.delete_outline,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isArmed ? 'Release to delete' : 'Swipe again',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmReviewDismiss(String keyStr, String storeName) async {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+    final progress = _deleteDragProgress[keyStr] ?? 0;
+    final isFullSwipe = progress >= 0.85;
+
+    _deleteDragProgress.remove(keyStr);
+
+    if (isArmed || isFullSwipe) {
+      _armedDeleteKeys.remove(keyStr);
+      return true;
+    }
+
+    setState(() => _armedDeleteKeys.add(keyStr));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Swipe "$storeName" again to delete your review'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return false;
+  }
 
   Widget _safeAvatarImage({
     required double size,
@@ -2100,34 +2165,6 @@ class _StoreReviewsPreview extends StatelessWidget {
     required String storeId,
     required String userId,
   }) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Delete review?'),
-            content: const Text('This will permanently remove your review.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-    );
-
-    if (ok != true) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-
     try {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
@@ -2149,14 +2186,12 @@ class _StoreReviewsPreview extends StatelessWidget {
       await batch.commit();
 
       if (context.mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Review deleted')));
       }
     } catch (e) {
       if (context.mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
@@ -2182,11 +2217,11 @@ class _StoreReviewsPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authUid = FirebaseAuth.instance.currentUser?.uid;
-    final isMe = authUid != null && authUid == uid;
+    final isMe = authUid != null && authUid == widget.uid;
 
     final q = FirebaseFirestore.instance
         .collection('users')
-        .doc(uid)
+        .doc(widget.uid)
         .collection('store_reviews')
         .where('status', isEqualTo: 'published')
         .where('isPublic', isEqualTo: true)
@@ -2258,7 +2293,7 @@ class _StoreReviewsPreview extends StatelessWidget {
                         storeData,
                       );
 
-                      return Container(
+                      final reviewCard = Container(
                         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
@@ -2368,64 +2403,6 @@ class _StoreReviewsPreview extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    if (canDelete)
-                                      SizedBox(
-                                        height: 22,
-                                        width: 22,
-                                        child: PopupMenuButton<String>(
-                                          padding: EdgeInsets.zero,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                            side: BorderSide(
-                                              color: Colors.black.withOpacity(
-                                                0.12,
-                                              ),
-                                              width: 1,
-                                            ),
-                                          ),
-                                          color: Colors.white,
-                                          icon: const Icon(
-                                            Icons.more_horiz,
-                                            size: 18,
-                                            color: Colors.grey,
-                                          ),
-                                          onSelected: (v) async {
-                                            if (v == 'delete') {
-                                              await _deleteReview(
-                                                context,
-                                                reviewId: reviewId,
-                                                storeId: storeId,
-                                                userId: reviewUserId,
-                                              );
-                                            }
-                                          },
-                                          itemBuilder:
-                                              (_) => const [
-                                                PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.delete,
-                                                        size: 18,
-                                                        color: Colors.red,
-                                                      ),
-                                                      SizedBox(width: 10),
-                                                      Text(
-                                                        'Delete',
-                                                        style: TextStyle(
-                                                          color: Colors.black,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                        ),
-                                      ),
                                   ],
                                 ),
                               ],
@@ -2445,6 +2422,34 @@ class _StoreReviewsPreview extends StatelessWidget {
                             ],
                           ],
                         ),
+                      );
+
+                      if (!canDelete) return reviewCard;
+
+                      final deleteKey = _reviewDeleteKey(reviewId);
+                      return Dismissible(
+                        key: ValueKey(deleteKey),
+                        direction: DismissDirection.endToStart,
+                        dismissThresholds: const {
+                          DismissDirection.endToStart: 0.35,
+                        },
+                        background: _deleteBackground(deleteKey),
+                        confirmDismiss:
+                            (_) => _confirmReviewDismiss(deleteKey, storeName),
+                        onUpdate: (details) {
+                          final current = _deleteDragProgress[deleteKey] ?? 0;
+                          if (details.progress > current) {
+                            _deleteDragProgress[deleteKey] = details.progress;
+                          }
+                        },
+                        onDismissed:
+                            (_) => _deleteReview(
+                              context,
+                              reviewId: reviewId,
+                              storeId: storeId,
+                              userId: reviewUserId,
+                            ),
+                        child: reviewCard,
                       );
                     },
                   );

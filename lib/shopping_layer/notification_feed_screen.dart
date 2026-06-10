@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'reels_feed_screen.dart';
+
 class NotificationCenterScreen extends StatelessWidget {
   const NotificationCenterScreen({super.key});
 
@@ -41,6 +43,7 @@ class NotificationCenterScreen extends StatelessWidget {
 
   IconData _iconForType(String? type) {
     switch (type) {
+      case "like":
       case "reaction":
         return Icons.favorite;
       case "comment":
@@ -58,17 +61,16 @@ class NotificationCenterScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      return const Scaffold(
-        body: Center(child: Text("Not logged in")),
-      );
+      return const Scaffold(body: Center(child: Text("Not logged in")));
     }
 
-    final notifStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('notifications')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    final notifStream =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('notifications')
+            .orderBy('createdAt', descending: true)
+            .snapshots();
 
     return Scaffold(
       appBar: AppBar(
@@ -101,10 +103,11 @@ class NotificationCenterScreen extends StatelessWidget {
           }
 
           // unread count (for header)
-          final unreadCount = docs.where((d) {
-            final data = d.data() as Map<String, dynamic>;
-            return (data['isRead'] as bool?) == false;
-          }).length;
+          final unreadCount =
+              docs.where((d) {
+                final data = d.data() as Map<String, dynamic>;
+                return (data['isRead'] as bool?) == false;
+              }).length;
 
           return Column(
             children: [
@@ -119,13 +122,18 @@ class NotificationCenterScreen extends StatelessWidget {
                       height: 10,
                       width: 10,
                       decoration: BoxDecoration(
-                        color: unreadCount > 0 ? Colors.deepPurple : Colors.grey.shade400,
+                        color:
+                            unreadCount > 0
+                                ? Colors.deepPurple
+                                : Colors.grey.shade400,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      unreadCount > 0 ? "Unread ($unreadCount)" : "All caught up",
+                      unreadCount > 0
+                          ? "Unread ($unreadCount)"
+                          : "All caught up",
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: Colors.grey.shade900,
@@ -150,7 +158,8 @@ class NotificationCenterScreen extends StatelessWidget {
                     final type = data['type'] as String?;
                     final actorName = (data['actorName'] as String?) ?? "";
                     final actorAvatarUrl = data['actorAvatarUrl'] as String?;
-                    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                    final createdAt =
+                        (data['createdAt'] as Timestamp?)?.toDate();
 
                     final leadingIcon = _iconForType(type);
                     final timeLabel = _timeAgo(createdAt);
@@ -182,7 +191,9 @@ class NotificationCenterScreen extends StatelessWidget {
                         try {
                           await _deleteNotification(uid, doc.id);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Notification deleted")),
+                            const SnackBar(
+                              content: Text("Notification deleted"),
+                            ),
                           );
                           return true;
                         } catch (e) {
@@ -193,7 +204,8 @@ class NotificationCenterScreen extends StatelessWidget {
                         }
                       },
                       child: Container(
-                        color: isRead ? Colors.white : Colors.deepPurple.shade50,
+                        color:
+                            isRead ? Colors.white : Colors.deepPurple.shade50,
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
                           onTap: () async {
@@ -203,20 +215,45 @@ class NotificationCenterScreen extends StatelessWidget {
                                 await _markAsRead(uid, doc.id);
                               } catch (_) {}
                             }
-                            // Later we can route user based on itemType/itemId
+
+                            final itemType = data['itemType'] as String?;
+                            final itemId = data['itemId'] as String?;
+                            if (itemType == 'reel' &&
+                                itemId != null &&
+                                itemId.trim().isNotEmpty &&
+                                context.mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => ReelsFeedScreen(
+                                        authorUid: uid,
+                                        initialReelId: itemId,
+                                        includePrivate: true,
+                                      ),
+                                ),
+                              );
+                            }
                           },
                           leading: Stack(
                             clipBehavior: Clip.none,
                             children: [
                               CircleAvatar(
                                 radius: 22,
-                                backgroundColor: Colors.deepPurple.withOpacity(0.12),
-                                backgroundImage: actorAvatarUrl != null
-                                    ? NetworkImage(actorAvatarUrl)
-                                    : null,
-                                child: actorAvatarUrl == null
-                                    ? Icon(leadingIcon, color: Colors.deepPurple)
-                                    : null,
+                                backgroundColor: Colors.deepPurple.withOpacity(
+                                  0.12,
+                                ),
+                                backgroundImage:
+                                    actorAvatarUrl != null
+                                        ? NetworkImage(actorAvatarUrl)
+                                        : null,
+                                child:
+                                    actorAvatarUrl == null
+                                        ? Icon(
+                                          leadingIcon,
+                                          color: Colors.deepPurple,
+                                        )
+                                        : null,
                               ),
                               // unread dot (top-right)
                               if (!isRead)
@@ -229,7 +266,10 @@ class NotificationCenterScreen extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       color: Colors.deepPurple,
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 2),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -240,7 +280,8 @@ class NotificationCenterScreen extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                              fontWeight:
+                                  isRead ? FontWeight.w600 : FontWeight.w800,
                               color: Colors.grey.shade900,
                             ),
                           ),
@@ -283,27 +324,28 @@ class NotificationCenterScreen extends StatelessWidget {
                                 } catch (_) {}
                               }
                             },
-                            itemBuilder: (_) => [
-                              if (!isRead)
-                                const PopupMenuItem(
-                                  value: "read",
-                                  child: Text("Mark as read"),
-                                ),
-                              const PopupMenuItem(
-                                value: "delete",
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.delete,
-                                      size: 18,
-                                      color: Colors.red,
+                            itemBuilder:
+                                (_) => [
+                                  if (!isRead)
+                                    const PopupMenuItem(
+                                      value: "read",
+                                      child: Text("Mark as read"),
                                     ),
-                                    SizedBox(width: 10),
-                                    Text("Delete"),
-                                  ],
-                                ),
-                              ),
-                            ],
+                                  const PopupMenuItem(
+                                    value: "delete",
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text("Delete"),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                           ),
                         ),
                       ),

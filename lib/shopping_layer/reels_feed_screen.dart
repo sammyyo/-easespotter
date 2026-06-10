@@ -1,13 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import '../services/grocery_list_service.dart';
 import '../widgets/comment_list.dart';
 import '../widgets/recipe_card/author_header.dart';
 import '../widgets/recipe_card/comments_panel.dart';
+import 'community_recipes_screen.dart';
 import 'new_reel_screen.dart';
+
+enum _ReelFeedMode { reels, following }
 
 class ReelsFeedScreen extends StatefulWidget {
   final String? authorUid;
@@ -28,13 +33,20 @@ class ReelsFeedScreen extends StatefulWidget {
 class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
   PageController? _pageController;
   String? _controllerKey;
+  _ReelFeedMode _mode = _ReelFeedMode.reels;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _reelsStream() {
+  Stream<QuerySnapshot<Map<String, dynamic>>> _reelsStream({
+    List<String>? followingUids,
+  }) {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
       'reels',
     );
 
-    if (widget.authorUid != null && widget.authorUid!.isNotEmpty) {
+    if (followingUids != null) {
+      query = query
+          .where('isPublic', isEqualTo: true)
+          .where('uid', whereIn: followingUids.take(10).toList());
+    } else if (widget.authorUid != null && widget.authorUid!.isNotEmpty) {
       query = query.where('uid', isEqualTo: widget.authorUid);
       if (!widget.includePrivate) {
         query = query.where('isPublic', isEqualTo: true);
@@ -44,6 +56,51 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
     }
 
     return query.orderBy('createdAt', descending: true).limit(30).snapshots();
+  }
+
+  Future<List<String>> _followingUids() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const [];
+
+    final snap =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final raw = snap.data()?['following'];
+    if (raw is! List) return const [];
+
+    return raw
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  void _resetPager() {
+    _controllerKey = null;
+    _pageController?.dispose();
+    _pageController = null;
+  }
+
+  void _showReels() {
+    if (_mode == _ReelFeedMode.reels) return;
+    setState(() {
+      _mode = _ReelFeedMode.reels;
+      _resetPager();
+    });
+  }
+
+  void _showFollowing() {
+    if (_mode == _ReelFeedMode.following) return;
+    setState(() {
+      _mode = _ReelFeedMode.following;
+      _resetPager();
+    });
+  }
+
+  void _openExplore() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CommunityRecipesScreen()),
+    );
   }
 
   PageController _controllerFor(List<QueryDocumentSnapshot> docs) {
@@ -74,82 +131,57 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F6FF),
-      appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
-        iconTheme: const IconThemeData(color: Colors.white),
-        centerTitle: true,
-        title: const Text(
-          'Reels',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'New Reel',
-            icon: const Icon(Icons.add_box_outlined, color: Colors.white),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NewReelScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _reelsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.deepPurple),
-            );
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 76,
-                      height: 76,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFEDE7FF),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.video_collection_outlined,
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      body:
+          _mode == _ReelFeedMode.following
+              ? FutureBuilder<List<String>>(
+                future: _followingUids(),
+                builder: (context, snapshot) {
+                  final following = snapshot.data ?? const [];
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
                         color: Colors.deepPurple,
-                        size: 34,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No reels yet.',
-                      style: TextStyle(
-                        color: Colors.deepPurple,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
+                    );
+                  }
+                  if (following.isEmpty) {
+                    return _emptyState('No following reels yet.');
+                  }
+                  return _feedStream(
+                    stream: _reelsStream(followingUids: following),
+                  );
+                },
+              )
+              : _feedStream(stream: _reelsStream()),
+    );
+  }
 
-          return DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFF8F6FF), Color(0xFFFFFFFF)],
-              ),
-            ),
-            child: PageView.builder(
+  Widget _feedStream({
+    required Stream<QuerySnapshot<Map<String, dynamic>>> stream,
+  }) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.deepPurple),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return _emptyState(
+            _mode == _ReelFeedMode.following
+                ? 'No following reels yet.'
+                : 'No reels yet.',
+          );
+        }
+
+        return Stack(
+          children: [
+            PageView.builder(
               controller: _controllerFor(docs),
               scrollDirection: Axis.vertical,
               itemCount: docs.length,
@@ -158,8 +190,189 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                 return _ReelPage(reelId: doc.id, data: doc.data());
               },
             ),
-          );
-        },
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                  child: Row(
+                    children: [
+                      _TopOverlayButton(
+                        tooltip: 'Back',
+                        icon: Icons.arrow_back,
+                        onPressed: () => Navigator.maybePop(context),
+                      ),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _ReelTabLabel(
+                              label: 'Explore',
+                              onTap: _openExplore,
+                            ),
+                            const SizedBox(width: 24),
+                            _ReelTabLabel(
+                              label: 'Reels',
+                              selected: _mode == _ReelFeedMode.reels,
+                              onTap: _showReels,
+                            ),
+                            const SizedBox(width: 24),
+                            _ReelTabLabel(
+                              label: 'Following',
+                              selected: _mode == _ReelFeedMode.following,
+                              onTap: _showFollowing,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _TopOverlayButton(
+                        tooltip: 'New Reel',
+                        icon: Icons.add_circle_outline,
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NewReelScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _emptyState(String message) {
+    return Stack(
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 0, 0),
+              child: _TopOverlayButton(
+                tooltip: 'Back',
+                icon: Icons.arrow_back,
+                onPressed: () => Navigator.maybePop(context),
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEDE7FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.video_collection_outlined,
+                    color: Colors.deepPurple,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopOverlayButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _TopOverlayButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.30),
+      borderRadius: BorderRadius.circular(8),
+      child: IconButton(
+        tooltip: tooltip,
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _ReelTabLabel extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ReelTabLabel({
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: selected ? 1 : 0.82),
+                fontSize: 15,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 5),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              height: 2,
+              width: selected ? 28 : 0,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -177,7 +390,34 @@ class _ReelPage extends StatefulWidget {
 
 class _ReelPageState extends State<_ReelPage> {
   VideoPlayerController? _controller;
+  final GroceryListService _groceryList = GroceryListService();
   bool _isReady = false;
+  bool _groceryExpanded = false;
+  bool _savingGroceryItems = false;
+  bool _grocerySaved = false;
+  Set<int>? _selectedGroceryIndexes;
+
+  List<Map<String, dynamic>> get _groceryItems {
+    final raw = widget.data['groceryListItems'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  String get _groceryTitle {
+    return (widget.data['groceryListTitle'] ?? 'Grocery List')
+        .toString()
+        .trim();
+  }
+
+  bool get _isOwner {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final ownerUid =
+        (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+    return uid != null && uid == ownerUid;
+  }
 
   @override
   void initState() {
@@ -235,6 +475,266 @@ class _ReelPageState extends State<_ReelPage> {
     );
   }
 
+  void _saveReel() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Reel saved.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openShop() {
+    if (_groceryItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No grocery list attached to this reel.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() => _groceryExpanded = true);
+  }
+
+  void _openMoreActions() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.ios_share),
+                  title: const Text('Share Reel'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _shareReel();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.bookmark_border),
+                  title: const Text('Save Reel'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _saveReel();
+                  },
+                ),
+                if (_isOwner)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: Color(0xFFE94560),
+                    ),
+                    title: const Text(
+                      'Delete Reel',
+                      style: TextStyle(color: Color(0xFFE94560)),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _confirmDeleteReel();
+                    },
+                  ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _confirmDeleteReel() async {
+    if (!_isOwner) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete reel?'),
+            content: const Text(
+              'This will permanently remove the reel, its video, and comments.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFE94560),
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+
+    if (ok != true || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await _controller?.pause();
+      await _deleteReelCascade();
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Reel deleted.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not delete reel: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteReelCascade() async {
+    final reelRef = FirebaseFirestore.instance
+        .collection('reels')
+        .doc(widget.reelId);
+
+    const pageSize = 300;
+    while (true) {
+      final comments =
+          await reelRef.collection('comments').limit(pageSize).get();
+      if (comments.docs.isEmpty) break;
+
+      for (final comment in comments.docs) {
+        while (true) {
+          final replies =
+              await comment.reference
+                  .collection('replies')
+                  .limit(pageSize)
+                  .get();
+          if (replies.docs.isEmpty) break;
+
+          final replyBatch = FirebaseFirestore.instance.batch();
+          for (final reply in replies.docs) {
+            replyBatch.delete(reply.reference);
+          }
+          await replyBatch.commit();
+        }
+      }
+
+      final commentBatch = FirebaseFirestore.instance.batch();
+      for (final comment in comments.docs) {
+        commentBatch.delete(comment.reference);
+      }
+      await commentBatch.commit();
+    }
+
+    await reelRef.delete();
+
+    final storagePath = (widget.data['storagePath'] ?? '').toString().trim();
+    final videoUrl = (widget.data['videoUrl'] ?? '').toString().trim();
+    try {
+      if (storagePath.isNotEmpty) {
+        await FirebaseStorage.instance.ref(storagePath).delete();
+      } else if (videoUrl.isNotEmpty) {
+        await FirebaseStorage.instance.refFromURL(videoUrl).delete();
+      }
+    } on FirebaseException catch (e) {
+      if (e.code != 'object-not-found') rethrow;
+    }
+  }
+
+  Future<void> _saveSelectedGroceryItems() async {
+    final selected = _selectedGroceryIndexes ?? _defaultGrocerySelection();
+    final sourceItems = _groceryItems;
+    if (sourceItems.isEmpty || selected.isEmpty || _savingGroceryItems) return;
+
+    setState(() => _savingGroceryItems = true);
+
+    try {
+      final existing = await _groceryList.getList();
+      final existingNames =
+          existing
+              .map(
+                (item) => (item['title'] ?? '').toString().trim().toLowerCase(),
+              )
+              .where((name) => name.isNotEmpty)
+              .toSet();
+
+      int added = 0;
+      for (final index in selected) {
+        if (index < 0 || index >= sourceItems.length) continue;
+        final source = sourceItems[index];
+        final title =
+            (source['title'] ?? source['name'] ?? '').toString().trim();
+        if (title.isEmpty) continue;
+
+        final key = title.toLowerCase();
+        if (existingNames.contains(key)) continue;
+
+        existing.add({
+          ...source,
+          'title': title,
+          'checked': false,
+          'category': (source['category'] ?? 'General').toString(),
+          'quantity': source['quantity'] ?? 1,
+          'unitPrice': source['unitPrice'] ?? 0.0,
+          'price': source['price'] ?? 0.0,
+          'source': 'reel',
+          'reelId': widget.reelId,
+          'reelTitle': (widget.data['title'] ?? '').toString(),
+        });
+        existingNames.add(key);
+        added++;
+      }
+
+      if (added > 0) {
+        await _groceryList.saveList(existing);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _savingGroceryItems = false;
+        _grocerySaved = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            added == 0
+                ? 'Those items are already in your Grocery List.'
+                : 'Added $added item${added == 1 ? '' : 's'} to your Grocery List.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingGroceryItems = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save list: $e')));
+    }
+  }
+
+  Set<int> _defaultGrocerySelection() {
+    return Set<int>.from(
+      List<int>.generate(_groceryItems.length, (index) => index),
+    );
+  }
+
+  Set<int> _currentGrocerySelection() {
+    _selectedGroceryIndexes ??= _defaultGrocerySelection();
+    return _selectedGroceryIndexes!;
+  }
+
   void _openCommentsSheet() {
     showModalBottomSheet(
       context: context,
@@ -271,114 +771,144 @@ class _ReelPageState extends State<_ReelPage> {
         if (video == null) return;
         video.value.isPlaying ? video.pause() : video.play();
       },
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5DFFF)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.deepPurple.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black),
+          if (_isReady && controller != null)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width,
+                height: controller.value.size.height,
+                child: VideoPlayer(controller),
+              ),
+            )
+          else
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.42),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.78),
+                  ],
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Container(color: const Color(0xFF141018)),
-                  if (_isReady && controller != null)
-                    Center(
-                      child: AspectRatio(
-                        aspectRatio: controller.value.aspectRatio,
-                        child: VideoPlayer(controller),
-                      ),
-                    )
-                  else
-                    const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                  Positioned.fill(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.12),
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.72),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    right: 88,
-                    bottom: 24,
-                    child: _ReelTextOverlay(data: widget.data),
-                  ),
-                  Positioned(
-                    right: 14,
-                    bottom: 42,
-                    child: Column(
-                      children: [
-                        _ReelActionButton(
-                          tooltip: 'Like',
-                          icon:
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                          iconColor:
-                              isLiked
-                                  ? const Color(0xFFE94560)
-                                  : Colors.deepPurple,
-                          onPressed: _toggleLike,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          likes.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _ReelActionButton(
-                          tooltip: 'Comments',
-                          icon: Icons.mode_comment_outlined,
-                          iconColor: Colors.deepPurple,
-                          onPressed: _openCommentsSheet,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          commentsCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        _ReelActionButton(
-                          tooltip: 'Share',
-                          icon: Icons.ios_share,
-                          iconColor: Colors.deepPurple,
-                          onPressed: _shareReel,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
-        ),
+          Positioned(
+            left: 16,
+            right: 88,
+            bottom: 26 + MediaQuery.of(context).padding.bottom,
+            child: _ReelTextOverlay(data: widget.data),
+          ),
+          if (_groceryItems.isNotEmpty)
+            Positioned(
+              left: 14,
+              right: _groceryExpanded ? 14 : 88,
+              bottom:
+                  (_groceryExpanded ? 16 : 132) +
+                  MediaQuery.of(context).padding.bottom,
+              child: _GroceryListOverlay(
+                title: _groceryTitle.isEmpty ? 'Grocery List' : _groceryTitle,
+                items: _groceryItems,
+                expanded: _groceryExpanded,
+                selectedIndexes: _currentGrocerySelection(),
+                saving: _savingGroceryItems,
+                saved: _grocerySaved,
+                onToggleExpanded:
+                    () => setState(() => _groceryExpanded = !_groceryExpanded),
+                onToggleItem: (index) {
+                  setState(() {
+                    final selected = _currentGrocerySelection();
+                    if (selected.contains(index)) {
+                      selected.remove(index);
+                    } else {
+                      selected.add(index);
+                    }
+                  });
+                },
+                onSave: _saveSelectedGroceryItems,
+              ),
+            ),
+          Positioned(
+            right: 14,
+            bottom: 42 + MediaQuery.of(context).padding.bottom,
+            child: Column(
+              children: [
+                _ReelActionButton(
+                  tooltip: 'Like',
+                  icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                  iconColor: isLiked ? const Color(0xFFFF4D67) : Colors.white,
+                  label: likes.toString(),
+                  onPressed: _toggleLike,
+                ),
+                const SizedBox(height: 12),
+                _ReelActionButton(
+                  tooltip: 'Comments',
+                  icon: Icons.mode_comment_outlined,
+                  iconColor: Colors.white,
+                  label: commentsCount.toString(),
+                  onPressed: _openCommentsSheet,
+                ),
+                const SizedBox(height: 12),
+                _ReelActionButton(
+                  tooltip: 'Save',
+                  icon: Icons.bookmark_border,
+                  iconColor: Colors.white,
+                  label: 'Save',
+                  onPressed: _saveReel,
+                ),
+                const SizedBox(height: 12),
+                _ReelActionButton(
+                  tooltip: 'Share',
+                  icon: Icons.ios_share,
+                  iconColor: Colors.white,
+                  label: 'Share',
+                  onPressed: _shareReel,
+                ),
+                _ReelActionButton(
+                  tooltip: 'Shop',
+                  icon: Icons.shopping_cart_outlined,
+                  iconColor: Colors.white,
+                  label: 'Shop',
+                  onPressed: _openShop,
+                ),
+                const SizedBox(height: 12),
+                _ReelActionButton(
+                  tooltip: 'More',
+                  icon: Icons.add_circle_outline,
+                  iconColor: Colors.white,
+                  label: 'More',
+                  onPressed: _openMoreActions,
+                ),
+              ],
+            ),
+          ),
+          if (_isReady && controller != null)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 8 + MediaQuery.of(context).padding.bottom,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: VideoProgressIndicator(
+                  controller,
+                  allowScrubbing: true,
+                  colors: const VideoProgressColors(
+                    playedColor: Color(0xFF6F3BFF),
+                    bufferedColor: Colors.white54,
+                    backgroundColor: Colors.white24,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -388,25 +918,48 @@ class _ReelActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final Color iconColor;
+  final String label;
   final VoidCallback onPressed;
 
   const _ReelActionButton({
     required this.tooltip,
     required this.icon,
     required this.iconColor,
+    required this.label,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      elevation: 2,
-      child: IconButton(
-        tooltip: tooltip,
-        icon: Icon(icon, color: iconColor),
-        onPressed: onPressed,
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onPressed,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: iconColor, size: 32),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                shadows: [
+                  Shadow(
+                    color: Colors.black54,
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -583,7 +1136,10 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
               left: 16,
               right: 10,
               top: 10,
-              bottom: 10 + MediaQuery.of(context).viewInsets.bottom,
+              bottom:
+                  22 +
+                  MediaQuery.of(context).viewInsets.bottom +
+                  MediaQuery.of(context).viewPadding.bottom,
             ),
             child: Row(
               children: [
@@ -652,6 +1208,235 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
   }
 }
 
+class _GroceryListOverlay extends StatelessWidget {
+  final String title;
+  final List<Map<String, dynamic>> items;
+  final bool expanded;
+  final Set<int> selectedIndexes;
+  final bool saving;
+  final bool saved;
+  final VoidCallback onToggleExpanded;
+  final ValueChanged<int> onToggleItem;
+  final VoidCallback onSave;
+
+  const _GroceryListOverlay({
+    required this.title,
+    required this.items,
+    required this.expanded,
+    required this.selectedIndexes,
+    required this.saving,
+    required this.saved,
+    required this.onToggleExpanded,
+    required this.onToggleItem,
+    required this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      height: expanded ? MediaQuery.of(context).size.height * 0.48 : 58,
+      decoration: BoxDecoration(
+        color:
+            expanded
+                ? Colors.white.withValues(alpha: 0.96)
+                : Colors.white.withValues(alpha: 0.20),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.24),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: expanded ? _expanded(context) : _collapsed(),
+    );
+  }
+
+  Widget _collapsed() {
+    return InkWell(
+      onTap: onToggleExpanded,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.shopping_bag_outlined,
+                color: Colors.deepPurple,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Ingredients List Attached (${items.length} items)',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'View & Save',
+                style: TextStyle(
+                  color: Colors.deepPurple,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _expanded(BuildContext context) {
+    final selectedCount = selectedIndexes.length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.checklist_rounded, color: Colors.deepPurple),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.deepPurple,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Collapse',
+                onPressed: onToggleExpanded,
+                icon: const Icon(Icons.keyboard_arrow_down),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: selectedCount == 0 || saving ? null : onSave,
+              icon:
+                  saving
+                      ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : Icon(
+                        saved ? Icons.check_circle : Icons.playlist_add_check,
+                      ),
+              label: Text(
+                saved ? 'Added to My Lists' : 'Add $selectedCount to My Lists',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    saved ? const Color(0xFF1B8A4B) : Colors.deepPurple,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(42),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 4),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              final name =
+                  (item['title'] ?? item['name'] ?? 'Item').toString().trim();
+              final location =
+                  (item['location'] ?? item['aisle'] ?? item['storeName'] ?? '')
+                      .toString()
+                      .trim();
+              final checked = selectedIndexes.contains(index);
+
+              return CheckboxListTile(
+                value: checked,
+                onChanged: (_) => onToggleItem(index),
+                dense: true,
+                controlAffinity: ListTileControlAffinity.leading,
+                activeColor: Colors.deepPurple,
+                title: Text(
+                  name.isEmpty ? 'Item' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle:
+                    location.isEmpty
+                        ? null
+                        : Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0EBFF),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              location,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.deepPurple,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ReelTextOverlay extends StatelessWidget {
   final Map<String, dynamic> data;
 
@@ -662,43 +1447,129 @@ class _ReelTextOverlay extends StatelessWidget {
     final title = (data['title'] ?? 'Untitled reel').toString();
     final caption = (data['caption'] ?? '').toString();
     final uid = (data['uid'] ?? data['authorUid'] ?? '').toString();
+    final category =
+        (data['category'] ?? data['groceryListTitle'] ?? '').toString().trim();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: AuthorHeader(uid: uid),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        if (caption.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            caption,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              height: 1.3,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.30),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  textTheme: Theme.of(context).textTheme.apply(
+                    bodyColor: Colors.white,
+                    displayColor: Colors.white,
+                  ),
+                  colorScheme: Theme.of(context).colorScheme.copyWith(
+                    onSurface: Colors.white,
+                    secondary: Colors.white,
+                  ),
+                ),
+                child: DefaultTextStyle.merge(
+                  style: const TextStyle(color: Colors.white),
+                  child: IconTheme.merge(
+                    data: const IconThemeData(color: Colors.white),
+                    child: AuthorHeader(uid: uid),
+                  ),
+                ),
+              ),
             ),
+            const SizedBox(width: 8),
+            if (category.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFB020), Color(0xFFFF8A00)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFB020).withValues(alpha: 0.28),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.shopping_cart,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                    const SizedBox(width: 5),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 88),
+                      child: Text(
+                        category,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 270),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.26),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+              if (caption.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  caption,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }

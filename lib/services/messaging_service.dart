@@ -5,6 +5,9 @@ class MessagingService {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
+  static const friendOnlyMessage =
+      "You can only message people when you both follow each other.";
+
   // -----------------------------------
   // Conversation helpers
   // -----------------------------------
@@ -16,6 +19,10 @@ class MessagingService {
   Future<String> ensureConversation({required String otherUid}) async {
     final me = _auth.currentUser;
     if (me == null) throw Exception("Not signed in");
+    if (me.uid == otherUid) throw Exception("You cannot message yourself");
+
+    final areFriends = await canMessage(otherUid: otherUid);
+    if (!areFriends) throw Exception(friendOnlyMessage);
 
     final convoId = buildConversationId(me.uid, otherUid);
     final convoRef = _db.collection('conversations').doc(convoId);
@@ -23,10 +30,13 @@ class MessagingService {
     final existing = await convoRef.get();
     if (existing.exists) {
       final data = existing.data() ?? {};
-      final pm = (data['participantMap'] as Map?)?.cast<String, dynamic>() ?? {};
-      final participants = (data['participants'] as List?)?.cast<String>() ?? [];
+      final pm =
+          (data['participantMap'] as Map?)?.cast<String, dynamic>() ?? {};
+      final participants =
+          (data['participants'] as List?)?.cast<String>() ?? [];
 
-      final needsFix = pm[me.uid] != true ||
+      final needsFix =
+          pm[me.uid] != true ||
           pm[otherUid] != true ||
           !participants.contains(me.uid) ||
           !participants.contains(otherUid);
@@ -54,10 +64,16 @@ class MessagingService {
       "updatedAt": now,
     };
 
-    final myInboxRef =
-    _db.collection("users").doc(me.uid).collection("inbox").doc(convoId);
-    final otherInboxRef =
-    _db.collection("users").doc(otherUid).collection("inbox").doc(convoId);
+    final myInboxRef = _db
+        .collection("users")
+        .doc(me.uid)
+        .collection("inbox")
+        .doc(convoId);
+    final otherInboxRef = _db
+        .collection("users")
+        .doc(otherUid)
+        .collection("inbox")
+        .doc(convoId);
 
     final batch = _db.batch();
     batch.set(convoRef, convoData, SetOptions(merge: true));
@@ -101,20 +117,30 @@ class MessagingService {
 
     if (text.trim().isEmpty) return;
 
+    final areFriends = await canMessage(otherUid: otherUid);
+    if (!areFriends) throw Exception(friendOnlyMessage);
+
     final convoRef = _db.collection('conversations').doc(convoId);
     final doc = await convoRef.get();
     if (!doc.exists) {
       throw Exception(
-          "Conversation does not exist. Call ensureConversation() first.");
+        "Conversation does not exist. Call ensureConversation() first.",
+      );
     }
 
     final msgRef = convoRef.collection('messages').doc();
     final now = FieldValue.serverTimestamp();
 
-    final myInboxRef =
-    _db.collection('users').doc(myUid).collection('inbox').doc(convoId);
-    final otherInboxRef =
-    _db.collection('users').doc(otherUid).collection('inbox').doc(convoId);
+    final myInboxRef = _db
+        .collection('users')
+        .doc(myUid)
+        .collection('inbox')
+        .doc(convoId);
+    final otherInboxRef = _db
+        .collection('users')
+        .doc(otherUid)
+        .collection('inbox')
+        .doc(convoId);
 
     await _db.runTransaction((tx) async {
       // Conversation summary
@@ -173,6 +199,24 @@ class MessagingService {
     });
   }
 
+  Future<bool> canMessage({required String otherUid}) async {
+    final me = _auth.currentUser;
+    if (me == null || otherUid.trim().isEmpty || me.uid == otherUid) {
+      return false;
+    }
+
+    final myDoc = await _db.collection('users').doc(me.uid).get();
+    final otherDoc = await _db.collection('users').doc(otherUid).get();
+    final myFollowing = List<String>.from(
+      myDoc.data()?['following'] ?? const [],
+    );
+    final otherFollowing = List<String>.from(
+      otherDoc.data()?['following'] ?? const [],
+    );
+
+    return myFollowing.contains(otherUid) && otherFollowing.contains(me.uid);
+  }
+
   // -----------------------------------
   // Streams
   // -----------------------------------
@@ -227,11 +271,12 @@ class MessagingService {
         .doc(convoId)
         .collection('messages');
 
-    final snap = await msgsRef
-        .where('senderId', isEqualTo: otherUid)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    final snap =
+        await msgsRef
+            .where('senderId', isEqualTo: otherUid)
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
 
     if (snap.docs.isEmpty) return;
 
@@ -243,7 +288,7 @@ class MessagingService {
       if (seenBy[me.uid] == true) continue;
 
       batch.set(d.reference, {
-        'seenBy': {me.uid: true}
+        'seenBy': {me.uid: true},
       }, SetOptions(merge: true));
     }
 
@@ -277,9 +322,10 @@ class MessagingService {
       final data = snap.data() ?? {};
       final userReactions =
           (data['userReactions'] as Map?)?.cast<String, dynamic>() ?? {};
-      final current = (userReactions[uid] is String)
-          ? (userReactions[uid] as String).trim()
-          : '';
+      final current =
+          (userReactions[uid] is String)
+              ? (userReactions[uid] as String).trim()
+              : '';
 
       // remove if: removeOnly OR tapping same emoji
       final removing = removeOnly || (current.isNotEmpty && current == emoji);

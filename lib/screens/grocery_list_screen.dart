@@ -20,8 +20,17 @@ class GroceryListScreenController {
 
 class GroceryListScreen extends StatefulWidget {
   final int initialViewIndex; // 0 = My List, 1 = From Recipes
+  final bool showBackButton;
+  final int? initialAddedCount;
+  final String? initialRecipeTitle;
 
-  const GroceryListScreen({super.key, this.initialViewIndex = 0});
+  const GroceryListScreen({
+    super.key,
+    this.initialViewIndex = 0,
+    this.showBackButton = false,
+    this.initialAddedCount,
+    this.initialRecipeTitle,
+  });
 
   @override
   State<GroceryListScreen> createState() => _GroceryListScreenState();
@@ -101,6 +110,25 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     _signInAnonymously();
     _scrollController = ScrollController();
     _scrollController.addListener(_handleScroll);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showInitialRecipeSnack();
+    });
+  }
+
+  void _showInitialRecipeSnack() {
+    final addedCount = widget.initialAddedCount;
+    if (!mounted || addedCount == null) return;
+
+    final recipeTitle = widget.initialRecipeTitle;
+    final msg =
+        addedCount == 0
+            ? "Nothing new was added."
+            : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -1565,6 +1593,13 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading:
+            widget.showBackButton
+                ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                )
+                : null,
         title: const Text(
           'Grocery List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),

@@ -10,12 +10,10 @@ import 'package:easespotter/services/messaging_service.dart';
 import 'package:easespotter/shopping_layer/chat_screen.dart';
 import 'package:easespotter/services/notification_service.dart';
 
-
 class PublicProfileWidget extends StatefulWidget {
   final String uid;
   final bool showTopCollaborators;
   final Map<String, dynamic>? initialProfileHint;
-
 
   const PublicProfileWidget({
     super.key,
@@ -24,42 +22,33 @@ class PublicProfileWidget extends StatefulWidget {
     this.initialProfileHint,
   });
 
-
   @override
   State<PublicProfileWidget> createState() => _PublicProfileWidgetState();
 }
 
-
 class _PublicProfileWidgetState extends State<PublicProfileWidget> {
   final currentUser = FirebaseAuth.instance.currentUser;
-
 
   late Future<ups.UserProfile?> _profileFuture;
   ups.UserProfile? _cachedProfile;
 
-
   late Stream<DocumentSnapshot> _userDocStream;
   late Stream<_FollowStats> _followStatsStream;
-
 
   // Top collaborators cache
   List<Map<String, dynamic>> _cachedTopCollaborators = [];
   bool _topLoading = true;
 
-
   // Profile avatar cache
   String? _lastAvatarUrl;
   ImageProvider? _avatarProvider;
-
 
   // Collaborator avatar cache
   final Map<String, ImageProvider> _collabAvatarProviders = {};
   final Map<String, String> _collabAvatarUrls = {};
 
-
   // Sticky widget cache to stop flicker on rebuilds
   late Widget _topSectionWidget;
-
 
   @override
   void initState() {
@@ -68,17 +57,14 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     _initForUid(widget.uid);
   }
 
-
   @override
   void didUpdateWidget(covariant PublicProfileWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-
 
     if (oldWidget.uid != widget.uid) {
       _initForUid(widget.uid);
       return;
     }
-
 
     if (!oldWidget.showTopCollaborators &&
         widget.showTopCollaborators &&
@@ -88,19 +74,18 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     }
   }
 
-
   void _initForUid(String uid) {
-    _cachedProfile = _profileFromHint(uid, widget.initialProfileHint) ??
+    _cachedProfile =
+        _profileFromHint(uid, widget.initialProfileHint) ??
         ups.UserProfile(uid: uid, displayName: 'User');
     _lastAvatarUrl = null;
     _avatarProvider = null;
 
-
     _collabAvatarProviders.clear();
     _collabAvatarUrls.clear();
 
-
-    _userDocStream = FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
+    _userDocStream =
+        FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
     _followStatsStream = _userDocStream
         .map((snap) {
           final data = (snap.data() as Map<String, dynamic>?) ?? {};
@@ -109,10 +94,11 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
             following: List<String>.from(data['following'] ?? const []),
           );
         })
-        .distinct((a, b) =>
-            _sameStringList(a.followers, b.followers) &&
-            _sameStringList(a.following, b.following));
-
+        .distinct(
+          (a, b) =>
+              _sameStringList(a.followers, b.followers) &&
+              _sameStringList(a.following, b.following),
+        );
 
     _profileFuture = ups.fetchUserProfile(uid);
     _profileFuture.then((profile) async {
@@ -122,14 +108,11 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       if (mounted) setState(() {});
     });
 
-
     _cachedTopCollaborators = [];
     _topLoading = widget.showTopCollaborators;
 
-
     // Immediately set a stable placeholder widget (same height always)
     _rebuildTopSectionWidget();
-
 
     if (widget.showTopCollaborators) {
       _loadTopCollaborators();
@@ -140,9 +123,8 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     if (hint == null) return null;
     final displayName = (hint['displayName'] ?? '').toString().trim();
     final avatarUrl = (hint['avatarUrl'] ?? '').toString().trim();
-    final handle = ((hint['socialHandle'] ?? hint['handle']) ?? '')
-        .toString()
-        .trim();
+    final handle =
+        ((hint['socialHandle'] ?? hint['handle']) ?? '').toString().trim();
     if (displayName.isEmpty && avatarUrl.isEmpty && handle.isEmpty) return null;
     return ups.UserProfile(
       uid: uid,
@@ -160,7 +142,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     return true;
   }
 
-
   void _rebuildTopSectionWidget() {
     // This creates the widget ONCE and reuses it until we call this again.
     // That stops flicker when build() is called repeatedly.
@@ -168,7 +149,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       _topSectionWidget = const SizedBox.shrink();
       return;
     }
-
 
     _topSectionWidget = RepaintBoundary(
       child: _TopCollaboratorsSection(
@@ -180,7 +160,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     );
   }
 
-
   Future<void> _maybePrecacheAvatar(String? avatarUrl) async {
     final url = (avatarUrl ?? '').trim();
     if (url.isEmpty || url.toLowerCase() == 'null' || !url.startsWith('http')) {
@@ -189,24 +168,19 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       return;
     }
 
-
     if (_lastAvatarUrl == url && _avatarProvider != null) return;
-
 
     _lastAvatarUrl = url;
     final provider = NetworkImage(url);
     _avatarProvider = provider;
-
 
     try {
       await precacheImage(provider, context);
     } catch (_) {}
   }
 
-
   Future<void> _loadTopCollaborators() async {
     if (!widget.showTopCollaborators) return;
-
 
     // Only flip to loading if we truly have nothing yet (avoids flashing)
     if (_cachedTopCollaborators.isEmpty) {
@@ -216,14 +190,11 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       });
     }
 
-
     try {
       final users = await _fetchTopCollaborators();
       await _precacheCollaboratorAvatars(users);
 
-
       if (!mounted) return;
-
 
       // If data didn’t change, do nothing (prevents rebuild churn)
       final same = _sameCollaborators(_cachedTopCollaborators, users);
@@ -234,7 +205,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
         });
         return;
       }
-
 
       setState(() {
         _cachedTopCollaborators = users;
@@ -250,24 +220,23 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     }
   }
 
-
-  bool _sameCollaborators(List<Map<String, dynamic>> a, List<Map<String, dynamic>> b) {
+  bool _sameCollaborators(
+    List<Map<String, dynamic>> a,
+    List<Map<String, dynamic>> b,
+  ) {
     if (a.length != b.length) return false;
     for (int i = 0; i < a.length; i++) {
       final auid = (a[i]['uid'] ?? '').toString();
       final buid = (b[i]['uid'] ?? '').toString();
       if (auid != buid) return false;
 
-
       final ac = (a[i]['count'] ?? 0).toString();
       final bc = (b[i]['count'] ?? 0).toString();
       if (ac != bc) return false;
 
-
       final aurl = (a[i]['avatarUrl'] ?? '').toString();
       final burl = (b[i]['avatarUrl'] ?? '').toString();
       if (aurl != burl) return false;
-
 
       final an = (a[i]['displayName'] ?? '').toString();
       final bn = (b[i]['displayName'] ?? '').toString();
@@ -276,41 +245,35 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     return true;
   }
 
-
-  Future<void> _precacheCollaboratorAvatars(List<Map<String, dynamic>> users) async {
+  Future<void> _precacheCollaboratorAvatars(
+    List<Map<String, dynamic>> users,
+  ) async {
     if (!mounted || users.isEmpty) return;
-
 
     final futures = <Future<void>>[];
     for (final user in users) {
       final uid = (user['uid'] ?? '').toString();
       if (uid.isEmpty) continue;
 
-
       final rawUrl = (user['avatarUrl'] ?? '').toString().trim();
       final url = (rawUrl.toLowerCase() == 'null') ? '' : rawUrl;
 
-
       if (url.isEmpty || !url.startsWith('http')) continue;
 
-
-      if (_collabAvatarUrls[uid] == url && _collabAvatarProviders[uid] != null) continue;
-
+      if (_collabAvatarUrls[uid] == url && _collabAvatarProviders[uid] != null)
+        continue;
 
       _collabAvatarUrls[uid] = url;
       final provider = NetworkImage(url);
       _collabAvatarProviders[uid] = provider;
 
-
       futures.add(precacheImage(provider, context).catchError((_) {}));
     }
-
 
     if (futures.isNotEmpty) {
       await Future.wait(futures);
     }
   }
-
 
   Future<void> _toggleFollow(bool isFollowing) async {
     if (currentUser == null) return;
@@ -320,17 +283,17 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     try {
       if (isFollowing) {
         await userRef.doc(currentUser!.uid).update({
-          'following': FieldValue.arrayRemove([widget.uid])
+          'following': FieldValue.arrayRemove([widget.uid]),
         });
         await userRef.doc(widget.uid).update({
-          'followers': FieldValue.arrayRemove([currentUser!.uid])
+          'followers': FieldValue.arrayRemove([currentUser!.uid]),
         });
       } else {
         await userRef.doc(currentUser!.uid).set({
-          'following': FieldValue.arrayUnion([widget.uid])
+          'following': FieldValue.arrayUnion([widget.uid]),
         }, SetOptions(merge: true));
         await userRef.doc(widget.uid).set({
-          'followers': FieldValue.arrayUnion([currentUser!.uid])
+          'followers': FieldValue.arrayUnion([currentUser!.uid]),
         }, SetOptions(merge: true));
 
         // Follow write succeeded. Notification failure should not surface as
@@ -351,12 +314,13 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update follow status: ${e.toString()}')),
+          SnackBar(
+            content: Text('Failed to update follow status: ${e.toString()}'),
+          ),
         );
       }
     }
   }
-
 
   Widget _buildMusicWidget(BuildContext context, String url) {
     final cleaned = url.trim();
@@ -381,13 +345,12 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     );
   }
 
-
   Future<List<Map<String, dynamic>>> _fetchTopCollaborators() async {
-    final query = await FirebaseFirestore.instance
-        .collection('grocery_shares')
-        .where('creatorUid', isEqualTo: widget.uid)
-        .get();
-
+    final query =
+        await FirebaseFirestore.instance
+            .collection('grocery_shares')
+            .where('creatorUid', isEqualTo: widget.uid)
+            .get();
 
     final Map<String, int> countMap = {};
     for (var doc in query.docs) {
@@ -398,14 +361,17 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       }
     }
 
-
-    final sorted = countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sorted =
+        countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final top = sorted.take(6);
-
 
     final List<Map<String, dynamic>> result = [];
     for (final entry in top) {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(entry.key).get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(entry.key)
+              .get();
       if (userDoc.exists) {
         final userData = userDoc.data()!;
         result.add({
@@ -419,11 +385,9 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     return result;
   }
 
-
   Widget _buildGridTile(Map<String, dynamic> user, {String? subtitle}) {
     final uid = (user['uid'] ?? '').toString();
     final provider = _collabAvatarProviders[uid];
-
 
     return RepaintBoundary(
       key: ValueKey('collab_tile_$uid'),
@@ -434,13 +398,14 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
             child: SizedBox(
               width: 48,
               height: 48,
-              child: provider != null
-                  ? Image(
-                image: provider,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-              )
-                  : const Icon(Icons.person, size: 20, color: Colors.grey),
+              child:
+                  provider != null
+                      ? Image(
+                        image: provider,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                      )
+                      : const Icon(Icons.person, size: 20, color: Colors.grey),
             ),
           ),
           const SizedBox(width: 6),
@@ -450,7 +415,10 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
               children: [
                 Text(
                   (user['displayName'] ?? 'Anonymous').toString(),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (subtitle != null)
@@ -467,7 +435,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     );
   }
 
-
   Widget _buildAvatar(double radius, bool hasAvatar) {
     if (!hasAvatar || _avatarProvider == null) {
       return CircleAvatar(
@@ -476,7 +443,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
         child: Icon(Icons.person, size: radius, color: Colors.white),
       );
     }
-
 
     return ClipOval(
       child: SizedBox(
@@ -491,11 +457,9 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final isOwner = currentUser != null && currentUser!.uid == widget.uid;
-
 
     // Root key makes Flutter keep the same element tree when parent rebuilds
     return KeyedSubtree(
@@ -505,30 +469,35 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
         initialData: _cachedProfile,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text("Error fetching profile: ${snapshot.error}"));
+            return Center(
+              child: Text("Error fetching profile: ${snapshot.error}"),
+            );
           }
 
-
-          final profile = snapshot.data ??
+          final profile =
+              snapshot.data ??
               _cachedProfile ??
               ups.UserProfile(uid: widget.uid, displayName: 'User');
-
 
           final hasAvatar = (profile.avatarUrl ?? '').trim().isNotEmpty;
           final accentColor = Colors.deepPurple;
 
-
-          final firstLink = (() {
-            for (final u in profile.profileUrls) {
-              final trimmed = u.trim();
-              if (trimmed.isNotEmpty) return trimmed;
-            }
-            return '';
-          })();
-
+          final firstLink =
+              (() {
+                for (final u in profile.profileUrls) {
+                  final trimmed = u.trim();
+                  if (trimmed.isNotEmpty) return trimmed;
+                }
+                return '';
+              })();
 
           return Padding(
-            padding: const EdgeInsets.only(top: 0, left: 5, right: 5, bottom: 0),
+            padding: const EdgeInsets.only(
+              top: 0,
+              left: 5,
+              right: 5,
+              bottom: 0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -559,16 +528,17 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                 ),
                               ),
 
-
                             // Followers/following stream stays small
                             StreamBuilder<_FollowStats>(
                               stream: _followStatsStream,
                               builder: (context, snap) {
-                                final followers = snap.data?.followers ?? const <String>[];
-                                final following = snap.data?.following ?? const <String>[];
-                                final isFollowing = currentUser != null &&
+                                final followers =
+                                    snap.data?.followers ?? const <String>[];
+                                final following =
+                                    snap.data?.following ?? const <String>[];
+                                final isFollowing =
+                                    currentUser != null &&
                                     followers.contains(currentUser!.uid);
-
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,10 +552,11 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (_) => FollowListScreen(
-                                                    userId: widget.uid,
-                                                    initialTabIndex: 0,
-                                                  ),
+                                                  builder:
+                                                      (_) => FollowListScreen(
+                                                        userId: widget.uid,
+                                                        initialTabIndex: 0,
+                                                      ),
                                                 ),
                                               );
                                             },
@@ -599,17 +570,21 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                           ),
                                           const Text(
                                             ' • ',
-                                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
                                           ),
                                           InkWell(
                                             onTap: () {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                  builder: (_) => FollowListScreen(
-                                                    userId: widget.uid,
-                                                    initialTabIndex: 1,
-                                                  ),
+                                                  builder:
+                                                      (_) => FollowListScreen(
+                                                        userId: widget.uid,
+                                                        initialTabIndex: 1,
+                                                      ),
                                                 ),
                                               );
                                             },
@@ -625,40 +600,52 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                       ),
                                     ),
 
-
                                     if (profile.bio?.isNotEmpty ?? false)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 6),
                                         child: Text(
                                           profile.bio!,
-                                          style: const TextStyle(color: Colors.black87),
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                          ),
                                         ),
                                       ),
-
 
                                     if (firstLink.isNotEmpty)
                                       Padding(
                                         padding: const EdgeInsets.only(top: 8),
                                         child: OutlinedButton.icon(
                                           onPressed: () async {
-                                            final link = firstLink.startsWith('http')
-                                                ? firstLink
-                                                : 'https://$firstLink';
+                                            final link =
+                                                firstLink.startsWith('http')
+                                                    ? firstLink
+                                                    : 'https://$firstLink';
                                             final uri = Uri.parse(link);
                                             if (await canLaunchUrl(uri)) {
-                                              await launchUrl(uri,
-                                                  mode: LaunchMode.externalApplication);
+                                              await launchUrl(
+                                                uri,
+                                                mode:
+                                                    LaunchMode
+                                                        .externalApplication,
+                                              );
                                             } else {
                                               if (mounted) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
                                                   const SnackBar(
-                                                    content: Text('Could not open link'),
+                                                    content: Text(
+                                                      'Could not open link',
+                                                    ),
                                                   ),
                                                 );
                                               }
                                             }
                                           },
-                                          icon: const Icon(Icons.link, size: 16),
+                                          icon: const Icon(
+                                            Icons.link,
+                                            size: 16,
+                                          ),
                                           label: Text(
                                             firstLink,
                                             maxLines: 1,
@@ -667,44 +654,64 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: accentColor,
                                             side: BorderSide(
-                                              color: accentColor.withOpacity(0.35),
+                                              color: accentColor.withOpacity(
+                                                0.35,
+                                              ),
                                             ),
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 10,
                                               horizontal: 12,
                                             ),
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(14),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
                                             ),
                                           ),
                                         ),
                                       ),
 
-
-                                    if (currentUser != null && currentUser!.uid != widget.uid)
+                                    if (currentUser != null &&
+                                        currentUser!.uid != widget.uid)
                                       Padding(
-                                        padding: const EdgeInsets.only(top: 12.0),
+                                        padding: const EdgeInsets.only(
+                                          top: 12.0,
+                                        ),
                                         child: Row(
                                           children: [
                                             Expanded(
                                               child: ElevatedButton.icon(
-                                                onPressed: () => _toggleFollow(isFollowing),
-                                                icon: Icon(isFollowing
-                                                    ? Icons.person_remove
-                                                    : Icons.person_add),
-                                                label:
-                                                Text(isFollowing ? 'Following' : 'Follow'),
+                                                onPressed:
+                                                    () => _toggleFollow(
+                                                      isFollowing,
+                                                    ),
+                                                icon: Icon(
+                                                  isFollowing
+                                                      ? Icons.person_remove
+                                                      : Icons.person_add,
+                                                ),
+                                                label: Text(
+                                                  isFollowing
+                                                      ? 'Following'
+                                                      : 'Follow',
+                                                ),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: isFollowing
-                                                      ? Colors.grey[300]
-                                                      : accentColor,
-                                                  foregroundColor: isFollowing
-                                                      ? Colors.black
-                                                      : Colors.white,
+                                                  backgroundColor:
+                                                      isFollowing
+                                                          ? Colors.grey[300]
+                                                          : accentColor,
+                                                  foregroundColor:
+                                                      isFollowing
+                                                          ? Colors.black
+                                                          : Colors.white,
                                                   padding:
-                                                  const EdgeInsets.symmetric(vertical: 12),
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(22),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          22,
+                                                        ),
                                                   ),
                                                   elevation: 0,
                                                 ),
@@ -715,44 +722,71 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                               child: OutlinedButton.icon(
                                                 onPressed: () async {
                                                   try {
-                                                    final convoId = await MessagingService()
-                                                        .ensureConversation(otherUid: widget.uid);
-                                                    if (!context.mounted) return;
-
+                                                    final convoId =
+                                                        await MessagingService()
+                                                            .ensureConversation(
+                                                              otherUid:
+                                                                  widget.uid,
+                                                            );
+                                                    if (!context.mounted) {
+                                                      return;
+                                                    }
 
                                                     Navigator.push(
                                                       context,
                                                       MaterialPageRoute(
-                                                        builder: (_) => ChatScreen(
-                                                          conversationId: convoId,
-                                                          otherUid: widget.uid,
-                                                          otherDisplayName: profile.displayName,
-                                                        ),
+                                                        builder:
+                                                            (_) => ChatScreen(
+                                                              conversationId:
+                                                                  convoId,
+                                                              otherUid:
+                                                                  widget.uid,
+                                                              otherDisplayName:
+                                                                  profile
+                                                                      .displayName,
+                                                            ),
                                                       ),
                                                     );
                                                   } catch (e) {
                                                     if (context.mounted) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                      final message = e
+                                                          .toString()
+                                                          .replaceFirst(
+                                                            'Exception: ',
+                                                            '',
+                                                          );
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
                                                         SnackBar(
-                                                          content:
-                                                          Text("Failed to start chat: $e"),
+                                                          content: Text(
+                                                            message,
+                                                          ),
                                                         ),
                                                       );
                                                     }
                                                   }
                                                 },
-                                                icon:
-                                                const Icon(Icons.mail_outline, size: 18),
+                                                icon: const Icon(
+                                                  Icons.mail_outline,
+                                                  size: 18,
+                                                ),
                                                 label: const Text("Message"),
                                                 style: OutlinedButton.styleFrom(
                                                   foregroundColor: accentColor,
                                                   side: BorderSide(
-                                                    color: accentColor.withOpacity(0.5),
+                                                    color: accentColor
+                                                        .withOpacity(0.5),
                                                   ),
                                                   padding:
-                                                  const EdgeInsets.symmetric(vertical: 12),
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 12,
+                                                      ),
                                                   shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(22),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          22,
+                                                        ),
                                                   ),
                                                 ),
                                               ),
@@ -771,22 +805,26 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                   ),
                 ),
 
-
                 if (isOwner) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 12.0),
                     child: SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                        ),
+                        onPressed:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfileScreen(),
+                              ),
+                            ),
                         icon: const Icon(Icons.edit, size: 18),
                         label: const Text('Edit Profile'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.deepPurple,
-                          side: BorderSide(color: Colors.deepPurple.withOpacity(0.5)),
+                          side: BorderSide(
+                            color: Colors.deepPurple.withOpacity(0.5),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(22),
@@ -798,7 +836,9 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                   const SizedBox(height: 6),
                 ],
 
-                if ((profile.musicUrl ?? '').trim().contains('spotify.com')) ...[
+                if ((profile.musicUrl ?? '').trim().contains(
+                  'spotify.com',
+                )) ...[
                   const SizedBox(height: 12),
                   const Text(
                     '🎧 My Mood Track',
@@ -807,7 +847,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                   const SizedBox(height: 4),
                   _buildMusicWidget(context, profile.musicUrl!),
                 ],
-
 
                 // Use the sticky cached widget (this is the main flicker fix)
                 if (widget.showTopCollaborators) ...[
@@ -829,16 +868,11 @@ class _FollowStats {
   final List<String> followers;
   final List<String> following;
 
-  const _FollowStats({
-    required this.followers,
-    required this.following,
-  });
+  const _FollowStats({required this.followers, required this.following});
 }
-
 
 class _ProfileSkeleton extends StatelessWidget {
   const _ProfileSkeleton();
-
 
   @override
   Widget build(BuildContext context) {
@@ -927,12 +961,11 @@ class _ProfileSkeleton extends StatelessWidget {
   }
 }
 
-
 class _TopCollaboratorsSection extends StatelessWidget {
   final bool loading;
   final List<Map<String, dynamic>> cached;
-  final Widget Function(Map<String, dynamic> user, {String? subtitle}) buildTile;
-
+  final Widget Function(Map<String, dynamic> user, {String? subtitle})
+  buildTile;
 
   const _TopCollaboratorsSection({
     super.key,
@@ -941,11 +974,9 @@ class _TopCollaboratorsSection extends StatelessWidget {
     required this.buildTile,
   });
 
-
   @override
   Widget build(BuildContext context) {
     const double reservedHeight = 156;
-
 
     if (cached.isNotEmpty) {
       return SizedBox(
@@ -972,7 +1003,6 @@ class _TopCollaboratorsSection extends StatelessWidget {
       );
     }
 
-
     if (loading) {
       return SizedBox(
         height: reservedHeight,
@@ -998,7 +1028,6 @@ class _TopCollaboratorsSection extends StatelessWidget {
         ),
       );
     }
-
 
     return const SizedBox(
       height: reservedHeight,

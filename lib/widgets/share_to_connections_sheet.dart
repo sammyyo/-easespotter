@@ -11,9 +11,9 @@ Future<void> showShareToConnectionsSheet(
 }) async {
   final me = FirebaseAuth.instance.currentUser;
   if (me == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sign in to share.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Sign in to share.')));
     return;
   }
 
@@ -50,28 +50,19 @@ class _ShareToConnectionsSheet extends StatefulWidget {
       _ShareToConnectionsSheetState();
 }
 
-class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
-    with SingleTickerProviderStateMixin {
+class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet> {
   final _messaging = MessagingService();
   final _db = FirebaseFirestore.instance;
   final Set<String> _sendingTo = {};
-  late final TabController _tabController;
-  late final Future<List<Map<String, dynamic>>> _followingUsersFuture;
+  late final Future<List<Map<String, dynamic>>> _friendsFuture;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _followingUsersFuture = _loadFollowingUsers();
+    _friendsFuture = _loadFriendUsers();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<List<Map<String, dynamic>>> _loadFollowingUsers() async {
+  Future<List<Map<String, dynamic>>> _loadFriendUsers() async {
     final snap = await _db.collection('users').doc(widget.myUid).get();
     final data = snap.data() ?? {};
     final following = List<String>.from(data['following'] ?? []);
@@ -86,34 +77,35 @@ class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
 
     final results = await Future.wait(
       chunks.map(
-        (chunk) => _db
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get(),
+        (chunk) =>
+            _db
+                .collection('users')
+                .where(FieldPath.documentId, whereIn: chunk)
+                .get(),
       ),
     );
 
     final users = <Map<String, dynamic>>[];
     for (final result in results) {
       for (final doc in result.docs) {
-        users.add({
-          'uid': doc.id,
-          ...doc.data(),
-        });
+        final userData = doc.data();
+        final followsMe = List<String>.from(
+          userData['following'] ?? const [],
+        ).contains(widget.myUid);
+        if (!followsMe) continue;
+
+        users.add({'uid': doc.id, ...userData});
       }
     }
     return users;
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _followersStream() {
-    return _db
-        .collection('users')
-        .where('following', arrayContains: widget.myUid)
-        .snapshots();
-  }
-
   Future<void> _sendShare(String otherUid) async {
     if (_sendingTo.contains(otherUid)) return;
+    final navigator = Navigator.of(context);
+    final localMessenger = ScaffoldMessenger.of(context);
+    final rootMessenger = ScaffoldMessenger.of(widget.rootContext);
+
     setState(() => _sendingTo.add(otherUid));
 
     try {
@@ -125,14 +117,15 @@ class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
       );
 
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(widget.rootContext).showSnackBar(
+      navigator.pop();
+      rootMessenger.showSnackBar(
         const SnackBar(content: Text('Shared in chat.')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Share failed: $e')),
+      final message = e.toString().replaceFirst('Exception: ', '');
+      localMessenger.showSnackBar(
+        SnackBar(content: Text('Share failed: $message')),
       );
     } finally {
       if (mounted) setState(() => _sendingTo.remove(otherUid));
@@ -155,50 +148,24 @@ class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
       ),
       title: Text(displayName),
       subtitle: handle.isNotEmpty ? Text('@$handle') : null,
-      trailing: _sendingTo.contains(uid)
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : TextButton(
-              onPressed: () => _sendShare(uid),
-              child: const Text('Send'),
-            ),
+      trailing:
+          _sendingTo.contains(uid)
+              ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+              : TextButton(
+                onPressed: () => _sendShare(uid),
+                child: const Text('Send'),
+              ),
       onTap: () => _sendShare(uid),
     );
   }
 
-  Widget _buildFollowersTab(ScrollController controller) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _followersStream(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return Center(child: Text('Error: ${snap.error}'));
-        }
-        final docs = snap.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return const Center(child: Text('No followers yet.'));
-        }
-        return ListView.separated(
-          controller: controller,
-          itemCount: docs.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final data = docs[i].data();
-            return _buildUserTile({'uid': docs[i].id, ...data});
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildFollowingTab(ScrollController controller) {
+  Widget _buildFriendsList(ScrollController controller) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _followingUsersFuture,
+      future: _friendsFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -208,7 +175,9 @@ class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
         }
         final users = snap.data ?? [];
         if (users.isEmpty) {
-          return const Center(child: Text('Not following anyone.'));
+          return const Center(
+            child: Text('No friends available to message yet.'),
+          );
         }
         return ListView.separated(
           controller: controller,
@@ -264,25 +233,7 @@ class _ShareToConnectionsSheetState extends State<_ShareToConnectionsSheet>
                   ],
                 ),
               ),
-              TabBar(
-                controller: _tabController,
-                labelColor: Colors.deepPurple,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: Colors.deepPurple,
-                tabs: const [
-                  Tab(text: 'Followers'),
-                  Tab(text: 'Following'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildFollowersTab(scrollController),
-                    _buildFollowingTab(scrollController),
-                  ],
-                ),
-              ),
+              Expanded(child: _buildFriendsList(scrollController)),
             ],
           ),
         );
