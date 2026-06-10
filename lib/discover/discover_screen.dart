@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart'; // Added for GPS
 
 import 'package:easespotter/screens/store_profile_screen.dart';
 import 'package:easespotter/services/store_api_service.dart';
+import 'package:easespotter/services/store_logo_service.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -40,11 +41,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StoreProfileScreen(
-          storeId: storeId,
-          storeName: storeName,
-          logoUrl: logoUrl,
-        ),
+        builder:
+            (_) => StoreProfileScreen(
+              storeId: storeId,
+              storeName: storeName,
+              logoUrl: logoUrl,
+            ),
       ),
     );
   }
@@ -110,73 +112,70 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
 
             Expanded(
-              child: _query.isNotEmpty
-                  ? _StoreSearchResults(
-                      query: _query,
-                      onOpenStore: _openStore,
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                      children: [
-                        const _SectionTitle(title: 'Trending stores'),
-                        const SizedBox(height: 10),
-                        _TrendingStoresList(
-                          onOpenStore: _openStore,
-                        ),
+              child:
+                  _query.isNotEmpty
+                      ? _StoreSearchResults(
+                        query: _query,
+                        onOpenStore: _openStore,
+                      )
+                      : ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        children: [
+                          const _SectionTitle(title: 'Trending stores'),
+                          const SizedBox(height: 10),
+                          _TrendingStoresList(onOpenStore: _openStore),
 
-                        // NEW: Nearby with GPS
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Nearby stores'),
-                        const SizedBox(height: 10),
-                        _NearbyGpsStoresList(
-                          onOpenStore: _openStore,
-                        ),
+                          // NEW: Nearby with GPS
+                          const SizedBox(height: 18),
+                          const _SectionTitle(title: 'Nearby stores'),
+                          const SizedBox(height: 10),
+                          _NearbyGpsStoresList(onOpenStore: _openStore),
 
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Nearby based on your visits'),
-                        const SizedBox(height: 10),
-                        if (uid == null)
-                          const _InfoCard(
-                            title: 'Sign in to see nearby stores',
-                            subtitle: 'Nearby is based on your store visits (no GPS).',
-                          )
-                        else
-                          _NearbyNoGpsList(
-                            uid: uid,
-                            onOpenStore: _openStore,
+                          const SizedBox(height: 18),
+                          const _SectionTitle(
+                            title: 'Nearby based on your visits',
                           ),
+                          const SizedBox(height: 10),
+                          if (uid == null)
+                            const _InfoCard(
+                              title: 'Sign in to see nearby stores',
+                              subtitle:
+                                  'Nearby is based on your store visits (no GPS).',
+                            )
+                          else
+                            _NearbyNoGpsList(uid: uid, onOpenStore: _openStore),
 
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Your followed stores'),
-                        const SizedBox(height: 10),
-                        if (uid == null)
-                          const _InfoCard(
-                            title: 'Sign in to see followed stores',
-                            subtitle:
-                                'Once signed in, you can follow stores and they’ll appear here.',
-                          )
-                        else
-                          _FollowedStoresList(
-                            uid: uid,
-                            onOpenStore: _openStore,
-                          ),
+                          const SizedBox(height: 18),
+                          const _SectionTitle(title: 'Your followed stores'),
+                          const SizedBox(height: 10),
+                          if (uid == null)
+                            const _InfoCard(
+                              title: 'Sign in to see followed stores',
+                              subtitle:
+                                  'Once signed in, you can follow stores and they’ll appear here.',
+                            )
+                          else
+                            _FollowedStoresList(
+                              uid: uid,
+                              onOpenStore: _openStore,
+                            ),
 
-                        const SizedBox(height: 18),
-                        const _SectionTitle(title: 'Recently visited'),
-                        const SizedBox(height: 10),
-                        if (uid == null)
-                          const _InfoCard(
-                            title: 'Sign in to see recent visits',
-                            subtitle:
-                                'Scan a store QR and your visits will show here.',
-                          )
-                        else
-                          _RecentVisitsList(
-                            uid: uid,
-                            onOpenStore: _openStore,
-                          ),
-                      ],
-                    ),
+                          const SizedBox(height: 18),
+                          const _SectionTitle(title: 'Recently visited'),
+                          const SizedBox(height: 10),
+                          if (uid == null)
+                            const _InfoCard(
+                              title: 'Sign in to see recent visits',
+                              subtitle:
+                                  'Scan a store QR and your visits will show here.',
+                            )
+                          else
+                            _RecentVisitsList(
+                              uid: uid,
+                              onOpenStore: _openStore,
+                            ),
+                        ],
+                      ),
             ),
           ],
         ),
@@ -209,12 +208,10 @@ class _StoreSearchResults extends StatelessWidget {
     required String storeId,
     required String storeName,
     String? logoUrl,
-  }) onOpenStore;
+  })
+  onOpenStore;
 
-  const _StoreSearchResults({
-    required this.query,
-    required this.onOpenStore,
-  });
+  const _StoreSearchResults({required this.query, required this.onOpenStore});
 
   @override
   Widget build(BuildContext context) {
@@ -222,10 +219,8 @@ class _StoreSearchResults extends StatelessWidget {
 
     // v1 = fetch a small set, filter locally (fast + simple)
     // Removed orderBy('updatedAt') for safety as per instruction
-    final stream = FirebaseFirestore.instance
-        .collection('stores')
-        .limit(80)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance.collection('stores').limit(80).snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -234,10 +229,7 @@ class _StoreSearchResults extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              _InfoCard(
-                title: 'Search error',
-                subtitle: '${snap.error}',
-              ),
+              _InfoCard(title: 'Search error', subtitle: '${snap.error}'),
             ],
           );
         }
@@ -246,21 +238,21 @@ class _StoreSearchResults extends StatelessWidget {
           // FIX: Removed 'const' before ListView
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: const [
-              _LoadingList(),
-            ],
+            children: const [_LoadingList()],
           );
         }
 
         final docs = snap.data!.docs;
 
-        final matches = docs.where((d) {
-          final data = (d.data() as Map<String, dynamic>);
-          final name = (data['name'] ?? data['vendorName'] ?? '')
-              .toString()
-              .toLowerCase();
-          return name.contains(q);
-        }).toList();
+        final matches =
+            docs.where((d) {
+              final data = (d.data() as Map<String, dynamic>);
+              final name =
+                  (data['name'] ?? data['vendorName'] ?? '')
+                      .toString()
+                      .toLowerCase();
+              return name.contains(q);
+            }).toList();
 
         if (matches.isEmpty) {
           return ListView(
@@ -304,12 +296,12 @@ class _StoreSearchResults extends StatelessWidget {
               final storeId = doc.id;
               final storeName =
                   (data['name'] ?? data['vendorName'] ?? 'Store').toString();
-              final logoUrl =
-                  (data['logoUrl'] ?? data['vendorLogoUrl'] ?? '').toString();
+              final logoUrl = StoreLogoService.resolveFromData(data);
 
-              final variant = (i % 3 == 0)
-                  ? _CardVariant.purple
-                  : (i % 3 == 1)
+              final variant =
+                  (i % 3 == 0)
+                      ? _CardVariant.purple
+                      : (i % 3 == 1)
                       ? _CardVariant.blue
                       : _CardVariant.green;
 
@@ -320,11 +312,12 @@ class _StoreSearchResults extends StatelessWidget {
                   meta: 'Store',
                   variant: variant,
                   logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                  onTap: () => onOpenStore(
-                    storeId: storeId,
-                    storeName: storeName,
-                    logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                  ),
+                  onTap:
+                      () => onOpenStore(
+                        storeId: storeId,
+                        storeName: storeName,
+                        logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+                      ),
                 ),
               );
             }),
@@ -337,22 +330,22 @@ class _StoreSearchResults extends StatelessWidget {
 
 class _TrendingStoresList extends StatelessWidget {
   final void Function({
-  required String storeId,
-  required String storeName,
-  String? logoUrl,
-  }) onOpenStore;
+    required String storeId,
+    required String storeName,
+    String? logoUrl,
+  })
+  onOpenStore;
 
-  const _TrendingStoresList({
-    required this.onOpenStore,
-  });
+  const _TrendingStoresList({required this.onOpenStore});
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .collection('stores')
-        .orderBy('updatedAt', descending: true)
-        .limit(6)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .collection('stores')
+            .orderBy('updatedAt', descending: true)
+            .limit(6)
+            .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -380,14 +373,16 @@ class _TrendingStoresList extends StatelessWidget {
           children: List.generate(docs.length, (i) {
             final data = docs[i].data() as Map<String, dynamic>;
             final storeId = docs[i].id;
-            final storeName = (data['name'] ?? data['vendorName'] ?? 'Store').toString();
-            final logoUrl = (data['logoUrl'] ?? data['vendorLogoUrl'] ?? '').toString();
+            final storeName =
+                (data['name'] ?? data['vendorName'] ?? 'Store').toString();
+            final logoUrl = StoreLogoService.resolveFromData(data);
 
-            final variant = (i % 3 == 0)
-                ? _CardVariant.orange
-                : (i % 3 == 1)
-                ? _CardVariant.pink
-                : _CardVariant.blue;
+            final variant =
+                (i % 3 == 0)
+                    ? _CardVariant.orange
+                    : (i % 3 == 1)
+                    ? _CardVariant.pink
+                    : _CardVariant.blue;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -396,11 +391,12 @@ class _TrendingStoresList extends StatelessWidget {
                 meta: null,
                 variant: variant,
                 logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                onTap: () => onOpenStore(
-                  storeId: storeId,
-                  storeName: storeName,
-                  logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                ),
+                onTap:
+                    () => onOpenStore(
+                      storeId: storeId,
+                      storeName: storeName,
+                      logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+                    ),
               ),
             );
           }),
@@ -416,11 +412,10 @@ class _NearbyGpsStoresList extends StatefulWidget {
     required String storeId,
     required String storeName,
     String? logoUrl,
-  }) onOpenStore;
+  })
+  onOpenStore;
 
-  const _NearbyGpsStoresList({
-    required this.onOpenStore,
-  });
+  const _NearbyGpsStoresList({required this.onOpenStore});
 
   @override
   State<_NearbyGpsStoresList> createState() => _NearbyGpsStoresListState();
@@ -448,7 +443,8 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
       if (!serviceEnabled) {
         setState(() {
           _loading = false;
-          _error = 'Location services are off. Turn them on to see nearby stores.';
+          _error =
+              'Location services are off. Turn them on to see nearby stores.';
         });
         return;
       }
@@ -498,10 +494,7 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
     if (_loading) return const _LoadingList();
 
     if (_error != null) {
-      return _InfoCard(
-        title: 'Nearby unavailable',
-        subtitle: _error!,
-      );
+      return _InfoCard(title: 'Nearby unavailable', subtitle: _error!);
     }
 
     final pos = _pos;
@@ -514,10 +507,8 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
 
     // We fetch candidate store IDs from the app database, then resolve
     // coordinates from the Neon-backed store address API.
-    final stream = FirebaseFirestore.instance
-        .collection('stores')
-        .limit(80)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance.collection('stores').limit(80).snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -556,13 +547,15 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
                 final s = show[i];
 
                 final km = s.meters / 1000.0;
-                final kmText = km < 1
-                    ? '${(s.meters).round()} m'
-                    : '${km.toStringAsFixed(1)} km';
+                final kmText =
+                    km < 1
+                        ? '${(s.meters).round()} m'
+                        : '${km.toStringAsFixed(1)} km';
 
-                final variant = (i % 3 == 0)
-                    ? _CardVariant.blue
-                    : (i % 3 == 1)
+                final variant =
+                    (i % 3 == 0)
+                        ? _CardVariant.blue
+                        : (i % 3 == 1)
                         ? _CardVariant.green
                         : _CardVariant.purple;
 
@@ -573,11 +566,12 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
                     meta: kmText,
                     variant: variant,
                     logoUrl: s.logoUrl,
-                    onTap: () => widget.onOpenStore(
-                      storeId: s.storeId,
-                      storeName: s.storeName,
-                      logoUrl: s.logoUrl,
-                    ),
+                    onTap:
+                        () => widget.onOpenStore(
+                          storeId: s.storeId,
+                          storeName: s.storeName,
+                          logoUrl: s.logoUrl,
+                        ),
                   ),
                 );
               }),
@@ -603,11 +597,12 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
       final fallbackName =
           (data['name'] ?? data['vendorName'] ?? data['storeName'] ?? 'Store')
               .toString();
-      final logoUrl =
-          (data['logoUrl'] ?? data['vendorLogoUrl'] ?? '').toString().trim();
+      final logoUrl = StoreLogoService.resolveFromData(data);
 
       try {
-        final addresses = await StoreApiService.fetchStoreAddresses(numericStoreId);
+        final addresses = await StoreApiService.fetchStoreAddresses(
+          numericStoreId,
+        );
         for (final address in addresses) {
           final lat = _doubleValue(address['latitude']);
           final lng = _doubleValue(address['longitude']);
@@ -646,10 +641,7 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
   }
 
   String _storeIdFromDoc(DocumentSnapshot doc, Map<String, dynamic> data) {
-    return (data['storeId'] ??
-            data['vendorId'] ??
-            data['vendorid'] ??
-            doc.id)
+    return (data['storeId'] ?? data['vendorId'] ?? data['vendorid'] ?? doc.id)
         .toString()
         .trim();
   }
@@ -678,25 +670,24 @@ class _NearbyStoreItem {
 class _NearbyNoGpsList extends StatelessWidget {
   final String uid;
   final void Function({
-  required String storeId,
-  required String storeName,
-  String? logoUrl,
-  }) onOpenStore;
+    required String storeId,
+    required String storeName,
+    String? logoUrl,
+  })
+  onOpenStore;
 
-  const _NearbyNoGpsList({
-    required this.uid,
-    required this.onOpenStore,
-  });
+  const _NearbyNoGpsList({required this.uid, required this.onOpenStore});
 
   @override
   Widget build(BuildContext context) {
     // 1. Query only user's visits
-    final stream = FirebaseFirestore.instance
-        .collection('store_visits')
-        .where('userId', isEqualTo: uid)
-        .orderBy('visitedAt', descending: true)
-        .limit(50)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .collection('store_visits')
+            .where('userId', isEqualTo: uid)
+            .orderBy('visitedAt', descending: true)
+            .limit(50)
+            .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -716,7 +707,8 @@ class _NearbyNoGpsList extends StatelessWidget {
         if (docs.isEmpty) {
           return const _InfoCard(
             title: 'No visit data yet',
-            subtitle: 'Nearby uses your visit history to guess which stores you use most.',
+            subtitle:
+                'Nearby uses your visit history to guess which stores you use most.',
           );
         }
 
@@ -732,7 +724,7 @@ class _NearbyNoGpsList extends StatelessWidget {
           if (sid.isEmpty) continue;
 
           counts[sid] = (counts[sid] ?? 0) + 1;
-          
+
           if (!names.containsKey(sid)) {
             names[sid] = (data['storeName'] ?? sid).toString();
           }
@@ -742,14 +734,14 @@ class _NearbyNoGpsList extends StatelessWidget {
         }
 
         // 3. Sort by count (descending)
-        final sortedIds = counts.keys.toList()
-          ..sort((a, b) {
-            final cA = counts[a]!;
-            final cB = counts[b]!;
-            if (cA != cB) return cB.compareTo(cA); // higher count first
-            // tie-break: recency
-            return recentOrder.indexOf(a).compareTo(recentOrder.indexOf(b));
-          });
+        final sortedIds =
+            counts.keys.toList()..sort((a, b) {
+              final cA = counts[a]!;
+              final cB = counts[b]!;
+              if (cA != cB) return cB.compareTo(cA); // higher count first
+              // tie-break: recency
+              return recentOrder.indexOf(a).compareTo(recentOrder.indexOf(b));
+            });
 
         // Top 5 "Nearby" (Most Visited)
         final top = sortedIds.take(5).toList();
@@ -759,12 +751,13 @@ class _NearbyNoGpsList extends StatelessWidget {
             final sid = top[i];
             final name = names[sid] ?? 'Store';
             final count = counts[sid]!;
-            
-            final variant = (i % 3 == 0)
-                ? _CardVariant.green
-                : (i % 3 == 1)
-                ? _CardVariant.blue
-                : _CardVariant.purple;
+
+            final variant =
+                (i % 3 == 0)
+                    ? _CardVariant.green
+                    : (i % 3 == 1)
+                    ? _CardVariant.blue
+                    : _CardVariant.purple;
 
             // ✅ CHANGED: Use helper that fetches logoUrl
             return Padding(
@@ -787,25 +780,24 @@ class _NearbyNoGpsList extends StatelessWidget {
 class _FollowedStoresList extends StatelessWidget {
   final String uid;
   final void Function({
-  required String storeId,
-  required String storeName,
-  String? logoUrl,
-  }) onOpenStore;
+    required String storeId,
+    required String storeName,
+    String? logoUrl,
+  })
+  onOpenStore;
 
-  const _FollowedStoresList({
-    required this.uid,
-    required this.onOpenStore,
-  });
+  const _FollowedStoresList({required this.uid, required this.onOpenStore});
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('followedStores')
-        .orderBy('followedAt', descending: true)
-        .limit(20)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('followedStores')
+            .orderBy('followedAt', descending: true)
+            .limit(20)
+            .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -834,13 +826,14 @@ class _FollowedStoresList extends StatelessWidget {
             final data = docs[i].data() as Map<String, dynamic>;
             final storeId = (data['storeId'] ?? docs[i].id).toString();
             final storeName = (data['storeName'] ?? 'Store').toString();
-            final logoUrl = (data['logoUrl'] ?? '').toString();
+            final logoUrl = StoreLogoService.resolveFromData(data);
 
-            final variant = (i % 3 == 0)
-                ? _CardVariant.purple
-                : (i % 3 == 1)
-                ? _CardVariant.blue
-                : _CardVariant.green;
+            final variant =
+                (i % 3 == 0)
+                    ? _CardVariant.purple
+                    : (i % 3 == 1)
+                    ? _CardVariant.blue
+                    : _CardVariant.green;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -849,11 +842,12 @@ class _FollowedStoresList extends StatelessWidget {
                 meta: null,
                 variant: variant,
                 logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                onTap: () => onOpenStore(
-                  storeId: storeId,
-                  storeName: storeName,
-                  logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                ),
+                onTap:
+                    () => onOpenStore(
+                      storeId: storeId,
+                      storeName: storeName,
+                      logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+                    ),
               ),
             );
           }),
@@ -866,24 +860,23 @@ class _FollowedStoresList extends StatelessWidget {
 class _RecentVisitsList extends StatelessWidget {
   final String uid;
   final void Function({
-  required String storeId,
-  required String storeName,
-  String? logoUrl,
-  }) onOpenStore;
+    required String storeId,
+    required String storeName,
+    String? logoUrl,
+  })
+  onOpenStore;
 
-  const _RecentVisitsList({
-    required this.uid,
-    required this.onOpenStore,
-  });
+  const _RecentVisitsList({required this.uid, required this.onOpenStore});
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .collection('store_visits')
-        .where('userId', isEqualTo: uid)
-        .orderBy('visitedAt', descending: true)
-        .limit(30)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .collection('store_visits')
+            .where('userId', isEqualTo: uid)
+            .orderBy('visitedAt', descending: true)
+            .limit(30)
+            .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -926,11 +919,12 @@ class _RecentVisitsList extends StatelessWidget {
             final storeId = (data['storeId'] ?? '').toString();
             final storeName = (data['storeName'] ?? 'Store').toString();
 
-            final variant = (i % 3 == 0)
-                ? _CardVariant.orange
-                : (i % 3 == 1)
-                ? _CardVariant.pink
-                : _CardVariant.blue;
+            final variant =
+                (i % 3 == 0)
+                    ? _CardVariant.orange
+                    : (i % 3 == 1)
+                    ? _CardVariant.pink
+                    : _CardVariant.blue;
 
             // ✅ CHANGED: Use helper that fetches logoUrl
             return Padding(
@@ -990,9 +984,15 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 6),
-          Text(subtitle, style: const TextStyle(color: Colors.black54, height: 1.3)),
+          Text(
+            subtitle,
+            style: const TextStyle(color: Colors.black54, height: 1.3),
+          ),
         ],
       ),
     );
@@ -1009,7 +1009,8 @@ class _StoreWithLogoLookup extends StatelessWidget {
     required String storeId,
     required String storeName,
     String? logoUrl,
-  }) onOpenStore;
+  })
+  onOpenStore;
 
   const _StoreWithLogoLookup({
     required this.storeId,
@@ -1023,7 +1024,8 @@ class _StoreWithLogoLookup extends StatelessWidget {
   Widget build(BuildContext context) {
     // We assume storeId is valid. We fetch the store doc just to get logoUrl.
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('stores').doc(storeId).get(),
+      future:
+          FirebaseFirestore.instance.collection('stores').doc(storeId).get(),
       builder: (context, snap) {
         // While loading or error, just show with fallback name and no logo (or previous behavior)
         if (!snap.hasData) {
@@ -1032,29 +1034,32 @@ class _StoreWithLogoLookup extends StatelessWidget {
             meta: meta,
             variant: variant,
             logoUrl: null,
-            onTap: () => onOpenStore(
-              storeId: storeId,
-              storeName: fallbackName,
-              logoUrl: null,
-            ),
+            onTap:
+                () => onOpenStore(
+                  storeId: storeId,
+                  storeName: fallbackName,
+                  logoUrl: null,
+                ),
           );
         }
 
         final data = snap.data?.data() as Map<String, dynamic>?;
-        final logoUrl = (data?['logoUrl'] ?? data?['vendorLogoUrl'])?.toString();
+        final logoUrl = StoreLogoService.resolveFromData(data);
         // If the store doc has a better name, use it, otherwise fallback
-        final name = (data?['name'] ?? data?['vendorName'] ?? fallbackName).toString();
+        final name =
+            (data?['name'] ?? data?['vendorName'] ?? fallbackName).toString();
 
         return _StoreRowCard(
           storeName: name,
           meta: meta,
           variant: variant,
-          logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
-          onTap: () => onOpenStore(
-            storeId: storeId,
-            storeName: name,
-            logoUrl: (logoUrl != null && logoUrl.isNotEmpty) ? logoUrl : null,
-          ),
+          logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+          onTap:
+              () => onOpenStore(
+                storeId: storeId,
+                storeName: name,
+                logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+              ),
         );
       },
     );
@@ -1079,6 +1084,7 @@ class _StoreRowCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial = storeName.isNotEmpty ? storeName[0].toUpperCase() : '?';
+    final resolvedLogo = StoreLogoService.resolveUrl(logoUrl);
 
     return _ColorCard(
       variant: variant,
@@ -1093,24 +1099,37 @@ class _StoreRowCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Center(
-              child: (logoUrl != null && logoUrl!.isNotEmpty)
-                  ? ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  logoUrl!,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Text(
-                    initial,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              )
-                  : Text(
-                initial,
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
+              child:
+                  resolvedLogo.isNotEmpty
+                      ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          resolvedLogo,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) => Image.asset(
+                                StoreLogoService.fallbackAsset,
+                                width: 32,
+                                height: 32,
+                                fit: BoxFit.contain,
+                              ),
+                        ),
+                      )
+                      : Image.asset(
+                        StoreLogoService.fallbackAsset,
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                        errorBuilder:
+                            (_, __, ___) => Text(
+                              initial,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                      ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1132,12 +1151,9 @@ class _StoreRowCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     meta!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
-                ]
+                ],
               ],
             ),
           ),
@@ -1149,10 +1165,7 @@ class _StoreRowCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.55),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.chevron_right,
-              color: Colors.black87,
-            ),
+            child: const Icon(Icons.chevron_right, color: Colors.black87),
           ),
         ],
       ),
@@ -1165,11 +1178,7 @@ class _ColorCard extends StatelessWidget {
   final _CardVariant variant;
   final VoidCallback? onTap;
 
-  const _ColorCard({
-    required this.child,
-    required this.variant,
-    this.onTap,
-  });
+  const _ColorCard({required this.child, required this.variant, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1271,10 +1280,7 @@ class _VariantConfig {
   final List<Color> gradient;
   final Color shadowColor;
 
-  _VariantConfig({
-    required this.gradient,
-    required this.shadowColor,
-  });
+  _VariantConfig({required this.gradient, required this.shadowColor});
 }
 
 enum _CardVariant { purple, blue, green, orange, pink, neutral }

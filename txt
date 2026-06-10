@@ -1,0 +1,234 @@
+{
+  "success": true,
+  "data": {
+    "totalProducts": 10,
+    "timestamp": "2026-06-09T18:34:48.235Z",
+    "vendorId": 2,
+    "vendorName": "EaseSpotter",
+    "logoUrl": "https://easespotter.com/logos/default-vendor.png",
+    "locationLabels": {
+      "primary": "Aisle",
+      "secondary": "Shelf"
+    },
+    "productsByCategory": {
+      "Drinks": [
+        {
+          "id": 7,
+          "name": "Diet Coke",
+          "brand": "Coke Cola",
+          "price": "1.79",
+          "location": {
+            "aisle": "22",
+            "shelf": "7"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ],
+      "Bakery": [
+        {
+          "id": 11,
+          "name": "Medium Sliced White Bread",
+          "brand": null,
+          "price": "0.55",
+          "location": {
+            "aisle": "4",
+            "shelf": "98"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ],
+      "rozen Vegetarian Food": [
+        {
+          "id": 8,
+          "name": "Grilled Chicken Pieces",
+          "brand": null,
+          "price": "1.79",
+          "location": {
+            "aisle": "40",
+            "shelf": "42"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ],
+      "Baby Food Pouches & Pots": [
+        {
+          "id": 10,
+          "name": "Organic Strawberries & Apples Pouch",
+          "brand": null,
+          "price": "0.99",
+          "location": {
+            "aisle": "45",
+            "shelf": "22"
+          },
+          "vendor": "EaseSpotter"
+        },
+        {
+          "id": 9,
+          "name": "Organic Just Bananas Fruit Pouch 4 Pack",
+          "brand": null,
+          "price": "2.69",
+          "location": {
+            "aisle": "77",
+            "shelf": "10"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ],
+      "Electronics": [
+        {
+          "id": 1,
+          "name": "Laptop",
+          "brand": null,
+          "price": "999.99",
+          "location": {
+            "aisle": "A1",
+            "shelf": "S1"
+          },
+          "vendor": "EaseSpotter"
+        },
+        {
+          "id": 2,
+          "name": "Smartphone",
+          "brand": "Apple",
+          "price": "549.99",
+          "location": {
+            "aisle": "A1",
+            "shelf": "S2"
+          },
+          "vendor": "EaseSpotter"
+        },
+        {
+          "id": 5,
+          "name": "Monitor",
+          "brand": null,
+          "price": "279.99",
+          "location": {
+            "aisle": "A1",
+            "shelf": "S3"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ],
+      "Accessories": [
+        {
+          "id": 3,
+          "name": "Headphones",
+          "brand": null,
+          "price": "79.99",
+          "location": {
+            "aisle": "A2",
+            "shelf": "S1"
+          },
+          "vendor": "EaseSpotter"
+        },
+        {
+          "id": 4,
+          "name": "Backpack",
+          "brand": null,
+          "price": "49.99",
+          "location": {
+            "aisle": "A2",
+            "shelf": "S2"
+          },
+          "vendor": "EaseSpotter"
+        }
+      ]
+    },
+    "productsByAisle": {
+      "4": [
+        {
+          "id": 11,
+          "name": "Medium Sliced White Bread",
+          "brand": null,
+          "price": "0.55",
+          "shelf": "98",
+          "category": "Bakery"
+        }
+      ],
+      "22": [
+        {
+          "id": 7,
+          "name": "Diet Coke",
+          "brand": "Coke Cola",
+          "price": "1.79",
+          "shelf": "7",
+          "category": "Drinks"
+        }
+      ],
+      "40": [
+        {
+          "id": 8,
+          "name": "Grilled Chicken Pieces",
+          "brand": null,
+          "price": "1.79",
+          "shelf": "42",
+          "category": "rozen Vegetarian Food"
+        }
+      ],
+      "45": [
+        {
+          "id": 10,
+          "name": "Organic Strawberries & Apples Pouch",
+          "brand": null,
+          "price": "0.99",
+          "shelf": "22",
+          "category": "Baby Food Pouches & Pots"
+        }
+      ],
+      "77": [
+        {
+          "id": 9,
+          "name": "Organic Just Bananas Fruit Pouch 4 Pack",
+          "brand": null,
+          "price": "2.69",
+          "shelf": "10",
+          "category": "Baby Food Pouches & Pots"
+        }
+      ],
+      "A1": [
+        {
+          "id": 1,
+          "name": "Laptop",
+          "brand": null,
+          "price": "999.99",
+          "shelf": "S1",
+          "category": "Electronics"
+        },
+        {
+          "id": 2,
+          "name": "Smartphone",
+          "brand": "Apple",
+          "price": "549.99",
+          "shelf": "S2",
+          "category": "Electronics"
+        },
+        {
+          "id": 5,
+          "name": "Monitor",
+          "brand": null,
+          "price": "279.99",
+          "shelf": "S3",
+          "category": "Electronics"
+        }
+      ],
+      "A2": [
+        {
+          "id": 3,
+          "name": "Headphones",
+          "brand": null,
+          "price": "79.99",
+          "shelf": "S1",
+          "category": "Accessories"
+        },
+        {
+          "id": 4,
+          "name": "Backpack",
+          "brand": null,
+          "price": "49.99",
+          "shelf": "S2",
+          "category": "Accessories"
+        }
+      ]
+    }
+  }
+}

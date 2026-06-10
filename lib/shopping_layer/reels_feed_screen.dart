@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
+import '../widgets/comment_list.dart';
 import '../widgets/recipe_card/author_header.dart';
+import '../widgets/recipe_card/comments_panel.dart';
 import 'new_reel_screen.dart';
 
 class ReelsFeedScreen extends StatefulWidget {
@@ -233,6 +235,19 @@ class _ReelPageState extends State<_ReelPage> {
     );
   }
 
+  void _openCommentsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _ReelCommentsSheet(reelId: widget.reelId),
+    );
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
@@ -247,6 +262,7 @@ class _ReelPageState extends State<_ReelPage> {
     final isLiked = uid != null && likedBy.contains(uid);
     final likes =
         (widget.data['likesCount'] as num?)?.toInt() ?? likedBy.length;
+    final commentsCount = (widget.data['commentsCount'] as num?)?.toInt() ?? 0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -335,6 +351,21 @@ class _ReelPageState extends State<_ReelPage> {
                         ),
                         const SizedBox(height: 14),
                         _ReelActionButton(
+                          tooltip: 'Comments',
+                          icon: Icons.mode_comment_outlined,
+                          iconColor: Colors.deepPurple,
+                          onPressed: _openCommentsSheet,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          commentsCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _ReelActionButton(
                           tooltip: 'Share',
                           icon: Icons.ios_share,
                           iconColor: Colors.deepPurple,
@@ -376,6 +407,246 @@ class _ReelActionButton extends StatelessWidget {
         tooltip: tooltip,
         icon: Icon(icon, color: iconColor),
         onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+class _ReelCommentsSheet extends StatefulWidget {
+  final String reelId;
+
+  const _ReelCommentsSheet({required this.reelId});
+
+  @override
+  State<_ReelCommentsSheet> createState() => _ReelCommentsSheetState();
+}
+
+class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+
+  String? _replyingToCommentId;
+  String? _replyingToName;
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _startReply({required String commentId, required String name}) {
+    setState(() {
+      _replyingToCommentId = commentId;
+      _replyingToName = name;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
+    });
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyingToCommentId = null;
+      _replyingToName = null;
+    });
+  }
+
+  Future<void> _send() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to use this action.')),
+      );
+      return;
+    }
+
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+
+    try {
+      final reelRef = FirebaseFirestore.instance
+          .collection('reels')
+          .doc(widget.reelId);
+      final batch = FirebaseFirestore.instance.batch();
+
+      batch.update(reelRef, {
+        'commentsCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (_replyingToCommentId == null) {
+        final commentRef = reelRef.collection('comments').doc();
+        batch.set(commentRef, {
+          'uid': user.uid,
+          'text': text,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'upvotedBy': <String>[],
+        });
+      } else {
+        final replyRef =
+            reelRef
+                .collection('comments')
+                .doc(_replyingToCommentId)
+                .collection('replies')
+                .doc();
+        batch.set(replyRef, {
+          'uid': user.uid,
+          'text': text,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'upvotedBy': <String>[],
+        });
+      }
+
+      await batch.commit();
+
+      _controller.clear();
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _replyingToCommentId = null;
+        _replyingToName = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) FocusScope.of(context).requestFocus(_focusNode);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Couldn't post comment.")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: theme.dividerColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Comments',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: CommentList(
+              parentPath: 'reels/${widget.reelId}',
+              onReplyTap: _startReply,
+            ),
+          ),
+          const Divider(height: 1),
+          if (_replyingToCommentId != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Replying to ${_replyingToName ?? 'comment'}',
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _cancelReply,
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 10,
+              top: 10,
+              bottom: 10 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.60),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: theme.dividerColor.withValues(alpha: 0.70),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      children: [
+                        ComposerAvatar(
+                          uid: FirebaseAuth.instance.currentUser?.uid,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText:
+                                  _replyingToCommentId == null
+                                      ? 'Leave a comment...'
+                                      : 'Write a reply...',
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 0,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _sending ? null : _send,
+                  icon:
+                      _sending
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.send, color: Colors.deepPurple),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

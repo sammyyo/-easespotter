@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,6 +6,9 @@ import 'package:easespotter/services/bookmark_service.dart';
 import 'package:easespotter/services/store_follow_service.dart';
 import 'package:easespotter/services/grocery_list_service.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
+import 'package:easespotter/services/store_api_service.dart';
+import 'package:easespotter/services/store_logo_service.dart';
+import 'package:easespotter/widgets/product_image_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,7 +18,8 @@ class StoreConfirmationScreen extends StatefulWidget {
   const StoreConfirmationScreen({super.key, required this.storeData});
 
   @override
-  State<StoreConfirmationScreen> createState() => _StoreConfirmationScreenState();
+  State<StoreConfirmationScreen> createState() =>
+      _StoreConfirmationScreenState();
 }
 
 class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
@@ -25,7 +30,11 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   late List<Map<String, dynamic>> _allItems;
   final List<Map<String, dynamic>> _selectedItems = [];
   final Set<String> _bookmarkedKeys = {};
+  final Set<String> _armedDeleteKeys = {};
+  final Map<String, double> _deleteDragProgress = {};
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  String _lastNotFoundQuery = '';
   bool _isLoading = false;
 
   bool _isFollowingStore = false;
@@ -41,7 +50,9 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final decoded = jsonDecode(raw);
     if (decoded is! List) return [];
 
-    return List<Map<String, dynamic>>.from(decoded.map((e) => Map<String, dynamic>.from(e)));
+    return List<Map<String, dynamic>>.from(
+      decoded.map((e) => Map<String, dynamic>.from(e)),
+    );
   }
 
   Future<void> _saveGroceryPrefsList(List<Map<String, dynamic>> list) async {
@@ -54,7 +65,8 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     if (t.isEmpty) return -1;
 
     for (int i = 0; i < list.length; i++) {
-      final existingTitle = (list[i]['title'] ?? '').toString().trim().toLowerCase();
+      final existingTitle =
+          (list[i]['title'] ?? '').toString().trim().toLowerCase();
       if (existingTitle == t) return i;
     }
     return -1;
@@ -65,13 +77,15 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final idx = _findGroceryIndex(list, title);
     if (idx == -1) return false;
 
-    final currentQty = (list[idx]['quantity'] is num)
-        ? (list[idx]['quantity'] as num).toInt()
-        : int.tryParse(list[idx]['quantity']?.toString() ?? '') ?? 1;
+    final currentQty =
+        (list[idx]['quantity'] is num)
+            ? (list[idx]['quantity'] as num).toInt()
+            : int.tryParse(list[idx]['quantity']?.toString() ?? '') ?? 1;
 
-    final unit = (list[idx]['unitPrice'] is num)
-        ? (list[idx]['unitPrice'] as num).toDouble()
-        : double.tryParse(list[idx]['unitPrice']?.toString() ?? '') ?? 0.0;
+    final unit =
+        (list[idx]['unitPrice'] is num)
+            ? (list[idx]['unitPrice'] as num).toDouble()
+            : double.tryParse(list[idx]['unitPrice']?.toString() ?? '') ?? 0.0;
 
     final nextQty = (currentQty + by).clamp(1, 999999);
     final nextPrice = unit * nextQty;
@@ -138,7 +152,9 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('“$title” is already in your list.\n\nHow many more do you want to add?'),
+                  Text(
+                    '“$title” is already in your list.\n\nHow many more do you want to add?',
+                  ),
                   const SizedBox(height: 14),
 
                   // Quick picks
@@ -192,12 +208,20 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                   child: const Text('Do nothing'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
                   onPressed: () {
-                    final amount = _parsePositiveInt(c.text, fallback: selected);
+                    final amount = _parsePositiveInt(
+                      c.text,
+                      fallback: selected,
+                    );
                     Navigator.pop(ctx, amount);
                   },
-                  child: const Text('Update', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Update',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -238,9 +262,21 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                     spacing: 10,
                     runSpacing: 10,
                     children: [
-                      _QtyChip(label: '+1', selected: selected == 1, onTap: () => setAmount(1)),
-                      _QtyChip(label: '+2', selected: selected == 2, onTap: () => setAmount(2)),
-                      _QtyChip(label: '+3', selected: selected == 3, onTap: () => setAmount(3)),
+                      _QtyChip(
+                        label: '+1',
+                        selected: selected == 1,
+                        onTap: () => setAmount(1),
+                      ),
+                      _QtyChip(
+                        label: '+2',
+                        selected: selected == 2,
+                        onTap: () => setAmount(2),
+                      ),
+                      _QtyChip(
+                        label: '+3',
+                        selected: selected == 3,
+                        onTap: () => setAmount(3),
+                      ),
                     ],
                   ),
 
@@ -268,12 +304,20 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
                   onPressed: () {
-                    final amount = _parsePositiveInt(c.text, fallback: selected);
+                    final amount = _parsePositiveInt(
+                      c.text,
+                      fallback: selected,
+                    );
                     Navigator.pop(ctx, amount);
                   },
-                  child: const Text('Add', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -286,71 +330,440 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   // -----------------------------------------------------------
 
   String _itemKey(Map<String, dynamic> item) {
-    final storeId = (widget.storeData['vendorId'] ?? '').toString();
-    final barcode = (item['barcode'] ?? '').toString().trim();
-    final name = (item['name'] ?? '').toString().trim().toLowerCase();
+    return BookmarkService.bookmarkKey(_bookmarkPayload(item));
+  }
 
-    if (barcode.isNotEmpty) return '$storeId|$barcode';
-    return '$storeId|$name';
+  Map<String, dynamic> _bookmarkPayload(Map<String, dynamic> item) {
+    final enrichedItem = Map<String, dynamic>.from(item);
+    enrichedItem['storeName'] =
+        widget.storeData['vendorName'] ??
+        widget.storeData['name'] ??
+        'Unknown Store';
+
+    final storeLogo = _storeLogoUrl();
+    if (storeLogo.isNotEmpty) {
+      enrichedItem['logoUrl'] = storeLogo;
+    }
+
+    final storeId =
+        (widget.storeData['vendorId'] ?? widget.storeData['storeId'] ?? '')
+            .toString()
+            .trim();
+    if (storeId.isNotEmpty) {
+      enrichedItem['storeId'] = storeId;
+    }
+
+    return enrichedItem;
   }
 
   String _imageUrlFromItem(Map<String, dynamic> item) {
-    return (item['imageUrl'] ??
-            item['imageURL'] ??
-            item['image'] ??
-            item['photoUrl'] ??
-            item['photoURL'] ??
-            '')
-        .toString()
-        .trim();
+    final images = item['images'];
+    if (images is List) {
+      for (final image in images) {
+        final url = _imageUrlFromCandidate(image);
+        if (url.isNotEmpty) return url;
+      }
+    }
+
+    return _absoluteUrl(
+      _firstStringValue(item, const [
+        'imageUrl',
+        'imageURL',
+        'image_url',
+        'image',
+        'photoUrl',
+        'photoURL',
+        'photo_url',
+        'productImageUrl',
+        'productImageURL',
+        'product_image_url',
+        'productImage',
+        'product_image',
+        'thumbnail',
+        'thumbnailUrl',
+        'thumbnail_url',
+        'url',
+      ]),
+    );
   }
 
-  Widget _productThumbnail(Map<String, dynamic> item) {
+  String _imageUrlFromCandidate(dynamic candidate) {
+    if (candidate is Map) {
+      return _absoluteUrl(
+        _firstStringValue(candidate, const [
+          'url',
+          'src',
+          'href',
+          'imageUrl',
+          'imageURL',
+          'image_url',
+          'productImageUrl',
+          'productImageURL',
+          'product_image_url',
+          'photoUrl',
+          'photo_url',
+          'thumbnailUrl',
+          'thumbnail_url',
+        ]),
+      );
+    }
+
+    return _absoluteUrl(candidate?.toString());
+  }
+
+  String _storeLogoUrl() {
+    return StoreLogoService.resolveFromData(widget.storeData);
+  }
+
+  String _firstStringValue(Map<dynamic, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  String _absoluteUrl(String? rawUrl) {
+    final value = rawUrl?.trim() ?? '';
+    if (value.isEmpty) return '';
+    if (_isBrokenPlaceholderImage(value)) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return _normalizeProductImageUrl(uri);
+
+    if (value.startsWith('//')) return 'https:$value';
+    if (value.startsWith('/')) return '${StoreApiService.baseUrl}$value';
+
+    return '${StoreApiService.baseUrl}/$value';
+  }
+
+  String _normalizeProductImageUrl(Uri uri) {
+    if (uri.host == 'easespotter.com' &&
+        uri.path.startsWith('/uploads/products/')) {
+      return uri.replace(host: 'www.easespotter.com').toString();
+    }
+
+    return uri.toString();
+  }
+
+  bool _isBrokenPlaceholderImage(String value) {
+    final lower = value.toLowerCase();
+    return lower.endsWith('/logos/default-vendor.png') ||
+        RegExp(r'(^|/)logos/vendor-\d+\.png$').hasMatch(lower) ||
+        lower == 'logos/default-vendor.png' ||
+        lower == '/logos/default-vendor.png';
+  }
+
+  String _locationText(Map<dynamic, dynamic> item) {
+    final location = item['location'];
+    if (location is Map) {
+      final aisle = _locationValue(item, 'aisle');
+      final shelf = _locationValue(item, 'shelf');
+      if (aisle.isNotEmpty && shelf.isNotEmpty) {
+        return 'Aisle $aisle - Shelf $shelf';
+      }
+      if (aisle.isNotEmpty) return 'Aisle $aisle';
+      if (shelf.isNotEmpty) return 'Shelf $shelf';
+    }
+
+    return _firstStringValue(item, const [
+      'location',
+      'locationText',
+      'location_text',
+      'aisleLocation',
+      'aisle_location',
+    ]);
+  }
+
+  String _locationValue(Map<dynamic, dynamic> item, String key) {
+    final location = item['location'];
+    if (location is Map) {
+      final value = location[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+
+    final directValue = item[key]?.toString().trim();
+    return directValue ?? '';
+  }
+
+  Widget _productThumbnail(
+    Map<String, dynamic> item, {
+    double width = 48,
+    double height = 48,
+  }) {
     final imageUrl = _imageUrlFromItem(item);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 48,
-        height: 48,
+        width: width,
+        height: height,
         color: Colors.deepPurple.shade50,
-        child: imageUrl.isNotEmpty
-            ? Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.shopping_bag,
-                  color: Colors.deepPurple,
+        child: ProductImageView(image: imageUrl),
+      ),
+    );
+  }
+
+  Widget _deleteBackground(String keyStr) {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: isArmed ? Colors.red.shade700 : Colors.red.shade500,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isArmed ? Icons.delete_forever : Icons.delete_outline,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isArmed ? 'Release to delete' : 'Swipe again',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmItemDismiss(
+    String keyStr,
+    Map<String, dynamic> item,
+  ) async {
+    final isArmed = _armedDeleteKeys.contains(keyStr);
+    final progress = _deleteDragProgress[keyStr] ?? 0;
+    final isFullSwipe = progress >= 0.85;
+
+    _deleteDragProgress.remove(keyStr);
+
+    if (isArmed || isFullSwipe) {
+      _armedDeleteKeys.remove(keyStr);
+      return true;
+    }
+
+    setState(() => _armedDeleteKeys.add(keyStr));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Swipe “${item['name']}” again to remove'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return false;
+  }
+
+  Widget _searchResultCard(Map<String, dynamic> item) {
+    final name = (item['name'] ?? '').toString();
+    final location = (item['location'] ?? '').toString();
+    final price = item['price']?.toString().trim() ?? '';
+    final keyStr = _itemKey(item);
+    final isBookmarked = _bookmarkedKeys.contains(keyStr);
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: Dismissible(
+        key: ValueKey(keyStr),
+        direction: DismissDirection.endToStart,
+        dismissThresholds: const {DismissDirection.endToStart: 0.35},
+        background: _deleteBackground(keyStr),
+        confirmDismiss: (_) => _confirmItemDismiss(keyStr, item),
+        onUpdate: (details) {
+          final current = _deleteDragProgress[keyStr] ?? 0;
+          if (details.progress > current) {
+            _deleteDragProgress[keyStr] = details.progress;
+          }
+        },
+        onDismissed: (_) => _removeItem(item),
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _productThumbnail(item, width: 92, height: 92),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          if (location.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF3F0FF),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.deepPurple,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          if (price.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF3E0),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '€$price',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFB45F06),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _itemActionButton(
+                            icon: Icons.kitchen,
+                            color: Colors.deepPurple,
+                            tooltip: 'Brought home (add to inventory)',
+                            onPressed: () => _guardedAddToHomeInventory(item),
+                          ),
+                          const SizedBox(width: 8),
+                          _itemActionButton(
+                            icon: Icons.playlist_add,
+                            color: Colors.teal,
+                            tooltip: 'Add to Grocery List',
+                            onPressed: () => _guardedAddToGroceryList(item),
+                          ),
+                          const SizedBox(width: 8),
+                          _itemActionButton(
+                            icon:
+                                isBookmarked
+                                    ? Icons.bookmark
+                                    : Icons.bookmark_border,
+                            color: isBookmarked ? Colors.orange : Colors.grey,
+                            tooltip:
+                                isBookmarked
+                                    ? 'Remove from bookmarks'
+                                    : 'Add to bookmarks',
+                            onPressed: () => _toggleBookmark(item),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              )
-            : const Icon(Icons.shopping_bag, color: Colors.deepPurple),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _itemActionButton({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 19),
+        ),
       ),
     );
   }
 
   @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
+    _cacheStoreData();
 
-    final Map<String, dynamic> productsByCategory = widget.storeData['productsByCategory'] ?? {};
-    final flattened = productsByCategory.entries.expand((entry) {
-      final category = entry.key;
-      final List items = entry.value;
-      return items.map((item) => {
-        'name': item['name'],
-        'location': 'Aisle ${item['location']['aisle']} - Shelf ${item['location']['shelf']}',
-        'category': category,
-        'storeName': widget.storeData['vendorName'] ?? 'Unknown Store',
-        'price': item['price'] ?? '',
-        'imageUrl': item['imageUrl'] ?? item['image'],
-        'image': item['image'] ?? item['imageUrl'],
-        'barcode': item['barcode'],
-        'aisle': item['location']['aisle'],
-        'shelf': item['location']['shelf'],
-      });
-    }).toList();
+    final Map<String, dynamic> productsByCategory =
+        widget.storeData['productsByCategory'] ?? {};
+    final flattened =
+        productsByCategory.entries.expand((entry) {
+          final category = entry.key;
+          final List items = entry.value;
+          return items.map(
+            (item) => {
+              'name': item['name'],
+              'location': _locationText(item),
+              'category': category,
+              'storeName': widget.storeData['vendorName'] ?? 'Unknown Store',
+              'price': item['price'] ?? '',
+              'imageUrl': _imageUrlFromItem(Map<String, dynamic>.from(item)),
+              'image': _imageUrlFromItem(Map<String, dynamic>.from(item)),
+              'productImageUrl': _imageUrlFromItem(
+                Map<String, dynamic>.from(item),
+              ),
+              'barcode': item['barcode'],
+              'aisle': _locationValue(item, 'aisle'),
+              'shelf': _locationValue(item, 'shelf'),
+            },
+          );
+        }).toList();
 
     _allItems = List<Map<String, dynamic>>.from(flattened);
+    _loadBookmarkedKeys();
 
     final storeId = widget.storeData['vendorId']?.toString() ?? '';
     if (storeId.isNotEmpty) {
@@ -368,6 +781,101 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     }
   }
 
+  Future<void> _cacheStoreData() async {
+    final storeId =
+        (widget.storeData['vendorId'] ?? widget.storeData['storeId'] ?? '')
+            .toString()
+            .trim();
+    if (storeId.isEmpty) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'store_cache_$storeId',
+        jsonEncode(_safeStoreCacheData(widget.storeData)),
+      );
+    } catch (e) {
+      debugPrint('Store cache save failed: $e');
+    }
+
+    try {
+      final logoUrl = _storeLogoUrl();
+      final storeName =
+          (widget.storeData['vendorName'] ?? widget.storeData['name'] ?? '')
+              .toString()
+              .trim();
+
+      await FirebaseFirestore.instance.collection('stores').doc(storeId).set({
+        'storeId': storeId,
+        'vendorId': storeId,
+        if (storeName.isNotEmpty) 'name': storeName,
+        if (storeName.isNotEmpty) 'vendorName': storeName,
+        if (logoUrl.isNotEmpty) 'logoUrl': logoUrl,
+        if (_safeProductsByCategory(widget.storeData) != null)
+          'productsByCategory': _safeProductsByCategory(widget.storeData),
+        if (widget.storeData['totalProducts'] != null)
+          'totalProducts': widget.storeData['totalProducts'],
+        'payload': _safeStoreCacheData(widget.storeData),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Store Firestore cache save failed: $e');
+    }
+  }
+
+  Map<String, dynamic> _safeStoreCacheData(Map<String, dynamic> storeData) {
+    final safe = Map<String, dynamic>.from(storeData);
+    final safeProducts = _safeProductsByCategory(storeData);
+    if (safeProducts != null) {
+      safe['productsByCategory'] = safeProducts;
+    }
+    safe.remove('productsByAisle');
+    return safe;
+  }
+
+  Map<String, dynamic>? _safeProductsByCategory(
+    Map<String, dynamic> storeData,
+  ) {
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is! Map) return null;
+
+    final safe = <String, dynamic>{};
+    for (final entry in productsByCategory.entries) {
+      final rawProducts = entry.value;
+      if (rawProducts is! List) continue;
+
+      safe[entry.key.toString()] =
+          rawProducts.whereType<Map>().map((product) {
+            final safeProduct = Map<String, dynamic>.from(product);
+            safeProduct.remove('image');
+            safeProduct.remove('imageUrl');
+            safeProduct.remove('imageURL');
+            safeProduct.remove('image_url');
+            safeProduct.remove('productImageUrl');
+            safeProduct.remove('productImageURL');
+            safeProduct.remove('product_image_url');
+            safeProduct.remove('productImage');
+            safeProduct.remove('thumbnail');
+            safeProduct.remove('thumbnailUrl');
+            safeProduct.remove('thumbnail_url');
+            return safeProduct;
+          }).toList();
+    }
+
+    return safe;
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+
+    final trimmed = value.trim();
+    if (trimmed.length < 3) return;
+
+    _searchDebounce = Timer(const Duration(milliseconds: 650), () {
+      _searchAndAdd(trimmed);
+    });
+  }
+
   Future<void> _searchAndAdd(String query) async {
     final trimmed = query.trim().toLowerCase();
     if (trimmed.isEmpty) return;
@@ -377,7 +885,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     final match = _allItems.firstWhere(
-          (item) => item['name'].toLowerCase().contains(trimmed),
+      (item) => item['name'].toLowerCase().contains(trimmed),
       orElse: () => {},
     );
 
@@ -397,13 +905,35 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } else if (match.isEmpty) {
+      _showProductNotFound(query);
     }
   }
 
+  void _showProductNotFound(String query) {
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty || _lastNotFoundQuery == cleanQuery.toLowerCase()) {
+      return;
+    }
+
+    _lastNotFoundQuery = cleanQuery.toLowerCase();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Item/Product not found: “$cleanQuery”'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.orange[700],
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   void _removeItem(Map<String, dynamic> item) {
+    final key = _itemKey(item);
     setState(() {
       _selectedItems.remove(item);
-      _bookmarkedKeys.remove(_itemKey(item));
+      _armedDeleteKeys.remove(key);
+      _deleteDragProgress.remove(key);
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -419,56 +949,62 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   void _toggleBookmark(Map<String, dynamic> item) async {
     final key = _itemKey(item);
     final isBookmarked = _bookmarkedKeys.contains(key);
-
-    setState(() {
-      if (isBookmarked) {
-        _bookmarkedKeys.remove(key);
-      } else {
-        _bookmarkedKeys.add(key);
-      }
-    });
-
-    final enrichedItem = Map<String, dynamic>.from(item);
-    enrichedItem['storeName'] = widget.storeData['vendorName'] ?? 'Unknown Store';
-    final storeLogo =
-        (widget.storeData['logoUrl'] ?? widget.storeData['vendorLogoUrl'] ?? '')
-            .toString()
-            .trim();
-    if (storeLogo.isNotEmpty) {
-      enrichedItem['logoUrl'] = storeLogo;
-    }
-    final storeId = (widget.storeData['vendorId'] ??
-            widget.storeData['storeId'] ??
-            '')
-        .toString()
-        .trim();
-    if (storeId.isNotEmpty) {
-      enrichedItem['storeId'] = storeId;
-    }
+    final enrichedItem = _bookmarkPayload(item);
 
     if (isBookmarked) {
-      await _bookmarkService.removeBookmark(enrichedItem);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('“${item['name']}” removed from bookmarks'),
-          backgroundColor: Colors.red[600],
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } else {
-      await _bookmarkService.saveBookmark(enrichedItem);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('“${item['name']}” bookmarked'),
-          backgroundColor: Colors.blue[700],
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _showAlreadyBookmarkedDialog(item);
+      return;
     }
+
+    final alreadySaved = await _bookmarkService.isBookmarked(enrichedItem);
+    if (alreadySaved) {
+      if (!mounted) return;
+      setState(() => _bookmarkedKeys.add(key));
+      _showAlreadyBookmarkedDialog(item);
+      return;
+    }
+
+    setState(() => _bookmarkedKeys.add(key));
+    await _bookmarkService.saveBookmark(enrichedItem);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('“${item['name']}” bookmarked'),
+        backgroundColor: Colors.blue[700],
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _loadBookmarkedKeys() async {
+    final bookmarks = await _bookmarkService.getBookmarks();
+    if (!mounted) return;
+
+    setState(() {
+      _bookmarkedKeys
+        ..clear()
+        ..addAll(bookmarks.map(BookmarkService.bookmarkKey));
+    });
+  }
+
+  void _showAlreadyBookmarkedDialog(Map<String, dynamic> item) {
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Item Already Bookmarked'),
+            content: Text('“${item['name']}” is already in your Bookmarks.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> _addToHomeInventory(Map<String, dynamic> item) async {
@@ -539,21 +1075,29 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     if (alreadyHave) {
       final proceed = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Already in Home Inventory'),
-          content: Text('“$name” is already in your inventory.\n\nIncrement it anyway?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('No'),
+        builder:
+            (ctx) => AlertDialog(
+              title: const Text('Already in Home Inventory'),
+              content: Text(
+                '“$name” is already in your inventory.\n\nIncrement it anyway?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(
+                    'Increment',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Increment', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
       );
 
       if (proceed != true) return;
@@ -562,7 +1106,10 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     await _addToHomeInventory(item);
   }
 
-  Future<bool> _isInHomeInventory({required String name, required String barcode}) async {
+  Future<bool> _isInHomeInventory({
+    required String name,
+    required String barcode,
+  }) async {
     if (FirebaseAuth.instance.currentUser == null) {
       await FirebaseAuth.instance.signInAnonymously();
     }
@@ -570,38 +1117,42 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final uid = FirebaseAuth.instance.currentUser!.uid;
 
     if (barcode.trim().isNotEmpty) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('home_inventory')
-          .doc(barcode.trim())
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('home_inventory')
+              .doc(barcode.trim())
+              .get();
       return doc.exists;
     }
 
     final n = name.trim().toLowerCase();
     if (n.isEmpty) return false;
 
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('home_inventory')
-        .where('name', isEqualTo: name.trim())
-        .limit(1)
-        .get();
+    final snap =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('home_inventory')
+            .where('name', isEqualTo: name.trim())
+            .limit(1)
+            .get();
 
     if (snap.docs.isNotEmpty) return true;
 
-    final recent = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('home_inventory')
-        .orderBy('updatedAt', descending: true)
-        .limit(50)
-        .get();
+    final recent =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('home_inventory')
+            .orderBy('updatedAt', descending: true)
+            .limit(50)
+            .get();
 
-    return recent.docs.any((d) =>
-    ((d.data()['name'] ?? '').toString().trim().toLowerCase() == n));
+    return recent.docs.any(
+      (d) => ((d.data()['name'] ?? '').toString().trim().toLowerCase() == n),
+    );
   }
 
   Future<void> _guardedAddToGroceryList(Map<String, dynamic> item) async {
@@ -611,7 +1162,10 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
     bool alreadyHaveAtHome = false;
     try {
-      alreadyHaveAtHome = await _isInHomeInventory(name: name, barcode: barcode);
+      alreadyHaveAtHome = await _isInHomeInventory(
+        name: name,
+        barcode: barcode,
+      );
     } catch (_) {
       alreadyHaveAtHome = false;
     }
@@ -619,21 +1173,29 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     if (alreadyHaveAtHome) {
       final proceed = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Already in Home Inventory'),
-          content: Text('You already have “$name” at home.\n\nAdd it to your Grocery List anyway?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('No'),
+        builder:
+            (ctx) => AlertDialog(
+              title: const Text('Already in Home Inventory'),
+              content: Text(
+                'You already have “$name” at home.\n\nAdd it to your Grocery List anyway?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text(
+                    'Add anyway',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Add anyway', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
       );
 
       if (proceed != true) return;
@@ -645,14 +1207,18 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     if (existingIndex != -1) {
       final amount = await _askIncrementAmount(context, name);
       if (amount == null) return; // cancel
-      if (amount == 0) return;    // do nothing
+      if (amount == 0) return; // do nothing
 
       final ok = await _incrementExistingGroceryItem(name, by: amount);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ok ? 'Updated quantity (+$amount) for “$name”' : 'Could not update “$name”'),
+          content: Text(
+            ok
+                ? 'Updated quantity (+$amount) for “$name”'
+                : 'Could not update “$name”',
+          ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.teal,
         ),
@@ -682,9 +1248,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     String action = 'current';
 
     bool saveAsFavoriteFirst = false;
-    final favTitleController = TextEditingController(
-      text: 'My List (Backup)',
-    );
+    final favTitleController = TextEditingController(text: 'My List (Backup)');
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -695,9 +1259,10 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
             Future<void> openCategoryMenu() async {
               final RenderBox box =
-              categoryFieldKey.currentContext!.findRenderObject() as RenderBox;
+                  categoryFieldKey.currentContext!.findRenderObject()
+                      as RenderBox;
               final RenderBox overlay =
-              Overlay.of(context).context.findRenderObject() as RenderBox;
+                  Overlay.of(context).context.findRenderObject() as RenderBox;
 
               final Offset offset = box.localToGlobal(Offset.zero);
               final Size overlaySize = overlay.size;
@@ -723,50 +1288,64 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                   right,
                   overlaySize.height - top,
                 ),
-                items: categories.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final cat = entry.value;
-                  final isFirst = i == 0;
-                  final isLast = i == categories.length - 1;
-                  final isSelected = cat == selectedCategory;
+                items:
+                    categories.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final cat = entry.value;
+                      final isFirst = i == 0;
+                      final isLast = i == categories.length - 1;
+                      final isSelected = cat == selectedCategory;
 
-                  return PopupMenuItem<String>(
-                    value: cat,
-                    padding: EdgeInsets.zero,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.vertical(
-                        top: isFirst ? const Radius.circular(14) : Radius.zero,
-                        bottom: isLast ? const Radius.circular(14) : Radius.zero,
-                      ),
-                      child: Container(
-                        width: popupWidth,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? const Color(0xFFF3EDFF)
-                              : Colors.transparent,
-                          border: isLast
-                              ? null
-                              : const Border(
-                            bottom: BorderSide(
-                              color: Color(0xFFE6E6E6),
-                              width: 1,
+                      return PopupMenuItem<String>(
+                        value: cat,
+                        padding: EdgeInsets.zero,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.vertical(
+                            top:
+                                isFirst
+                                    ? const Radius.circular(14)
+                                    : Radius.zero,
+                            bottom:
+                                isLast
+                                    ? const Radius.circular(14)
+                                    : Radius.zero,
+                          ),
+                          child: Container(
+                            width: popupWidth,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  isSelected
+                                      ? const Color(0xFFF3EDFF)
+                                      : Colors.transparent,
+                              border:
+                                  isLast
+                                      ? null
+                                      : const Border(
+                                        bottom: BorderSide(
+                                          color: Color(0xFFE6E6E6),
+                                          width: 1,
+                                        ),
+                                      ),
+                            ),
+                            child: Text(
+                              cat,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    isSelected
+                                        ? Colors.deepPurple
+                                        : Colors.black87,
+                              ),
                             ),
                           ),
                         ),
-                        child: Text(
-                          cat,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color:
-                            isSelected ? Colors.deepPurple : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
+                      );
+                    }).toList(),
               );
 
               if (selected != null && selected != selectedCategory) {
@@ -793,7 +1372,9 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black.withOpacity(0.12)),
+                        border: Border.all(
+                          color: Colors.black.withOpacity(0.12),
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -801,7 +1382,8 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                             contentPadding: EdgeInsets.zero,
                             value: 'current',
                             groupValue: action,
-                            onChanged: (v) => setLocal(() => action = v ?? 'current'),
+                            onChanged:
+                                (v) => setLocal(() => action = v ?? 'current'),
                             title: const Text('Add to current list'),
                             subtitle: const Text('Keeps your existing items'),
                           ),
@@ -809,9 +1391,12 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                             contentPadding: EdgeInsets.zero,
                             value: 'new',
                             groupValue: action,
-                            onChanged: (v) => setLocal(() => action = v ?? 'current'),
+                            onChanged:
+                                (v) => setLocal(() => action = v ?? 'current'),
                             title: const Text('Create a new list'),
-                            subtitle: const Text('Replaces current list with this item'),
+                            subtitle: const Text(
+                              'Replaces current list with this item',
+                            ),
                           ),
                         ],
                       ),
@@ -827,11 +1412,18 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                         child: InputDecorator(
                           decoration: InputDecoration(
                             labelText: 'Select Category',
-                            labelStyle: const TextStyle(color: Colors.deepPurple),
+                            labelStyle: const TextStyle(
+                              color: Colors.deepPurple,
+                            ),
                             filled: true,
                             fillColor: Colors.white,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 14,
+                            ),
                             suffixIcon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
                               color: Colors.deepPurple,
@@ -840,7 +1432,10 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                           ),
                           child: Text(
                             selectedCategory,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -852,16 +1447,25 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.black.withOpacity(0.12)),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.12),
+                          ),
                         ),
                         child: Column(
                           children: [
                             CheckboxListTile(
                               contentPadding: EdgeInsets.zero,
                               value: saveAsFavoriteFirst,
-                              onChanged: (v) => setLocal(() => saveAsFavoriteFirst = v ?? false),
-                              title: const Text('Also save current list as a Favorite first'),
-                              subtitle: const Text('Prevents losing your current list'),
+                              onChanged:
+                                  (v) => setLocal(
+                                    () => saveAsFavoriteFirst = v ?? false,
+                                  ),
+                              title: const Text(
+                                'Also save current list as a Favorite first',
+                              ),
+                              subtitle: const Text(
+                                'Prevents losing your current list',
+                              ),
                               controlAffinity: ListTileControlAffinity.leading,
                             ),
                             if (saveAsFavoriteFirst) ...[
@@ -887,9 +1491,14 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                  ),
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Add', style: TextStyle(color: Colors.white)),
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(color: Colors.white),
+                  ),
                 ),
               ],
             );
@@ -902,13 +1511,14 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
     if (action == 'new') {
       if (saveAsFavoriteFirst) {
-        final title = favTitleController.text.trim().isEmpty
-            ? 'My List (Backup)'
-            : favTitleController.text.trim();
+        final title =
+            favTitleController.text.trim().isEmpty
+                ? 'My List (Backup)'
+                : favTitleController.text.trim();
 
         await _groceryListService.saveCurrentListAsFavorite(
           title: title,
-          store: '', 
+          store: '',
         );
       }
 
@@ -939,7 +1549,9 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(added ? 'Added to Grocery List' : 'Already in your list'),
+          content: Text(
+            added ? 'Added to Grocery List' : 'Already in your list',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -949,7 +1561,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   @override
   Widget build(BuildContext context) {
     final storeName = widget.storeData['vendorName'] ?? 'Unknown Store';
-    final logoUrl = widget.storeData['logoUrl'] as String?;
+    final logoUrl = _storeLogoUrl();
     final storeId = widget.storeData['vendorId']?.toString() ?? '';
 
     return Scaffold(
@@ -969,7 +1581,9 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           children: [
             Card(
               elevation: 6,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Column(
                 children: [
                   Container(
@@ -977,32 +1591,46 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                     height: 120,
                     decoration: BoxDecoration(
                       color: Colors.deepPurple.shade50,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
                     ),
                     child: Center(
-                      child: logoUrl != null
-                          ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          logoUrl,
-                          height: 60,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.store_mall_directory,
-                            size: 50,
-                            color: Colors.deepPurple,
-                          ),
-                        ),
-                      )
-                          : const Icon(
-                        Icons.store_mall_directory,
-                        size: 50,
-                        color: Colors.deepPurple,
-                      ),
+                      child:
+                          logoUrl.isNotEmpty
+                              ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  logoUrl,
+                                  height: 60,
+                                  fit: BoxFit.contain,
+                                  errorBuilder:
+                                      (context, error, stackTrace) =>
+                                          const Icon(
+                                            Icons.store_mall_directory,
+                                            size: 50,
+                                            color: Colors.deepPurple,
+                                          ),
+                                ),
+                              )
+                              : Image.asset(
+                                StoreLogoService.fallbackAsset,
+                                height: 60,
+                                fit: BoxFit.contain,
+                                errorBuilder:
+                                    (_, __, ___) => const Icon(
+                                      Icons.store_mall_directory,
+                                      size: 50,
+                                      color: Colors.deepPurple,
+                                    ),
+                              ),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
                     child: Column(
                       children: [
                         Text(
@@ -1029,43 +1657,47 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
             const SizedBox(height: 20),
 
             ElevatedButton.icon(
-              onPressed: (_checkingFollow || storeId.trim().isEmpty)
-                  ? null
-                  : () async {
-                if (_isFollowingStore) {
-                  await StoreFollowService.unfollowStore(storeId);
-                } else {
-                  await StoreFollowService.followStore(
-                    storeId: storeId,
-                    storeName: storeName,
-                    logoUrl: logoUrl,
-                  );
-                }
+              onPressed:
+                  (_checkingFollow || storeId.trim().isEmpty)
+                      ? null
+                      : () async {
+                        if (_isFollowingStore) {
+                          await StoreFollowService.unfollowStore(storeId);
+                        } else {
+                          await StoreFollowService.followStore(
+                            storeId: storeId,
+                            storeName: storeName,
+                            logoUrl: logoUrl,
+                            storeData: widget.storeData,
+                          );
+                        }
 
-                if (!mounted) return;
-                setState(() => _isFollowingStore = !_isFollowingStore);
+                        if (!mounted) return;
+                        setState(() => _isFollowingStore = !_isFollowingStore);
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      _isFollowingStore
-                          ? 'Store followed'
-                          : 'Store unfollowed',
-                    ),
-                  ),
-                );
-              },
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _isFollowingStore
+                                  ? 'Store followed'
+                                  : 'Store unfollowed',
+                            ),
+                          ),
+                        );
+                      },
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                _isFollowingStore ? Colors.grey.shade300 : Colors.deepPurple,
+                    _isFollowingStore
+                        ? Colors.grey.shade300
+                        : Colors.deepPurple,
                 foregroundColor:
-                _isFollowingStore ? Colors.black : Colors.white,
+                    _isFollowingStore ? Colors.black : Colors.white,
               ),
-              icon: Icon(
-                _isFollowingStore ? Icons.check : Icons.star,
-              ),
+              icon: Icon(_isFollowingStore ? Icons.check : Icons.star),
               label: Text(
-                _isFollowingStore ? 'Following this store' : 'Follow this store',
+                _isFollowingStore
+                    ? 'Following this store'
+                    : 'Follow this store',
               ),
             ),
 
@@ -1075,13 +1707,20 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
             TextField(
               controller: _searchController,
-              onSubmitted: _searchAndAdd,
+              onChanged: _onSearchChanged,
+              onSubmitted: (value) {
+                _searchDebounce?.cancel();
+                _searchAndAdd(value);
+              },
               decoration: InputDecoration(
                 hintText: 'Search for a product...',
                 prefixIcon: const Icon(Icons.search),
                 fillColor: Colors.white,
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1092,50 +1731,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
             if (_isLoading) const Center(child: CircularProgressIndicator()),
             const SizedBox(height: 10),
 
-            ..._selectedItems.map((item) => AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                key: ValueKey(item['name']),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                child: ListTile(
-                  leading: _productThumbnail(item),
-                  title: Text(item['name']),
-                  subtitle: Text(item['location']),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.kitchen, color: Colors.deepPurple),
-                        tooltip: 'Brought home (add to inventory)',
-                        onPressed: () => _guardedAddToHomeInventory(item),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.playlist_add, color: Colors.teal),
-                        tooltip: 'Add to Grocery List',
-                        onPressed: () => _guardedAddToGroceryList(item),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          _bookmarkedKeys.contains(_itemKey(item))
-                              ? Icons.bookmark
-                              : Icons.bookmark_border,
-                          color: _bookmarkedKeys.contains(_itemKey(item))
-                              ? Colors.orange
-                              : Colors.grey,
-                        ),
-                        onPressed: () => _toggleBookmark(item),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _removeItem(item),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )),
+            ..._selectedItems.map(_searchResultCard),
 
             const SizedBox(height: 20),
           ],
@@ -1166,9 +1762,13 @@ class _QtyChip extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
+            color:
+                selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
           ),
-          color: selected ? Colors.deepPurple.withOpacity(0.12) : Colors.transparent,
+          color:
+              selected
+                  ? Colors.deepPurple.withOpacity(0.12)
+                  : Colors.transparent,
         ),
         child: Text(
           label,

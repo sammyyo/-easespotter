@@ -1,21 +1,29 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easespotter/services/store_follow_service.dart';
 import 'package:easespotter/screens/store_confirmation_screen.dart';
 import 'package:easespotter/services/store_api_service.dart';
+import 'package:easespotter/services/store_logo_service.dart';
 
 class StoreProfileScreen extends StatefulWidget {
   final String storeId;
   final String? storeName;
   final String? logoUrl;
+  final Map<String, dynamic>? initialStoreData;
+  final bool allowRemoteLookup;
 
   const StoreProfileScreen({
     super.key,
     required this.storeId,
     this.storeName,
     this.logoUrl,
+    this.initialStoreData,
+    this.allowRemoteLookup = true,
   });
 
   @override
@@ -69,9 +77,9 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingFollow = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update follow: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update follow: $e')));
     }
   }
 
@@ -91,14 +99,20 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     try {
       setState(() => _openingStorefront = true);
 
-      final apiData = await StoreApiService.fetchStoreById(vendorId);
+      final apiData = await _fetchStorefrontData(vendorId);
+      final productsByCategory = _asMap(apiData['productsByCategory']);
+      final productsByAisle = _asMap(apiData['productsByAisle']);
+      final resolvedLogo = StoreLogoService.resolveFromData(apiData);
 
       final storeData = <String, dynamic>{
         'vendorId': apiData['vendorId'] ?? vendorId,
         'vendorName': apiData['vendorName'] ?? storeName,
-        'logoUrl': apiData['logoUrl'] ?? (logoUrl ?? ''),
-        'productsByCategory': apiData['productsByCategory'] ?? <String, dynamic>{},
-        'productsByAisle': apiData['productsByAisle'] ?? <String, dynamic>{},
+        'logoUrl':
+            resolvedLogo.isNotEmpty
+                ? resolvedLogo
+                : StoreLogoService.resolveUrl(logoUrl),
+        'productsByCategory': productsByCategory,
+        'productsByAisle': productsByAisle,
         'totalProducts': apiData['totalProducts'] ?? 0,
         'timestamp': apiData['timestamp'],
       };
@@ -113,12 +127,118 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open store: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to open store: $e')));
     } finally {
       if (mounted) setState(() => _openingStorefront = false);
     }
+  }
+
+  Future<Map<String, dynamic>> _fetchStorefrontData(int vendorId) async {
+    if (widget.initialStoreData != null) {
+      return _extractStoreData(widget.initialStoreData);
+    }
+
+    final cachedData = await _cachedStorefrontData(vendorId);
+    if (cachedData != null) return cachedData;
+
+    if (!widget.allowRemoteLookup) {
+      throw Exception(
+        'Store product data is not saved on this followed store yet. Unfollow it, scan the store QR again, then follow it from the store page.',
+      );
+    }
+
+    try {
+      final directoryData = _extractStoreData(
+        await StoreApiService.fetchStoreDirectory(vendorId),
+      );
+      return directoryData;
+    } catch (e) {
+      debugPrint('StoreProfile directory fetch failed for $vendorId: $e');
+    }
+
+    final firestoreData = await _firestoreStorefrontData(vendorId);
+    if (firestoreData != null) return firestoreData;
+
+    throw Exception(
+      'Store product data is not saved on this followed store yet. Unfollow it, scan the store QR again, then follow it from the store page.',
+    );
+  }
+
+  Future<Map<String, dynamic>?> _cachedStorefrontData(int vendorId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('store_cache_$vendorId');
+      if (raw == null || raw.trim().isEmpty) return null;
+
+      return _extractStoreData(jsonDecode(raw));
+    } catch (e) {
+      debugPrint('StoreProfile cached store load failed for $vendorId: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _firestoreStorefrontData(int vendorId) async {
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('stores')
+              .doc(vendorId.toString())
+              .get();
+      final data = snap.data();
+      if (data == null) return null;
+
+      final payload = data['payload'];
+      if (payload is Map) return _extractStoreData(payload);
+
+      return _extractStoreData(data);
+    } catch (e) {
+      debugPrint('StoreProfile Firestore store load failed for $vendorId: $e');
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _extractStoreData(dynamic decoded) {
+    if (decoded is Map) {
+      final map = Map<String, dynamic>.from(decoded);
+      final data = map['data'];
+
+      if (map['success'] == true && data is Map) {
+        return _normalizeStoreData(data);
+      }
+
+      return _normalizeStoreData(map);
+    }
+
+    throw const FormatException('Malformed store response');
+  }
+
+  Map<String, dynamic> _normalizeStoreData(Map<dynamic, dynamic> rawData) {
+    final storeData = Map<String, dynamic>.from(rawData);
+    final storeId =
+        storeData['vendorId'] ??
+        storeData['storeId'] ??
+        storeData['vendor_id'] ??
+        storeData['store_id'] ??
+        storeData['vendorID'] ??
+        storeData['storeID'] ??
+        storeData['id'];
+
+    final cleanStoreId = storeId?.toString().trim();
+    if (cleanStoreId == null || cleanStoreId.isEmpty) {
+      throw const FormatException('Store response missing store ID');
+    }
+
+    storeData['vendorId'] = cleanStoreId;
+    storeData['storeId'] ??= cleanStoreId;
+    return storeData;
+  }
+
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
   }
 
   @override
@@ -126,15 +246,19 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     final authUid = FirebaseAuth.instance.currentUser?.uid;
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('stores')
-          .doc(widget.storeId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('stores')
+              .doc(widget.storeId)
+              .snapshots(),
       builder: (context, storeSnap) {
         if (storeSnap.hasError) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Store', style: TextStyle(fontWeight: FontWeight.w800)),
+              title: const Text(
+                'Store',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
               centerTitle: true,
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
@@ -146,7 +270,10 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
         if (storeSnap.connectionState == ConnectionState.waiting) {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Store', style: TextStyle(fontWeight: FontWeight.w800)),
+              title: const Text(
+                'Store',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
               centerTitle: true,
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
@@ -155,28 +282,36 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
           );
         }
 
-        final storeDoc = (storeSnap.data?.data() as Map<String, dynamic>?) ?? {};
+        final storeDoc =
+            (storeSnap.data?.data() as Map<String, dynamic>?) ?? {};
 
-        final resolvedName = (widget.storeName?.trim().isNotEmpty == true)
-            ? widget.storeName!
-            : (storeDoc['name'] ?? storeDoc['vendorName'] ?? 'Store').toString();
+        final resolvedName =
+            (widget.storeName?.trim().isNotEmpty == true)
+                ? widget.storeName!
+                : (storeDoc['name'] ?? storeDoc['vendorName'] ?? 'Store')
+                    .toString();
 
-        final resolvedLogo = (widget.logoUrl?.trim().isNotEmpty == true)
-            ? widget.logoUrl!
-            : (storeDoc['logoUrl'] ?? storeDoc['vendorLogoUrl'] ?? '').toString();
+        final resolvedLogo =
+            (widget.logoUrl?.trim().isNotEmpty == true)
+                ? StoreLogoService.resolveUrl(widget.logoUrl)
+                : StoreLogoService.resolveFromData(storeDoc);
 
-        final visitsQuery = (authUid == null)
-            ? null
-            : FirebaseFirestore.instance
-            .collection('store_visits')
-            .where('userId', isEqualTo: authUid)
-            .where('storeId', isEqualTo: widget.storeId)
-            .orderBy('visitedAt', descending: true)
-            .limit(50);
+        final visitsQuery =
+            (authUid == null)
+                ? null
+                : FirebaseFirestore.instance
+                    .collection('store_visits')
+                    .where('userId', isEqualTo: authUid)
+                    .where('storeId', isEqualTo: widget.storeId)
+                    .orderBy('visitedAt', descending: true)
+                    .limit(50);
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(resolvedName, style: const TextStyle(fontWeight: FontWeight.w800)),
+            title: Text(
+              resolvedName,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
             centerTitle: true,
             backgroundColor: Colors.deepPurple,
             foregroundColor: Colors.white,
@@ -188,26 +323,42 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 CircleAvatar(
                   radius: 42,
                   backgroundColor: Colors.deepPurple.shade50,
-                  child: (resolvedLogo.isNotEmpty)
-                      ? ClipOval(
-                    child: Image.network(
-                      resolvedLogo,
-                      width: 84,
-                      height: 84,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.store,
-                        size: 42,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                  )
-                      : const Icon(Icons.store, size: 42, color: Colors.deepPurple),
+                  child:
+                      (resolvedLogo.isNotEmpty)
+                          ? ClipOval(
+                            child: Image.network(
+                              resolvedLogo,
+                              width: 84,
+                              height: 84,
+                              fit: BoxFit.cover,
+                              errorBuilder:
+                                  (_, __, ___) => const Icon(
+                                    Icons.store,
+                                    size: 42,
+                                    color: Colors.deepPurple,
+                                  ),
+                            ),
+                          )
+                          : Image.asset(
+                            StoreLogoService.fallbackAsset,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.contain,
+                            errorBuilder:
+                                (_, __, ___) => const Icon(
+                                  Icons.store,
+                                  size: 42,
+                                  color: Colors.deepPurple,
+                                ),
+                          ),
                 ),
                 const SizedBox(height: 14),
                 Text(
                   resolvedName,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -215,20 +366,25 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: _openingStorefront
-                        ? null
-                        : () => _openStorefront(
-                      storeName: resolvedName,
-                      logoUrl: resolvedLogo.isNotEmpty ? resolvedLogo : null,
+                    onPressed:
+                        _openingStorefront
+                            ? null
+                            : () => _openStorefront(
+                              storeName: resolvedName,
+                              logoUrl:
+                                  resolvedLogo.isNotEmpty ? resolvedLogo : null,
+                            ),
+                    icon:
+                        _openingStorefront
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : const Icon(Icons.storefront),
+                    label: Text(
+                      _openingStorefront ? 'Opening…' : 'Browse this store',
                     ),
-                    icon: _openingStorefront
-                        ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : const Icon(Icons.storefront),
-                    label: Text(_openingStorefront ? 'Opening…' : 'Browse this store'),
                   ),
                 ),
 
@@ -237,19 +393,25 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _loadingFollow
-                        ? null
-                        : () => _toggleFollow(
-                      resolvedName,
-                      resolvedLogo.isNotEmpty ? resolvedLogo : null,
-                    ),
+                    onPressed:
+                        _loadingFollow
+                            ? null
+                            : () => _toggleFollow(
+                              resolvedName,
+                              resolvedLogo.isNotEmpty ? resolvedLogo : null,
+                            ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _isFollowing ? Colors.red : Colors.deepPurple,
+                      backgroundColor:
+                          _isFollowing ? Colors.red : Colors.deepPurple,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    icon: Icon(_isFollowing ? Icons.remove_circle_outline : Icons.add),
-                    label: Text(_isFollowing ? 'Unfollow store' : 'Follow store'),
+                    icon: Icon(
+                      _isFollowing ? Icons.remove_circle_outline : Icons.add,
+                    ),
+                    label: Text(
+                      _isFollowing ? 'Unfollow store' : 'Follow store',
+                    ),
                   ),
                 ),
 
@@ -290,7 +452,8 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                           ),
                         );
                       }
-                      if (visitSnap.connectionState == ConnectionState.waiting) {
+                      if (visitSnap.connectionState ==
+                          ConnectionState.waiting) {
                         return const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: LinearProgressIndicator(),
@@ -310,7 +473,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                       if (lastVisited != null) {
                         final dt = lastVisited.toDate();
                         lastVisitedText =
-                        '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
+                            '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
                             '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
                       }
 
@@ -354,15 +517,18 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
 
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('store_promotions')
-                        .where('storeId', isEqualTo: widget.storeId)
-                        .orderBy('startsAt', descending: true)
-                        .limit(20)
-                        .snapshots(),
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection('store_promotions')
+                            .where('storeId', isEqualTo: widget.storeId)
+                            .orderBy('startsAt', descending: true)
+                            .limit(20)
+                            .snapshots(),
                     builder: (context, snap) {
                       if (snap.hasError) {
-                        return Center(child: Text('Promotions error: ${snap.error}'));
+                        return Center(
+                          child: Text('Promotions error: ${snap.error}'),
+                        );
                       }
                       if (!snap.hasData) {
                         return const Center(child: CircularProgressIndicator());
@@ -371,7 +537,10 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
 
                       if (docs.isEmpty) {
                         return const Center(
-                          child: Text('No active promotions right now.', style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                            'No active promotions right now.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         );
                       }
 
@@ -384,7 +553,10 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                             elevation: 0,
                             color: Colors.grey.shade100,
                             child: ListTile(
-                              leading: const Icon(Icons.local_offer, color: Colors.deepPurple),
+                              leading: const Icon(
+                                Icons.local_offer,
+                                color: Colors.deepPurple,
+                              ),
                               title: Text(p['title'] ?? 'Promotion'),
                               subtitle: Text(p['description'] ?? ''),
                             ),
@@ -429,7 +601,10 @@ class _StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.deepPurple, size: 20),
           const SizedBox(height: 4),
-          Text(title, style: const TextStyle(fontSize: 12, color: Colors.deepPurple)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
+          ),
           const SizedBox(height: 4),
           Text(
             value,

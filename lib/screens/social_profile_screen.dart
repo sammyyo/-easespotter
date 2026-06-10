@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/shopping_layer/community_recipes_screen.dart';
 import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
 import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
@@ -2253,9 +2254,9 @@ class _StoreReviewsPreview extends StatelessWidget {
                                   'Store')
                               .toString();
 
-                      final logoUrl =
-                          (storeData?['logoUrl'] ?? storeData?['vendorLogoUrl'])
-                              ?.toString();
+                      final logoUrl = StoreLogoService.resolveFromData(
+                        storeData,
+                      );
 
                       return Container(
                         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -2280,13 +2281,22 @@ class _StoreReviewsPreview extends StatelessWidget {
                                   fallback: CircleAvatar(
                                     radius: 14,
                                     backgroundColor: Colors.white,
-                                    child: Text(
-                                      storeName.isNotEmpty
-                                          ? storeName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11,
+                                    child: ClipOval(
+                                      child: Image.asset(
+                                        StoreLogoService.fallbackAsset,
+                                        width: 24,
+                                        height: 24,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (_, __, ___) => Text(
+                                              storeName.isNotEmpty
+                                                  ? storeName[0].toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 11,
+                                              ),
+                                            ),
                                       ),
                                     ),
                                   ),

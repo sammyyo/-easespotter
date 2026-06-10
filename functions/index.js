@@ -374,6 +374,42 @@ exports.onRecipeComment = onDocumentCreated(
 );
 
 /**
+ * Trigger: New Comment on Reel
+ */
+exports.onReelComment = onDocumentCreated(
+    "reels/{reelId}/comments/{commentId}",
+    async (event) => {
+      const snap = event.data;
+      if (!snap) return;
+
+      const comment = snap.data();
+      const reelId = event.params.reelId;
+      const authorUid = comment.uid;
+
+      const reelSnap = await db.collection("reels").doc(reelId).get();
+      if (!reelSnap.exists) return;
+
+      const reelData = reelSnap.data();
+      const ownerUid = reelData.authorUid || reelData.uid;
+
+      if (!ownerUid || ownerUid === authorUid) return;
+
+      const actor = await getActorInfo(authorUid);
+      const textPreview = preview(comment.text, 50);
+
+      await sendNotification(ownerUid, {
+        type: "comment",
+        actorUid: authorUid,
+        actorName: actor.name,
+        actorAvatarUrl: actor.avatarUrl,
+        itemType: "reel",
+        itemId: reelId,
+        message: `${actor.name} commented on your reel: "${textPreview}"`,
+      });
+    },
+);
+
+/**
  * Trigger: New Comment on Shopping Wall Post
  */
 exports.onShoppingWallComment = onDocumentCreated(

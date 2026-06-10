@@ -19,17 +19,21 @@ class PromotionsScreen extends StatelessWidget {
     }
 
     //  REVERTED: Use users/{uid}/followedStores as source of truth
-    final followedStoresStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('followedStores')
-        .orderBy('followedAt', descending: true)
-        .snapshots();
+    final followedStoresStream =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('followedStores')
+            .orderBy('followedAt', descending: true)
+            .snapshots();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F1FF),
       appBar: AppBar(
-        title: const Text('Promotions', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Promotions',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
@@ -50,22 +54,24 @@ class PromotionsScreen extends StatelessWidget {
           }
 
           final followedDocs = followedSnap.data!.docs;
-          
+
           //  Updated extraction block
-          final followedStoreIds = followedDocs
-              .map((d) {
-            final data = d.data() as Map<String, dynamic>;
-            // storeId is usually stored in the doc, but fallback to doc id
-            return (data['storeId'] ?? d.id).toString();
-          })
-              .where((id) => id.trim().isNotEmpty)
-              .toList();
+          final followedStoreIds =
+              followedDocs
+                  .map((d) {
+                    final data = d.data() as Map<String, dynamic>;
+                    // storeId is usually stored in the doc, but fallback to doc id
+                    return (data['storeId'] ?? d.id).toString();
+                  })
+                  .where((id) => id.trim().isNotEmpty)
+                  .toList();
 
           //  NEW: Normalization
-          final normalizedIds = followedStoreIds
-              .map((id) => id.trim())
-              .where((id) => id.isNotEmpty)
-              .toList();
+          final normalizedIds =
+              followedStoreIds
+                  .map((id) => id.trim())
+                  .where((id) => id.isNotEmpty)
+                  .toList();
           debugPrint('Promotions: followed store IDs: $normalizedIds');
 
           if (normalizedIds.isEmpty) {
@@ -93,13 +99,16 @@ class PromotionsScreen extends StatelessWidget {
 
               final result = promoSnap.data!;
               final allPromos = result.promotions;
-              debugPrint('Promotions: backend matched promos: ${allPromos.length}');
+              debugPrint(
+                'Promotions: backend matched promos: ${allPromos.length}',
+              );
               final now = DateTime.now();
 
               //  Show active API promotions for followed stores.
-              final active = allPromos.where((promo) {
-                return promo.isActiveAt(now);
-              }).toList();
+              final active =
+                  allPromos.where((promo) {
+                    return promo.isActiveAt(now);
+                  }).toList();
 
               // Sort: earliest ending first, fallback to newest
               active.sort((a, b) {
@@ -119,9 +128,8 @@ class PromotionsScreen extends StatelessWidget {
               });
 
               if (active.isEmpty) {
-                return _EmptyState(
+                return const _EmptyState(
                   title: 'No active promotions',
-                  subtitle: 'Checked ${result.checkedStoreCount} followed store ID${result.checkedStoreCount == 1 ? '' : 's'} through the backend and found ${allPromos.length} matching promo${allPromos.length == 1 ? '' : 's'}. Backend keys: ${result.backendKeysPreview}',
                   icon: Icons.local_offer_outlined,
                 );
               }
@@ -132,28 +140,29 @@ class PromotionsScreen extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, i) {
                   final promo = active[i];
-                  final endsText = promo.endsAt == null
-                      ? null
-                      : _formatEnds(promo.endsAt!);
+                  final endsText =
+                      promo.endsAt == null ? null : _formatEnds(promo.endsAt!);
 
                   return _PromoCard(
                     title: promo.title,
                     storeName: promo.storeName,
                     endsText: endsText,
                     imageUrl: promo.imageUrl,
-                    onTap: promo.storeId.trim().isEmpty
-                        ? null
-                        : () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => StoreProfileScreen(
-                            storeId: promo.storeId,
-                            storeName: promo.storeName,
-                          ),
-                        ),
-                      );
-                    },
+                    onTap:
+                        promo.storeId.trim().isEmpty
+                            ? null
+                            : () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => StoreProfileScreen(
+                                        storeId: promo.storeId,
+                                        storeName: promo.storeName,
+                                      ),
+                                ),
+                              );
+                            },
                   );
                 },
               );
@@ -175,7 +184,9 @@ class PromotionsScreen extends StatelessWidget {
     return ids;
   }
 
-  static Future<_PromotionFetchResult> _fetchApiPromotions(List<String> storeIds) async {
+  static Future<_PromotionFetchResult> _fetchApiPromotions(
+    List<String> storeIds,
+  ) async {
     final promos = <_Promotion>[];
     final backendKeys = <String>{};
     final uniqueStoreIds = _uniqueStoreIds(storeIds);
@@ -183,14 +194,18 @@ class PromotionsScreen extends StatelessWidget {
     for (final storeId in uniqueStoreIds) {
       final numericStoreId = int.tryParse(storeId);
       if (numericStoreId == null) {
-        debugPrint('Promotions: skipped non-numeric backend store ID: $storeId');
+        debugPrint(
+          'Promotions: skipped non-numeric backend store ID: $storeId',
+        );
         continue;
       }
 
       try {
         final data = await StoreApiService.fetchStoreById(numericStoreId);
         backendKeys.addAll(data.keys.map((key) => key.toString()));
-        debugPrint('Promotions: backend store $storeId keys: ${data.keys.toList()}');
+        debugPrint(
+          'Promotions: backend store $storeId keys: ${data.keys.toList()}',
+        );
         promos.addAll(_Promotion.fromApiStoreData(storeId, data));
       } catch (e) {
         debugPrint('Promotions: API promo fallback failed for $storeId: $e');
@@ -268,19 +283,21 @@ class _PromoCard extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: (imageUrl != null)
-                  ? Image.network(
-                imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.local_offer_outlined,
-                  color: Colors.deepPurple,
-                ),
-              )
-                  : const Icon(
-                Icons.local_offer_outlined,
-                color: Colors.deepPurple,
-              ),
+              child:
+                  (imageUrl != null)
+                      ? Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => const Icon(
+                              Icons.local_offer_outlined,
+                              color: Colors.deepPurple,
+                            ),
+                      )
+                      : const Icon(
+                        Icons.local_offer_outlined,
+                        color: Colors.deepPurple,
+                      ),
             ),
           ),
           const SizedBox(width: 12),
@@ -363,14 +380,10 @@ class _PromoCard extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final String? subtitle;
   final IconData icon;
 
-  const _EmptyState({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-  });
+  const _EmptyState({required this.title, this.subtitle, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -391,12 +404,14 @@ class _EmptyState extends StatelessWidget {
                 color: Colors.grey.shade800,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, height: 1.4),
-            ),
+            if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, height: 1.4),
+              ),
+            ],
           ],
         ),
       ),
@@ -448,42 +463,63 @@ class _Promotion {
     required String fallbackStoreId,
     required String fallbackDedupeKey,
   }) {
-    final storeId = _stringValue(
-      data,
-      const ['storeId', 'vendorId', 'vendorid', 'store_id', 'vendor_id', 'storeID', 'vendorID'],
-      fallback: fallbackStoreId,
-    );
+    final storeId = _stringValue(data, const [
+      'storeId',
+      'vendorId',
+      'vendorid',
+      'store_id',
+      'vendor_id',
+      'storeID',
+      'vendorID',
+    ], fallback: fallbackStoreId);
 
-    final title = _stringValue(
-      data,
-      const ['title', 'name', 'headline', 'description', 'promoTitle'],
-      fallback: 'Promotion',
-    );
+    final title = _stringValue(data, const [
+      'title',
+      'name',
+      'headline',
+      'description',
+      'promoTitle',
+    ], fallback: 'Promotion');
 
-    final storeName = _stringValue(
-      data,
-      const ['storeName', 'vendorName', 'store_name', 'vendor_name'],
-      fallback: 'Store',
-    );
+    final storeName = _stringValue(data, const [
+      'storeName',
+      'vendorName',
+      'store_name',
+      'vendor_name',
+    ], fallback: 'Store');
 
-    final imageUrl = _stringValue(
-      data,
-      const ['imageUrl', 'imageURL', 'image', 'photoUrl', 'photoURL', 'logoUrl'],
-      fallback: '',
-    );
-    final status = _stringValue(
-      data,
-      const ['status', 'state'],
-      fallback: '',
-    ).toLowerCase();
+    final imageUrl = _stringValue(data, const [
+      'imageUrl',
+      'imageURL',
+      'image',
+      'photoUrl',
+      'photoURL',
+      'logoUrl',
+    ], fallback: '');
+    final status =
+        _stringValue(data, const [
+          'status',
+          'state',
+        ], fallback: '').toLowerCase();
 
     return _Promotion(
       storeId: storeId,
       storeName: storeName,
       title: title,
       imageUrl: imageUrl.isEmpty ? null : imageUrl,
-      startsAt: _dateValue(data, const ['startsAt', 'startAt', 'startDate', 'validFrom']),
-      endsAt: _dateValue(data, const ['endsAt', 'endAt', 'endDate', 'validUntil', 'expiresAt']),
+      startsAt: _dateValue(data, const [
+        'startsAt',
+        'startAt',
+        'startDate',
+        'validFrom',
+      ]),
+      endsAt: _dateValue(data, const [
+        'endsAt',
+        'endAt',
+        'endDate',
+        'validUntil',
+        'expiresAt',
+      ]),
       status: status,
       dedupeKey: fallbackDedupeKey,
     );
@@ -500,16 +536,18 @@ class _Promotion {
     String storeId,
     Map<String, dynamic> storeData,
   ) {
-    final storeName = _stringValue(
-      storeData,
-      const ['storeName', 'vendorName', 'vendorBusinessName', 'name'],
-      fallback: 'Store',
-    );
-    final storeLogoUrl = _stringValue(
-      storeData,
-      const ['logoUrl', 'vendorLogoUrl', 'storeLogoUrl', 'logo'],
-      fallback: '',
-    );
+    final storeName = _stringValue(storeData, const [
+      'storeName',
+      'vendorName',
+      'vendorBusinessName',
+      'name',
+    ], fallback: 'Store');
+    final storeLogoUrl = _stringValue(storeData, const [
+      'logoUrl',
+      'vendorLogoUrl',
+      'storeLogoUrl',
+      'logo',
+    ], fallback: '');
 
     final promos = <_Promotion>[];
     final seen = <String>{};
@@ -610,14 +648,16 @@ class _Promotion {
       if (storeLogoUrl.isNotEmpty) {
         data.putIfAbsent('logoUrl', () => storeLogoUrl);
       }
-      final id = _stringValue(
-        data,
-        const ['id', 'promotionId', 'promoId', 'campaignId'],
-        fallback: '',
-      );
-      final dedupeKey = id.isNotEmpty
-          ? 'api:$storeId:$id'
-          : 'api:$storeId:$path:${data.hashCode}';
+      final id = _stringValue(data, const [
+        'id',
+        'promotionId',
+        'promoId',
+        'campaignId',
+      ], fallback: '');
+      final dedupeKey =
+          id.isNotEmpty
+              ? 'api:$storeId:$id'
+              : 'api:$storeId:$path:${data.hashCode}';
 
       if (seen.add(dedupeKey)) {
         promos.add(

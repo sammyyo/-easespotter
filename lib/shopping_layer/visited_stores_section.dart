@@ -1,14 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:easespotter/services/store_logo_service.dart';
 
 class VisitedStoresSection extends StatelessWidget {
   final String? userId;
 
-  const VisitedStoresSection({
-    super.key,
-    this.userId,
-  });
+  const VisitedStoresSection({super.key, this.userId});
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +35,7 @@ class VisitedStoresSection extends StatelessWidget {
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox
-              .shrink();
+          return const SizedBox.shrink();
         }
 
         final visitDocs = snapshot.data!.docs;
@@ -68,17 +65,17 @@ class VisitedStoresSection extends StatelessWidget {
         }
 
         // Take top N stores (by visit count)
-        final sortedStoreIds = visitCounts.keys.toList()
-          ..sort((a, b) {
-            final countDiff = (visitCounts[b] ?? 0) - (visitCounts[a] ?? 0);
-            if (countDiff != 0) return countDiff;
-            final tA = lastVisitMap[a];
-            final tB = lastVisitMap[b];
-            if (tA == null && tB == null) return 0;
-            if (tA == null) return 1;
-            if (tB == null) return -1;
-            return tB.compareTo(tA);
-          });
+        final sortedStoreIds =
+            visitCounts.keys.toList()..sort((a, b) {
+              final countDiff = (visitCounts[b] ?? 0) - (visitCounts[a] ?? 0);
+              if (countDiff != 0) return countDiff;
+              final tA = lastVisitMap[a];
+              final tB = lastVisitMap[b];
+              if (tA == null && tB == null) return 0;
+              if (tA == null) return 1;
+              if (tB == null) return -1;
+              return tB.compareTo(tA);
+            });
 
         final topStoreIds = sortedStoreIds.take(10).toList();
 
@@ -86,9 +83,8 @@ class VisitedStoresSection extends StatelessWidget {
         final storesRef = FirebaseFirestore.instance.collection('stores');
 
         return FutureBuilder<QuerySnapshot>(
-          future: storesRef
-              .where(FieldPath.documentId, whereIn: topStoreIds)
-              .get(),
+          future:
+              storesRef.where(FieldPath.documentId, whereIn: topStoreIds).get(),
           builder: (context, storesSnapshot) {
             if (storesSnapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -106,21 +102,22 @@ class VisitedStoresSection extends StatelessWidget {
             // Map storeId -> store data
             final Map<String, Map<String, dynamic>> storeDataById = {
               for (final doc in storeDocs)
-                doc.id: doc.data() as Map<String, dynamic>
+                doc.id: doc.data() as Map<String, dynamic>,
             };
 
             // Build a list of stores in the same topStoreIds order
-            final stores = topStoreIds
-                .where((id) => storeDataById.containsKey(id))
-                .map((id) {
-              final data = storeDataById[id]!;
-              return _VisitedStoreItemData(
-                storeId: id,
-                name: data['name']?.toString() ?? 'Store',
-                logoUrl: data['logoUrl']?.toString(),
-                visits: visitCounts[id] ?? 0,
-              );
-            }).toList();
+            final stores =
+                topStoreIds.where((id) => storeDataById.containsKey(id)).map((
+                  id,
+                ) {
+                  final data = storeDataById[id]!;
+                  return _VisitedStoreItemData(
+                    storeId: id,
+                    name: data['name']?.toString() ?? 'Store',
+                    logoUrl: StoreLogoService.resolveFromData(data),
+                    visits: visitCounts[id] ?? 0,
+                  );
+                }).toList();
 
             if (stores.isEmpty) {
               return const SizedBox.shrink();
@@ -130,14 +127,13 @@ class VisitedStoresSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
-                  padding:
-                  EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
+                  ),
                   child: Text(
                     'Stores you’ve shopped at',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 SizedBox(
@@ -183,6 +179,8 @@ class _VisitedStoreChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedLogo = StoreLogoService.resolveUrl(store.logoUrl);
+
     return InkWell(
       onTap: () {
         // TODO: Navigate to your Store screen by storeId
@@ -203,15 +201,25 @@ class _VisitedStoreChip extends StatelessWidget {
             CircleAvatar(
               radius: 20,
               backgroundImage:
-              store.logoUrl != null && store.logoUrl!.isNotEmpty
-                  ? NetworkImage(store.logoUrl!)
-                  : null,
-              child: (store.logoUrl == null || store.logoUrl!.isEmpty)
-                  ? Text(
-                store.name.isNotEmpty ? store.name[0].toUpperCase() : '?',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              )
-                  : null,
+                  resolvedLogo.isNotEmpty ? NetworkImage(resolvedLogo) : null,
+              child:
+                  resolvedLogo.isEmpty
+                      ? Image.asset(
+                        StoreLogoService.fallbackAsset,
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.contain,
+                        errorBuilder:
+                            (_, __, ___) => Text(
+                              store.name.isNotEmpty
+                                  ? store.name[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      )
+                      : null,
             ),
             const SizedBox(height: 8),
             Text(
@@ -224,10 +232,7 @@ class _VisitedStoreChip extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${store.visits} visit${store.visits == 1 ? '' : 's'}',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade400,
-              ),
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
             ),
           ],
         ),

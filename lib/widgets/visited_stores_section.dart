@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:easespotter/screens/store_profile_screen.dart';
+import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/services/store_review_service.dart';
 
 class VisitedStoresSection extends StatefulWidget {
   final String userId;
 
-  const VisitedStoresSection({
-    super.key,
-    required this.userId,
-  });
+  const VisitedStoresSection({super.key, required this.userId});
 
   @override
   State<VisitedStoresSection> createState() => _VisitedStoresSectionState();
@@ -94,11 +92,11 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
           if (storeId == null || storeId.isEmpty) continue;
 
           final storeName = (data['storeName'] ?? storeId).toString();
-          final logoUrl = data['logoUrl']?.toString();
+          final logoUrl = StoreLogoService.resolveFromData(data);
 
           final agg = aggregates.putIfAbsent(
             storeId,
-                () => _VisitedStoreAggregate(
+            () => _VisitedStoreAggregate(
               storeId: storeId,
               storeName: storeName,
               visits: 0,
@@ -115,7 +113,7 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
             agg.lastVisitedAt = visitedAt;
           }
 
-          if (agg.logoUrl == null && logoUrl != null && logoUrl.isNotEmpty) {
+          if (agg.logoUrl == null && logoUrl.isNotEmpty) {
             agg.logoUrl = logoUrl;
           }
 
@@ -124,13 +122,14 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
           }
         }
 
-        final stores = aggregates.values.toList()
-          ..sort((a, b) {
-            final diff = b.visits - a.visits;
-            if (diff != 0) return diff;
-            return (b.lastVisitedAt ?? Timestamp(0, 0))
-                .compareTo(a.lastVisitedAt ?? Timestamp(0, 0));
-          });
+        final stores =
+            aggregates.values.toList()..sort((a, b) {
+              final diff = b.visits - a.visits;
+              if (diff != 0) return diff;
+              return (b.lastVisitedAt ?? Timestamp(0, 0)).compareTo(
+                a.lastVisitedAt ?? Timestamp(0, 0),
+              );
+            });
 
         final topStores = stores.take(12).toList();
         final favoriteStore = topStores.isNotEmpty ? topStores.first : null;
@@ -148,9 +147,10 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
                       child: _InsightCard(
                         title: 'Most Visited',
                         value: favoriteStore?.storeName ?? 'None',
-                        subValue: favoriteStore != null
-                            ? '${favoriteStore.visits} visits'
-                            : '',
+                        subValue:
+                            favoriteStore != null
+                                ? '${favoriteStore.visits} visits'
+                                : '',
                         icon: Icons.emoji_events,
                         color: Colors.amber.shade100,
                         iconColor: Colors.amber.shade800,
@@ -190,8 +190,7 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final crossAxisCount =
-                  constraints.maxWidth >= 520 ? 4 : 3;
+                  final crossAxisCount = constraints.maxWidth >= 520 ? 4 : 3;
 
                   return GridView.builder(
                     shrinkWrap: true,
@@ -201,7 +200,7 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
                       crossAxisCount: crossAxisCount,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 0.75, 
+                      childAspectRatio: 0.75,
                     ),
                     itemBuilder: (context, index) {
                       return _VisitedStoreChip(store: topStores[index]);
@@ -313,36 +312,44 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
   _VisitedStoreAggregate get store => widget.store;
 
   Widget _fallbackInitial() {
-    return Text(
-      store.storeName.isNotEmpty
-          ? store.storeName[0].toUpperCase()
-          : '?',
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-        color: Colors.indigo.shade400,
-      ),
+    return Image.asset(
+      StoreLogoService.fallbackAsset,
+      width: 24,
+      height: 24,
+      fit: BoxFit.contain,
+      errorBuilder:
+          (_, __, ___) => Text(
+            store.storeName.isNotEmpty ? store.storeName[0].toUpperCase() : '?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.indigo.shade400,
+            ),
+          ),
     );
   }
 
   void _openReviewSheet(
-      BuildContext context, {
-        required String storeId,
-        required String storeName,
-        String? logoUrl,
-      }) {
+    BuildContext context, {
+    required String storeId,
+    required String storeName,
+    String? logoUrl,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _StoreReviewSheet(
-        storeId: storeId,
-        storeName: storeName,
-        logoUrl: logoUrl,
-      ),
+      builder:
+          (_) => _StoreReviewSheet(
+            storeId: storeId,
+            storeName: storeName,
+            logoUrl: logoUrl,
+          ),
     );
   }
 
   Widget _buildContent(String? logoUrl) {
+    final resolvedLogo = StoreLogoService.resolveUrl(logoUrl);
+
     return AnimatedScale(
       scale: _pressed ? 0.97 : 1.0,
       duration: const Duration(milliseconds: 120),
@@ -367,17 +374,18 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.8),
-              child: (logoUrl != null && logoUrl.isNotEmpty)
-                  ? ClipOval(
-                child: Image.network(
-                  logoUrl,
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _fallbackInitial(),
-                ),
-              )
-                  : _fallbackInitial(),
+              child:
+                  resolvedLogo.isNotEmpty
+                      ? ClipOval(
+                        child: Image.network(
+                          resolvedLogo,
+                          width: 36,
+                          height: 36,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallbackInitial(),
+                        ),
+                      )
+                      : _fallbackInitial(),
             ),
             const SizedBox(height: 8),
             Text(
@@ -406,12 +414,13 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
             SizedBox(
               height: 28,
               child: ElevatedButton(
-                onPressed: () => _openReviewSheet(
-                  context,
-                  storeId: store.storeId,
-                  storeName: store.storeName,
-                  logoUrl: logoUrl,
-                ),
+                onPressed:
+                    () => _openReviewSheet(
+                      context,
+                      storeId: store.storeId,
+                      storeName: store.storeName,
+                      logoUrl: logoUrl,
+                    ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   backgroundColor: Colors.deepPurple,
@@ -438,10 +447,13 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
 
     return FutureBuilder<DocumentSnapshot>(
       future:
-      FirebaseFirestore.instance.collection('stores').doc(store.storeId).get(),
+          FirebaseFirestore.instance
+              .collection('stores')
+              .doc(store.storeId)
+              .get(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final fetchedLogo = data?['logoUrl'] ?? data?['vendorLogoUrl'];
+        final fetchedLogo = StoreLogoService.resolveFromData(data);
         return _tapWrapper(context, fetchedLogo);
       },
     );
@@ -457,16 +469,18 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
         onTapUp: (_) => setState(() => _pressed = false),
         splashColor: Colors.indigo.withOpacity(0.10),
         highlightColor: Colors.indigo.withOpacity(0.06),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => StoreProfileScreen(
-              storeId: store.storeId,
-              storeName: store.storeName,
-              logoUrl: logoUrl,
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => StoreProfileScreen(
+                      storeId: store.storeId,
+                      storeName: store.storeName,
+                      logoUrl: logoUrl,
+                    ),
+              ),
             ),
-          ),
-        ),
         child: _buildContent(logoUrl),
       ),
     );
@@ -532,15 +546,15 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Review posted ✅')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Review posted ✅')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to post review: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to post review: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -550,6 +564,7 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final resolvedLogo = StoreLogoService.resolveUrl(widget.logoUrl);
 
     return Container(
       padding: EdgeInsets.fromLTRB(16, 14, 16, 14 + bottom),
@@ -569,14 +584,24 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
                   radius: 16,
                   backgroundColor: Colors.grey.shade200,
                   backgroundImage:
-                  (widget.logoUrl != null && widget.logoUrl!.isNotEmpty)
-                      ? NetworkImage(widget.logoUrl!)
-                      : null,
-                  child: (widget.logoUrl == null || widget.logoUrl!.isEmpty)
-                      ? Text(widget.storeName.isNotEmpty
-                      ? widget.storeName[0].toUpperCase()
-                      : "?")
-                      : null,
+                      resolvedLogo.isNotEmpty
+                          ? NetworkImage(resolvedLogo)
+                          : null,
+                  child:
+                      resolvedLogo.isEmpty
+                          ? Image.asset(
+                            StoreLogoService.fallbackAsset,
+                            width: 22,
+                            height: 22,
+                            fit: BoxFit.contain,
+                            errorBuilder:
+                                (_, __, ___) => Text(
+                                  widget.storeName.isNotEmpty
+                                      ? widget.storeName[0].toUpperCase()
+                                      : "?",
+                                ),
+                          )
+                          : null,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -593,8 +618,10 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
 
             const SizedBox(height: 12),
 
-            Text('Rating: $_rating/5',
-                style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(
+              'Rating: $_rating/5',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
             Slider(
               value: _rating.toDouble(),
               min: 1,
@@ -606,9 +633,7 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
 
             TextField(
               controller: _wentWell,
-              decoration: const InputDecoration(
-                labelText: 'What went well?',
-              ),
+              decoration: const InputDecoration(labelText: 'What went well?'),
               maxLines: 2,
             ),
             const SizedBox(height: 10),
