@@ -7,7 +7,8 @@ import '../screens/social_profile_screen.dart';
 
 class CommentList extends StatelessWidget {
   final String parentPath;
-  final void Function({required String commentId, required String name}) onReplyTap;
+  final void Function({required String commentId, required String name})
+  onReplyTap;
 
   const CommentList({
     super.key,
@@ -61,11 +62,11 @@ class CommentList extends StatelessWidget {
   }
 }
 
-
 class _CommentTile extends StatefulWidget {
   final DocumentSnapshot commentDoc;
   final String parentPath;
-  final void Function({required String commentId, required String name}) onReplyTap;
+  final void Function({required String commentId, required String name})
+  onReplyTap;
 
   const _CommentTile({
     super.key,
@@ -78,11 +79,12 @@ class _CommentTile extends StatefulWidget {
   State<_CommentTile> createState() => _CommentTileState();
 }
 
-class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClientMixin {
+class _CommentTileState extends State<_CommentTile>
+    with AutomaticKeepAliveClientMixin {
   bool _showReplies = false;
 
   @override
-  bool get wantKeepAlive => true; 
+  bool get wantKeepAlive => true;
 
   String _timeLabelFromTs(dynamic ts) {
     if (ts is! Timestamp) return 'now';
@@ -94,7 +96,10 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
     return '${diff.inDays}d';
   }
 
-  Future<void> _toggleLike(BuildContext context, {required bool isLiked}) async {
+  Future<void> _toggleLike(
+    BuildContext context, {
+    required bool isLiked,
+  }) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
@@ -115,7 +120,10 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
   }
 
   Future<void> _showDeleteSheet(
-      BuildContext context, String parentPath, String commentId) async {
+    BuildContext context,
+    String parentPath,
+    String commentId,
+  ) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     final data = widget.commentDoc.data() as Map<String, dynamic>;
     final authorUid = data['uid'] ?? '';
@@ -135,7 +143,12 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
         return StatefulBuilder(
           builder: (ctx, setState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                22 + MediaQuery.of(ctx).viewPadding.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -172,7 +185,9 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                             const Text(
                               'Delete this comment?',
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.w700),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
@@ -205,18 +220,20 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                       Expanded(
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: understood
-                                ? Colors.red
-                                : Colors.red.withOpacity(0.5),
+                            backgroundColor:
+                                understood
+                                    ? Colors.red
+                                    : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: understood
-                              ? () async {
-                                  HapticFeedback.mediumImpact();
-                                  Navigator.of(ctx).pop();
-                                  await widget.commentDoc.reference.delete();
-                                }
-                              : null,
+                          onPressed:
+                              understood
+                                  ? () async {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.of(ctx).pop();
+                                    await widget.commentDoc.reference.delete();
+                                  }
+                                  : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -252,7 +269,8 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
     const gap = 10.0;
     const leftIndent = avatarSize + gap;
 
-    final repliesStream = widget.commentDoc.reference.collection('replies').snapshots();
+    final repliesStream =
+        widget.commentDoc.reference.collection('replies').snapshots();
 
     final commentBody = StreamBuilder<UserProfile>(
       stream: FirebaseFirestore.instance
@@ -262,7 +280,8 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
           .map((d) => UserProfile.fromDoc(uid, d.data())),
       initialData: cached,
       builder: (context, snap) {
-        final p = snap.data ?? UserProfile(uid: uid, displayName: '', avatarUrl: '');
+        final p =
+            snap.data ?? UserProfile(uid: uid, displayName: '', avatarUrl: '');
         if (snap.hasData) ProfileCache.putMany([p]);
 
         final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
@@ -293,44 +312,60 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                     },
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: avatarRadius,
-                            backgroundColor:
-                                Theme.of(context).colorScheme.secondary.withOpacity(0.12),
-                            backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-                            child: hasImage
-                                ? null
-                                : Text(
-                                    (name.trim().isNotEmpty ? name.trim().characters.first : 'U')
-                                        .toUpperCase(),
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                                  ),
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.secondary.withOpacity(0.12),
+                            backgroundImage:
+                                hasImage ? NetworkImage(p.avatarUrl) : null,
+                            child:
+                                hasImage
+                                    ? null
+                                    : Text(
+                                      (name.trim().isNotEmpty
+                                              ? name.trim().characters.first
+                                              : 'U')
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                           ),
                           const SizedBox(width: gap),
                           ConstrainedBox(
-                             constraints: const BoxConstraints(maxWidth: 160),
-                             child: Text(
-                               name, 
-                               style: const TextStyle(fontWeight: FontWeight.w700), 
-                               maxLines: 1, 
-                               overflow: TextOverflow.ellipsis
-                             ),
+                            constraints: const BoxConstraints(maxWidth: 160),
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 6),
-                  
+
                   // Time
                   Text(
                     timeLabel,
-                    style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                      fontSize: 12,
+                    ),
                   ),
-                  
+
                   const Spacer(),
 
                   // LIKE button and count
@@ -347,10 +382,17 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                     onPressed: () => _toggleLike(context, isLiked: isLiked),
                   ),
                   const SizedBox(width: 4),
-                  Text('${upvotedBy.length}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  Text(
+                    '${upvotedBy.length}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
-            ), const SizedBox(height: 4),
+            ),
+            const SizedBox(height: 4),
 
             // BODY
             Padding(
@@ -365,13 +407,19 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                 children: [
                   TextButton.icon(
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       minimumSize: const Size(0, 0),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: () {
-                       widget.onReplyTap(commentId: widget.commentDoc.id, name: name);
-                       setState(() => _showReplies = true);
+                      widget.onReplyTap(
+                        commentId: widget.commentDoc.id,
+                        name: name,
+                      );
+                      setState(() => _showReplies = true);
                     },
                     icon: const Icon(Icons.reply_outlined, size: 18),
                     label: const Text('Reply'),
@@ -383,9 +431,21 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
                       final count = snap.data?.size ?? 0;
                       if (count == 0) return const SizedBox.shrink();
                       return TextButton(
-                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                        onPressed: () => setState(() => _showReplies = !_showReplies),
-                        child: Text(_showReplies ? 'Hide replies ($count)' : 'View replies ($count)'),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed:
+                            () => setState(() => _showReplies = !_showReplies),
+                        child: Text(
+                          _showReplies
+                              ? 'Hide replies ($count)'
+                              : 'View replies ($count)',
+                        ),
                       );
                     },
                   ),
@@ -406,8 +466,22 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
 
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onLongPress: canDelete ? () => _showDeleteSheet(context, widget.parentPath, widget.commentDoc.id) : null,
-      onSecondaryTapDown: canDelete ? (_) => _showDeleteSheet(context, widget.parentPath, widget.commentDoc.id) : null,
+      onLongPress:
+          canDelete
+              ? () => _showDeleteSheet(
+                context,
+                widget.parentPath,
+                widget.commentDoc.id,
+              )
+              : null,
+      onSecondaryTapDown:
+          canDelete
+              ? (_) => _showDeleteSheet(
+                context,
+                widget.parentPath,
+                widget.commentDoc.id,
+              )
+              : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: commentBody,
@@ -415,7 +489,6 @@ class _CommentTileState extends State<_CommentTile> with AutomaticKeepAliveClien
     );
   }
 }
-
 
 // ===== Replies List =====
 class _RepliesList extends StatelessWidget {
@@ -431,13 +504,14 @@ class _RepliesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .doc(parentPath)
-        .collection('comments')
-        .doc(commentId)
-        .collection('replies')
-        .orderBy('createdAt', descending: false)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .doc(parentPath)
+            .collection('comments')
+            .doc(commentId)
+            .collection('replies')
+            .orderBy('createdAt', descending: false)
+            .snapshots();
 
     final replyIndent = parentLeftIndent + 24;
 
@@ -449,17 +523,18 @@ class _RepliesList extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(left: parentLeftIndent),
           child: Column(
-            children: docs.map((doc) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 6),
-                child: _ReplyTile(
-                  parentPath: parentPath,
-                  commentId: commentId,
-                  replyDoc: doc,
-                  leftIndent: replyIndent,
-                ),
-              );
-            }).toList(),
+            children:
+                docs.map((doc) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 6),
+                    child: _ReplyTile(
+                      parentPath: parentPath,
+                      commentId: commentId,
+                      replyDoc: doc,
+                      leftIndent: replyIndent,
+                    ),
+                  );
+                }).toList(),
           ),
         );
       },
@@ -537,12 +612,12 @@ class _ReplyTile extends StatelessWidget {
           .map((d) => UserProfile.fromDoc(uid, d.data())),
       initialData: cached,
       builder: (context, snapshot) {
-        final p = snapshot.data ??
+        final p =
+            snapshot.data ??
             UserProfile(uid: uid, displayName: '', avatarUrl: '');
         if (snapshot.hasData) ProfileCache.putMany([p]);
 
-        final name =
-        p.displayName.isNotEmpty ? p.displayName : 'Someone';
+        final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
         final hasImage = p.avatarUrl.isNotEmpty;
 
         return Column(
@@ -570,36 +645,41 @@ class _ReplyTile extends StatelessWidget {
                     },
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4.0,
+                        vertical: 2.0,
+                      ),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: avatarRadius,
                             backgroundImage:
-                            hasImage ? NetworkImage(p.avatarUrl) : null,
-                            child: hasImage
-                                ? null
-                                : Text(
-                              (name.trim().isNotEmpty
-                                  ? name.trim().characters.first
-                                  : 'U')
-                                  .toUpperCase(),
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700),
-                            ),
+                                hasImage ? NetworkImage(p.avatarUrl) : null,
+                            child:
+                                hasImage
+                                    ? null
+                                    : Text(
+                                      (name.trim().isNotEmpty
+                                              ? name.trim().characters.first
+                                              : 'U')
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                           ),
                           const SizedBox(width: gap),
                           ConstrainedBox(
-                             constraints: const BoxConstraints(maxWidth: 130),
-                             child: Text(
-                               name,
-                               style: const TextStyle(
-                                 fontWeight: FontWeight.w700,
-                               ),
-                               maxLines: 1,
-                               overflow: TextOverflow.ellipsis,
-                             ),
+                            constraints: const BoxConstraints(maxWidth: 130),
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -609,14 +689,11 @@ class _ReplyTile extends StatelessWidget {
                   Text(
                     timeLabel,
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.color,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
                       fontSize: 11,
                     ),
                   ),
-                  
+
                   const Spacer(),
                   // LIKE BUTTON + COUNT FOR REPLY
                   IconButton(
@@ -629,9 +706,10 @@ class _ReplyTile extends StatelessWidget {
                       color: isLiked ? Colors.red : Colors.grey,
                       size: 16,
                     ),
-                    onPressed: currentUser == null
-                        ? null
-                        : () => _toggleReplyLike(isLiked),
+                    onPressed:
+                        currentUser == null
+                            ? null
+                            : () => _toggleReplyLike(isLiked),
                   ),
                   const SizedBox(width: 4),
                   Text(

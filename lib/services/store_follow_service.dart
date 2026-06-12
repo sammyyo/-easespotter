@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'store_api_service.dart';
+
 class StoreFollowService {
   /// Follows a store by adding it to the user's `followedStores` subcollection.
   /// Includes `followedAt` to ensure ordering works.
@@ -91,21 +93,114 @@ class StoreFollowService {
       safe[entry.key.toString()] =
           rawProducts.whereType<Map>().map((product) {
             final safeProduct = Map<String, dynamic>.from(product);
-            safeProduct.remove('image');
-            safeProduct.remove('imageUrl');
-            safeProduct.remove('imageURL');
-            safeProduct.remove('image_url');
-            safeProduct.remove('productImageUrl');
-            safeProduct.remove('productImageURL');
-            safeProduct.remove('product_image_url');
-            safeProduct.remove('productImage');
-            safeProduct.remove('thumbnail');
-            safeProduct.remove('thumbnailUrl');
-            safeProduct.remove('thumbnail_url');
+            final imageUrl = _imageUrlFromItem(safeProduct);
+            if (imageUrl.isNotEmpty) {
+              safeProduct['imageUrl'] = imageUrl;
+              safeProduct['image'] = imageUrl;
+              safeProduct['productImageUrl'] = imageUrl;
+              safeProduct['thumbnailUrl'] = imageUrl;
+            }
             return safeProduct;
           }).toList();
     }
 
     return safe;
+  }
+
+  static String _imageUrlFromItem(Map<String, dynamic> item) {
+    final images = item['images'];
+    if (images is List) {
+      for (final image in images) {
+        final url = _imageUrlFromCandidate(image);
+        if (url.isNotEmpty) return url;
+      }
+    }
+
+    return _absoluteUrl(
+      _firstStringValue(item, const [
+        'imageUrl',
+        'imageURL',
+        'image_url',
+        'image',
+        'photoUrl',
+        'photoURL',
+        'photo_url',
+        'productImageUrl',
+        'productImageURL',
+        'product_image_url',
+        'productImage',
+        'product_image',
+        'thumbnail',
+        'thumbnailUrl',
+        'thumbnail_url',
+        'url',
+      ]),
+    );
+  }
+
+  static String _imageUrlFromCandidate(dynamic candidate) {
+    if (candidate is Map) {
+      return _absoluteUrl(
+        _firstStringValue(candidate, const [
+          'url',
+          'src',
+          'href',
+          'imageUrl',
+          'imageURL',
+          'image_url',
+          'productImageUrl',
+          'productImageURL',
+          'product_image_url',
+          'photoUrl',
+          'photo_url',
+          'thumbnailUrl',
+          'thumbnail_url',
+        ]),
+      );
+    }
+
+    return _absoluteUrl(candidate?.toString());
+  }
+
+  static String _firstStringValue(
+    Map<dynamic, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = data[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return '';
+  }
+
+  static String _absoluteUrl(String? rawUrl) {
+    final value = rawUrl?.trim() ?? '';
+    if (value.isEmpty) return '';
+    if (_isBrokenPlaceholderImage(value)) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return _normalizeProductImageUrl(uri);
+
+    if (value.startsWith('//')) return 'https:$value';
+    if (value.startsWith('/')) return '${StoreApiService.baseUrl}$value';
+
+    return '${StoreApiService.baseUrl}/$value';
+  }
+
+  static String _normalizeProductImageUrl(Uri uri) {
+    if (uri.host == 'easespotter.com' &&
+        uri.path.startsWith('/uploads/products/')) {
+      return uri.replace(host: 'www.easespotter.com').toString();
+    }
+
+    return uri.toString();
+  }
+
+  static bool _isBrokenPlaceholderImage(String value) {
+    final lower = value.toLowerCase();
+    return lower.endsWith('/logos/default-vendor.png') ||
+        RegExp(r'(^|/)logos/vendor-\d+\.png$').hasMatch(lower) ||
+        lower == 'logos/default-vendor.png' ||
+        lower == '/logos/default-vendor.png';
   }
 }

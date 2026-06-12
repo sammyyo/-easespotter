@@ -353,6 +353,14 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
       enrichedItem['storeId'] = storeId;
     }
 
+    final imageUrl = _imageUrlFromItem(item);
+    if (imageUrl.isNotEmpty) {
+      enrichedItem['imageUrl'] = imageUrl;
+      enrichedItem['image'] = imageUrl;
+      enrichedItem['productImageUrl'] = imageUrl;
+      enrichedItem['thumbnailUrl'] = imageUrl;
+    }
+
     return enrichedItem;
   }
 
@@ -743,23 +751,28 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
         productsByCategory.entries.expand((entry) {
           final category = entry.key;
           final List items = entry.value;
-          return items.map(
-            (item) => {
-              'name': item['name'],
-              'location': _locationText(item),
+          return items.whereType<Map>().map((item) {
+            final product = Map<String, dynamic>.from(item);
+            final imageUrl = _imageUrlFromItem(product);
+
+            return {
+              ...product,
+              'name': product['name'],
+              'location': _locationText(product),
               'category': category,
               'storeName': widget.storeData['vendorName'] ?? 'Unknown Store',
-              'price': item['price'] ?? '',
-              'imageUrl': _imageUrlFromItem(Map<String, dynamic>.from(item)),
-              'image': _imageUrlFromItem(Map<String, dynamic>.from(item)),
-              'productImageUrl': _imageUrlFromItem(
-                Map<String, dynamic>.from(item),
-              ),
-              'barcode': item['barcode'],
-              'aisle': _locationValue(item, 'aisle'),
-              'shelf': _locationValue(item, 'shelf'),
-            },
-          );
+              'price': product['price'] ?? '',
+              if (imageUrl.isNotEmpty) ...{
+                'imageUrl': imageUrl,
+                'image': imageUrl,
+                'productImageUrl': imageUrl,
+                'thumbnailUrl': imageUrl,
+              },
+              'barcode': product['barcode'],
+              'aisle': _locationValue(product, 'aisle'),
+              'shelf': _locationValue(product, 'shelf'),
+            };
+          });
         }).toList();
 
     _allItems = List<Map<String, dynamic>>.from(flattened);
@@ -847,17 +860,13 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
       safe[entry.key.toString()] =
           rawProducts.whereType<Map>().map((product) {
             final safeProduct = Map<String, dynamic>.from(product);
-            safeProduct.remove('image');
-            safeProduct.remove('imageUrl');
-            safeProduct.remove('imageURL');
-            safeProduct.remove('image_url');
-            safeProduct.remove('productImageUrl');
-            safeProduct.remove('productImageURL');
-            safeProduct.remove('product_image_url');
-            safeProduct.remove('productImage');
-            safeProduct.remove('thumbnail');
-            safeProduct.remove('thumbnailUrl');
-            safeProduct.remove('thumbnail_url');
+            final imageUrl = _imageUrlFromItem(safeProduct);
+            if (imageUrl.isNotEmpty) {
+              safeProduct['imageUrl'] = imageUrl;
+              safeProduct['image'] = imageUrl;
+              safeProduct['productImageUrl'] = imageUrl;
+              safeProduct['thumbnailUrl'] = imageUrl;
+            }
             return safeProduct;
           }).toList();
     }

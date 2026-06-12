@@ -322,6 +322,22 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     }
   }
 
+  Stream<int> _ownedCollectionCount({
+    required String collection,
+    required String uid,
+    bool publicOnly = false,
+  }) {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection(collection)
+        .where('uid', isEqualTo: uid);
+
+    if (publicOnly) {
+      query = query.where('isPublic', isEqualTo: true);
+    }
+
+    return query.snapshots().map((snap) => snap.size);
+  }
+
   Widget _buildMusicWidget(BuildContext context, String url) {
     final cleaned = url.trim();
     return Padding(
@@ -512,12 +528,38 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              profile.displayName,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    profile.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (isOwner)
+                                  IconButton(
+                                    tooltip: 'Edit profile',
+                                    visualDensity: VisualDensity.compact,
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 20,
+                                      color: Colors.deepPurple,
+                                    ),
+                                    onPressed:
+                                        () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (_) => const ProfileScreen(),
+                                          ),
+                                        ),
+                                  ),
+                              ],
                             ),
                             if (profile.socialHandle?.isNotEmpty ?? false)
                               Padding(
@@ -544,59 +586,16 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Padding(
-                                      padding: const EdgeInsets.only(top: 6),
-                                      child: Row(
-                                        children: [
-                                          InkWell(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder:
-                                                      (_) => FollowListScreen(
-                                                        userId: widget.uid,
-                                                        initialTabIndex: 0,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                            child: Text(
-                                              '${followers.length} Followers',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ),
-                                          const Text(
-                                            ' • ',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                          InkWell(
-                                            onTap: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder:
-                                                      (_) => FollowListScreen(
-                                                        userId: widget.uid,
-                                                        initialTabIndex: 1,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                            child: Text(
-                                              '${following.length} Following',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: _ProfileCountsRow(
+                                        uid: widget.uid,
+                                        followers: followers,
+                                        following: following,
+                                        reelsStream: _ownedCollectionCount(
+                                          collection: 'reels',
+                                          uid: widget.uid,
+                                          publicOnly: !isOwner,
+                                        ),
                                       ),
                                     ),
 
@@ -805,37 +804,6 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                   ),
                 ),
 
-                if (isOwner) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed:
-                            () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfileScreen(),
-                              ),
-                            ),
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: const Text('Edit Profile'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.deepPurple,
-                          side: BorderSide(
-                            color: Colors.deepPurple.withOpacity(0.5),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
-
                 if ((profile.musicUrl ?? '').trim().contains(
                   'spotify.com',
                 )) ...[
@@ -869,6 +837,112 @@ class _FollowStats {
   final List<String> following;
 
   const _FollowStats({required this.followers, required this.following});
+}
+
+class _ProfileCountsRow extends StatelessWidget {
+  final String uid;
+  final List<String> followers;
+  final List<String> following;
+  final Stream<int> reelsStream;
+
+  const _ProfileCountsRow({
+    required this.uid,
+    required this.followers,
+    required this.following,
+    required this.reelsStream,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: reelsStream,
+      initialData: 0,
+      builder: (context, reelsSnap) {
+        return Row(
+          children: [
+            _ProfileCountItem(label: 'Reels', count: reelsSnap.data ?? 0),
+            _ProfileCountItem(
+              label: 'Followers',
+              count: followers.length,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) =>
+                              FollowListScreen(userId: uid, initialTabIndex: 0),
+                    ),
+                  ),
+            ),
+            _ProfileCountItem(
+              label: 'Following',
+              count: following.length,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) =>
+                              FollowListScreen(userId: uid, initialTabIndex: 1),
+                    ),
+                  ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProfileCountItem extends StatelessWidget {
+  final String label;
+  final int count;
+  final VoidCallback? onTap;
+
+  const _ProfileCountItem({
+    required this.label,
+    required this.count,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.black54,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          count.toString(),
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black87,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: content,
+        ),
+      ),
+    );
+  }
 }
 
 class _ProfileSkeleton extends StatelessWidget {

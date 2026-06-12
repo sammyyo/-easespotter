@@ -282,18 +282,31 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   }
 
   String _imageUrlFromItem(Map<String, dynamic> item) {
+    final images = item['images'];
+    if (images is List) {
+      for (final image in images) {
+        final url = _imageUrlFromCandidate(image);
+        if (url.isNotEmpty) return url;
+      }
+    }
+
     final value =
         (item['imageUrl'] ??
                 item['imageURL'] ??
+                item['image_url'] ??
                 item['image'] ??
+                item['photoUrl'] ??
+                item['photoURL'] ??
+                item['photo_url'] ??
                 item['productImageUrl'] ??
                 item['productImageURL'] ??
                 item['product_image_url'] ??
                 item['productImage'] ??
+                item['product_image'] ??
+                item['thumbnail'] ??
                 item['thumbnailUrl'] ??
                 item['thumbnail_url'] ??
-                item['photoUrl'] ??
-                item['photoURL'] ??
+                item['url'] ??
                 '')
             .toString()
             .trim();
@@ -301,9 +314,40 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     return _normalizeProductImageUrl(value);
   }
 
+  String _imageUrlFromCandidate(dynamic candidate) {
+    if (candidate is Map) {
+      final value =
+          (candidate['url'] ??
+                  candidate['src'] ??
+                  candidate['href'] ??
+                  candidate['imageUrl'] ??
+                  candidate['imageURL'] ??
+                  candidate['image_url'] ??
+                  candidate['productImageUrl'] ??
+                  candidate['productImageURL'] ??
+                  candidate['product_image_url'] ??
+                  candidate['photoUrl'] ??
+                  candidate['photo_url'] ??
+                  candidate['thumbnailUrl'] ??
+                  candidate['thumbnail_url'] ??
+                  '')
+              .toString()
+              .trim();
+      return _normalizeProductImageUrl(value);
+    }
+
+    return _normalizeProductImageUrl(candidate?.toString().trim() ?? '');
+  }
+
   String _normalizeProductImageUrl(String value) {
+    if (value.isEmpty) return '';
     final uri = Uri.tryParse(value);
-    if (uri == null || !uri.hasScheme) return value;
+    if (uri == null) return value;
+    if (!uri.hasScheme) {
+      if (value.startsWith('//')) return 'https:$value';
+      if (value.startsWith('/')) return '${StoreApiService.baseUrl}$value';
+      return '${StoreApiService.baseUrl}/$value';
+    }
 
     if (uri.host == 'easespotter.com' &&
         uri.path.startsWith('/uploads/products/')) {
@@ -424,6 +468,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       item['imageUrl'] = imageUrl;
       item['image'] = imageUrl;
       item['productImageUrl'] = imageUrl;
+      item['thumbnailUrl'] = imageUrl;
       updated = true;
     }
 

@@ -11,19 +11,29 @@ import '../widgets/recipe_card/author_header.dart';
 import '../widgets/recipe_card/comments_panel.dart';
 import 'community_recipes_screen.dart';
 import 'new_reel_screen.dart';
+import 'recipe_detail_screen.dart';
 
 enum _ReelFeedMode { reels, following }
+
+bool _isRecipeReelData(Map<String, dynamic> data) {
+  final type =
+      (data['type'] ?? data['reelType'] ?? '').toString().toLowerCase();
+  final recipeId = (data['recipeId'] ?? '').toString().trim();
+  return type == 'recipe' || recipeId.isNotEmpty;
+}
 
 class ReelsFeedScreen extends StatefulWidget {
   final String? authorUid;
   final String? initialReelId;
   final bool includePrivate;
+  final bool startFollowing;
 
   const ReelsFeedScreen({
     super.key,
     this.authorUid,
     this.initialReelId,
     this.includePrivate = false,
+    this.startFollowing = false,
   });
 
   @override
@@ -34,6 +44,14 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
   PageController? _pageController;
   String? _controllerKey;
   _ReelFeedMode _mode = _ReelFeedMode.reels;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startFollowing) {
+      _mode = _ReelFeedMode.following;
+    }
+  }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _reelsStream({
     List<String>? followingUids,
@@ -90,10 +108,12 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
 
   void _showFollowing() {
     if (_mode == _ReelFeedMode.following) return;
-    setState(() {
-      _mode = _ReelFeedMode.following;
-      _resetPager();
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ReelsFeedScreen(startFollowing: true),
+      ),
+    );
   }
 
   void _openExplore() {
@@ -198,47 +218,54 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                 bottom: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-                  child: Row(
+                  child: Stack(
+                    alignment: Alignment.center,
                     children: [
-                      _TopOverlayButton(
-                        tooltip: 'Back',
-                        icon: Icons.arrow_back,
-                        onPressed: () => Navigator.maybePop(context),
-                      ),
-                      Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _ReelTabLabel(
-                              label: 'Explore',
-                              onTap: _openExplore,
-                            ),
-                            const SizedBox(width: 24),
-                            _ReelTabLabel(
-                              label: 'Reels',
-                              selected: _mode == _ReelFeedMode.reels,
-                              onTap: _showReels,
-                            ),
-                            const SizedBox(width: 24),
-                            _ReelTabLabel(
-                              label: 'Following',
-                              selected: _mode == _ReelFeedMode.following,
-                              onTap: _showFollowing,
-                            ),
-                          ],
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: _TopOverlayButton(
+                          tooltip: 'Back',
+                          icon: Icons.arrow_back,
+                          onPressed: () {
+                            final navigator = Navigator.of(context);
+                            if (navigator.canPop()) {
+                              navigator.pop();
+                            }
+                          },
                         ),
                       ),
-                      _TopOverlayButton(
-                        tooltip: 'New Reel',
-                        icon: Icons.add_circle_outline,
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NewReelScreen(),
-                            ),
-                          );
-                        },
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _ReelTabLabel(label: 'Explore', onTap: _openExplore),
+                          const SizedBox(width: 24),
+                          _ReelTabLabel(
+                            label: 'Reels',
+                            selected: _mode == _ReelFeedMode.reels,
+                            onTap: _showReels,
+                          ),
+                          const SizedBox(width: 24),
+                          _ReelTabLabel(
+                            label: 'Following',
+                            selected: _mode == _ReelFeedMode.following,
+                            onTap: _showFollowing,
+                          ),
+                        ],
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _TopOverlayButton(
+                          tooltip: 'New Reel',
+                          icon: Icons.add_circle_outline,
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NewReelScreen(),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
@@ -395,6 +422,7 @@ class _ReelPageState extends State<_ReelPage> {
   bool _groceryExpanded = false;
   bool _savingGroceryItems = false;
   bool _grocerySaved = false;
+  bool _savingReel = false;
   Set<int>? _selectedGroceryIndexes;
 
   List<Map<String, dynamic>> get _groceryItems {
@@ -418,6 +446,8 @@ class _ReelPageState extends State<_ReelPage> {
         (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
     return uid != null && uid == ownerUid;
   }
+
+  bool get _isRecipeReel => _isRecipeReelData(widget.data);
 
   @override
   void initState() {
@@ -475,13 +505,68 @@ class _ReelPageState extends State<_ReelPage> {
     );
   }
 
-  void _saveReel() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Reel saved.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  DocumentReference<Map<String, dynamic>>? _savedReelRef() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('savedReels')
+        .doc(widget.reelId);
+  }
+
+  Future<void> _toggleSaveReel({required bool isSaved}) async {
+    final ref = _savedReelRef();
+    if (ref == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in to save reels.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (_savingReel) return;
+
+    setState(() => _savingReel = true);
+    try {
+      if (isSaved) {
+        await ref.delete();
+      } else {
+        final ownerUid =
+            (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+        await ref.set({
+          'reelId': widget.reelId,
+          'ownerUid': ownerUid,
+          'title': (widget.data['title'] ?? '').toString(),
+          'caption': (widget.data['caption'] ?? '').toString(),
+          'videoUrl': (widget.data['videoUrl'] ?? '').toString(),
+          'thumbnailUrl': (widget.data['thumbnailUrl'] ?? '').toString(),
+          'isPublic': widget.data['isPublic'] == true,
+          'savedAt': FieldValue.serverTimestamp(),
+          'reelCreatedAt': widget.data['createdAt'],
+        }, SetOptions(merge: true));
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isSaved ? 'Reel removed from saved.' : 'Reel saved.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not update saved reel: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingReel = false);
+    }
   }
 
   void _openShop() {
@@ -498,6 +583,7 @@ class _ReelPageState extends State<_ReelPage> {
   }
 
   void _openMoreActions() {
+    final savedRef = _savedReelRef();
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -514,14 +600,32 @@ class _ReelPageState extends State<_ReelPage> {
                     _shareReel();
                   },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.bookmark_border),
-                  title: const Text('Save Reel'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _saveReel();
-                  },
-                ),
+                if (savedRef == null)
+                  ListTile(
+                    leading: const Icon(Icons.bookmark_border),
+                    title: const Text('Save Reel'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _toggleSaveReel(isSaved: false);
+                    },
+                  )
+                else
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: savedRef.snapshots(),
+                    builder: (context, snapshot) {
+                      final isSaved = snapshot.data?.exists == true;
+                      return ListTile(
+                        leading: Icon(
+                          isSaved ? Icons.bookmark : Icons.bookmark_border,
+                        ),
+                        title: Text(isSaved ? 'Unsave Reel' : 'Save Reel'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _toggleSaveReel(isSaved: isSaved);
+                        },
+                      );
+                    },
+                  ),
                 if (_isOwner)
                   ListTile(
                     leading: const Icon(
@@ -744,7 +848,11 @@ class _ReelPageState extends State<_ReelPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => _ReelCommentsSheet(reelId: widget.reelId),
+      builder:
+          (_) => _ReelCommentsSheet(
+            reelId: widget.reelId,
+            isRecipeReel: _isRecipeReel,
+          ),
     );
   }
 
@@ -763,13 +871,19 @@ class _ReelPageState extends State<_ReelPage> {
     final likes =
         (widget.data['likesCount'] as num?)?.toInt() ?? likedBy.length;
     final commentsCount = (widget.data['commentsCount'] as num?)?.toInt() ?? 0;
+    final savedRef = _savedReelRef();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
+      onTap: () async {
         final video = _controller;
         if (video == null) return;
-        video.value.isPlaying ? video.pause() : video.play();
+        if (video.value.isPlaying) {
+          await video.pause();
+        } else {
+          await video.play();
+        }
+        if (mounted) setState(() {});
       },
       child: Stack(
         fit: StackFit.expand,
@@ -786,6 +900,25 @@ class _ReelPageState extends State<_ReelPage> {
             )
           else
             const Center(child: CircularProgressIndicator(color: Colors.white)),
+          if (_isReady && controller != null && !controller.value.isPlaying)
+            Center(
+              child: Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.46),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.26),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 54,
+                ),
+              ),
+            ),
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -857,26 +990,42 @@ class _ReelPageState extends State<_ReelPage> {
                   onPressed: _openCommentsSheet,
                 ),
                 const SizedBox(height: 12),
-                _ReelActionButton(
-                  tooltip: 'Save',
-                  icon: Icons.bookmark_border,
-                  iconColor: Colors.white,
-                  label: 'Save',
-                  onPressed: _saveReel,
-                ),
+                if (savedRef == null)
+                  _ReelActionButton(
+                    tooltip: 'Save',
+                    icon: Icons.bookmark_border,
+                    iconColor: Colors.white,
+                    onPressed: () => _toggleSaveReel(isSaved: false),
+                  )
+                else
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: savedRef.snapshots(),
+                    builder: (context, snapshot) {
+                      final isSaved = snapshot.data?.exists == true;
+                      return _ReelActionButton(
+                        tooltip: isSaved ? 'Unsave' : 'Save',
+                        icon: isSaved ? Icons.bookmark : Icons.bookmark_border,
+                        iconColor:
+                            isSaved ? const Color(0xFFFFB020) : Colors.white,
+                        onPressed:
+                            _savingReel
+                                ? () {}
+                                : () => _toggleSaveReel(isSaved: isSaved),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 12),
                 _ReelActionButton(
                   tooltip: 'Share',
                   icon: Icons.ios_share,
                   iconColor: Colors.white,
-                  label: 'Share',
                   onPressed: _shareReel,
                 ),
+                const SizedBox(height: 12),
                 _ReelActionButton(
-                  tooltip: 'Shop',
-                  icon: Icons.shopping_cart_outlined,
+                  tooltip: 'Recipe',
+                  icon: Icons.restaurant_menu_rounded,
                   iconColor: Colors.white,
-                  label: 'Shop',
                   onPressed: _openShop,
                 ),
                 const SizedBox(height: 12),
@@ -884,7 +1033,6 @@ class _ReelPageState extends State<_ReelPage> {
                   tooltip: 'More',
                   icon: Icons.add_circle_outline,
                   iconColor: Colors.white,
-                  label: 'More',
                   onPressed: _openMoreActions,
                 ),
               ],
@@ -918,14 +1066,14 @@ class _ReelActionButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final Color iconColor;
-  final String label;
+  final String? label;
   final VoidCallback onPressed;
 
   const _ReelActionButton({
     required this.tooltip,
     required this.icon,
     required this.iconColor,
-    required this.label,
+    this.label,
     required this.onPressed,
   });
 
@@ -940,24 +1088,26 @@ class _ReelActionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: iconColor, size: 32),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                shadows: [
-                  Shadow(
-                    color: Colors.black54,
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ],
+            if (label != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black54,
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -967,8 +1117,9 @@ class _ReelActionButton extends StatelessWidget {
 
 class _ReelCommentsSheet extends StatefulWidget {
   final String reelId;
+  final bool isRecipeReel;
 
-  const _ReelCommentsSheet({required this.reelId});
+  const _ReelCommentsSheet({required this.reelId, required this.isRecipeReel});
 
   @override
   State<_ReelCommentsSheet> createState() => _ReelCommentsSheetState();
@@ -981,6 +1132,7 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
   String? _replyingToCommentId;
   String? _replyingToName;
   bool _sending = false;
+  int _selectedRating = 0;
 
   @override
   void dispose() {
@@ -993,6 +1145,7 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
     setState(() {
       _replyingToCommentId = commentId;
       _replyingToName = name;
+      _selectedRating = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) FocusScope.of(context).requestFocus(_focusNode);
@@ -1024,23 +1177,27 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
       final reelRef = FirebaseFirestore.instance
           .collection('reels')
           .doc(widget.reelId);
-      final batch = FirebaseFirestore.instance.batch();
-
-      batch.update(reelRef, {
-        'commentsCount': FieldValue.increment(1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
 
       if (_replyingToCommentId == null) {
+        final rating = widget.isRecipeReel ? _selectedRating : 0;
+        final batch = FirebaseFirestore.instance.batch();
         final commentRef = reelRef.collection('comments').doc();
+
         batch.set(commentRef, {
           'uid': user.uid,
           'text': text,
+          if (rating > 0) 'rating': rating,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
           'upvotedBy': <String>[],
         });
+        batch.update(reelRef, {
+          'commentsCount': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
       } else {
+        final batch = FirebaseFirestore.instance.batch();
         final replyRef =
             reelRef
                 .collection('comments')
@@ -1054,9 +1211,12 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
           'updatedAt': FieldValue.serverTimestamp(),
           'upvotedBy': <String>[],
         });
+        batch.update(reelRef, {
+          'commentsCount': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        await batch.commit();
       }
-
-      await batch.commit();
 
       _controller.clear();
       if (!mounted) return;
@@ -1064,6 +1224,7 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
         _sending = false;
         _replyingToCommentId = null;
         _replyingToName = null;
+        _selectedRating = 0;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) FocusScope.of(context).requestFocus(_focusNode);
@@ -1127,6 +1288,24 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
                   TextButton(
                     onPressed: _cancelReply,
                     child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+          if (widget.isRecipeReel && _replyingToCommentId == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Rate this recipe:',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(width: 10),
+                  _RecipeRatingPicker(
+                    rating: _selectedRating,
+                    onChanged:
+                        (rating) => setState(() => _selectedRating = rating),
                   ),
                 ],
               ),
@@ -1204,6 +1383,36 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RecipeRatingPicker extends StatelessWidget {
+  final int rating;
+  final ValueChanged<int> onChanged;
+
+  const _RecipeRatingPicker({required this.rating, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        final value = index + 1;
+        final selected = value <= rating;
+        return InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => onChanged(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Icon(
+              selected ? Icons.star_rounded : Icons.star_border_rounded,
+              size: 24,
+              color: const Color(0xFFFFB020),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -1437,137 +1646,378 @@ class _GroceryListOverlay extends StatelessWidget {
   }
 }
 
-class _ReelTextOverlay extends StatelessWidget {
+class _ReelTextOverlay extends StatefulWidget {
   final Map<String, dynamic> data;
 
   const _ReelTextOverlay({required this.data});
 
   @override
+  State<_ReelTextOverlay> createState() => _ReelTextOverlayState();
+}
+
+class _ReelTextOverlayState extends State<_ReelTextOverlay> {
+  bool _expanded = false;
+  bool _updatingFollow = false;
+
+  String get _authorUid =>
+      (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+
+  List<Map<String, dynamic>> get _ingredients {
+    final raw = widget.data['groceryListItems'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where(
+          (item) =>
+              (item['title'] ?? item['name'] ?? '')
+                  .toString()
+                  .trim()
+                  .isNotEmpty,
+        )
+        .toList();
+  }
+
+  Future<void> _toggleFollow(bool isFollowing) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final authorUid = _authorUid;
+    if (myUid == null || authorUid.isEmpty || myUid == authorUid) return;
+    if (_updatingFollow) return;
+
+    setState(() => _updatingFollow = true);
+    final users = FirebaseFirestore.instance.collection('users');
+
+    try {
+      if (isFollowing) {
+        await users.doc(myUid).update({
+          'following': FieldValue.arrayRemove([authorUid]),
+        });
+        await users.doc(authorUid).update({
+          'followers': FieldValue.arrayRemove([myUid]),
+        });
+      } else {
+        await users.doc(myUid).set({
+          'following': FieldValue.arrayUnion([authorUid]),
+        }, SetOptions(merge: true));
+        await users.doc(authorUid).set({
+          'followers': FieldValue.arrayUnion([myUid]),
+        }, SetOptions(merge: true));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update follow status.')),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingFollow = false);
+    }
+  }
+
+  Widget _followButton() {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final authorUid = _authorUid;
+    if (myUid == null || authorUid.isEmpty || myUid == authorUid) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream:
+          FirebaseFirestore.instance.collection('users').doc(myUid).snapshots(),
+      builder: (context, snapshot) {
+        final following = List<String>.from(
+          snapshot.data?.data()?['following'] ?? const [],
+        );
+        final isFollowing = following.contains(authorUid);
+
+        return OutlinedButton(
+          onPressed: _updatingFollow ? null : () => _toggleFollow(isFollowing),
+          style: OutlinedButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 0),
+            foregroundColor: Colors.white,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.72)),
+            backgroundColor:
+                isFollowing
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : const Color(0xFF6F3BFF),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          child:
+              _updatingFollow
+                  ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                  : Text(
+                    isFollowing ? 'Following' : 'Follow',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+        );
+      },
+    );
+  }
+
+  void _openRecipe() {
+    final recipeId = (widget.data['recipeId'] ?? '').toString().trim();
+    if (recipeId.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipeId: recipeId)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final title = (data['title'] ?? 'Untitled reel').toString();
-    final caption = (data['caption'] ?? '').toString();
-    final uid = (data['uid'] ?? data['authorUid'] ?? '').toString();
+    final title = (widget.data['title'] ?? 'Untitled reel').toString().trim();
+    final caption = (widget.data['caption'] ?? '').toString().trim();
+    final uid = _authorUid;
+    final isRecipeReel = _isRecipeReelData(widget.data);
+    final ratingCount = (widget.data['ratingCount'] as num?)?.toInt() ?? 0;
+    final averageRating =
+        (widget.data['averageRating'] as num?)?.toDouble() ??
+        (((widget.data['ratingSum'] as num?)?.toDouble() ?? 0) /
+            (ratingCount == 0 ? 1 : ratingCount));
     final category =
-        (data['category'] ?? data['groceryListTitle'] ?? '').toString().trim();
+        (widget.data['category'] ?? widget.data['groceryListTitle'] ?? '')
+            .toString()
+            .trim();
+    final recipeId = (widget.data['recipeId'] ?? '').toString().trim();
+    final ingredients = _ingredients.take(8).toList();
+    final expandedMaxHeight = (MediaQuery.of(context).size.height * 0.38).clamp(
+      220.0,
+      320.0,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.30),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  textTheme: Theme.of(context).textTheme.apply(
-                    bodyColor: Colors.white,
-                    displayColor: Colors.white,
-                  ),
-                  colorScheme: Theme.of(context).colorScheme.copyWith(
-                    onSurface: Colors.white,
-                    secondary: Colors.white,
+            Flexible(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.30),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.18),
                   ),
                 ),
-                child: DefaultTextStyle.merge(
-                  style: const TextStyle(color: Colors.white),
-                  child: IconTheme.merge(
-                    data: const IconThemeData(color: Colors.white),
-                    child: AuthorHeader(uid: uid),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    textTheme: Theme.of(context).textTheme.apply(
+                      bodyColor: Colors.white,
+                      displayColor: Colors.white,
+                    ),
+                    colorScheme: Theme.of(context).colorScheme.copyWith(
+                      onSurface: Colors.white,
+                      secondary: Colors.white,
+                    ),
+                  ),
+                  child: DefaultTextStyle.merge(
+                    style: const TextStyle(color: Colors.white),
+                    child: IconTheme.merge(
+                      data: const IconThemeData(color: Colors.white),
+                      child: AuthorHeader(uid: uid),
+                    ),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            if (category.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFB020), Color(0xFFFF8A00)],
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFFB020).withValues(alpha: 0.28),
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.shopping_cart,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                    const SizedBox(width: 5),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 88),
-                      child: Text(
-                        category,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            _followButton(),
           ],
         ),
-        const SizedBox(height: 12),
-        Container(
-          constraints: const BoxConstraints(maxWidth: 270),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.26),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  height: 1.1,
-                ),
+        if (category.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFB020), Color(0xFFFF8A00)],
               ),
-              if (caption.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  caption,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    height: 1.3,
-                    fontWeight: FontWeight.w600,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFB020).withValues(alpha: 0.28),
+                  blurRadius: 10,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shopping_cart, color: Colors.white, size: 14),
+                const SizedBox(width: 5),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ],
-            ],
+            ),
+          ),
+        ],
+        if (isRecipeReel && ratingCount > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.34),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.star_rounded,
+                  size: 15,
+                  color: Color(0xFFFFB020),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '${averageRating.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          constraints: BoxConstraints(
+            maxWidth: _expanded ? 330 : 270,
+            maxHeight: _expanded ? expandedMaxHeight : 132,
+          ),
+          padding: EdgeInsets.all(_expanded ? 14 : 11),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: _expanded ? 0.58 : 0.26),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: SingleChildScrollView(
+            physics:
+                _expanded
+                    ? const BouncingScrollPhysics()
+                    : const NeverScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.isEmpty ? 'Untitled reel' : title,
+                  maxLines: _expanded ? null : 2,
+                  overflow:
+                      _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _expanded ? 15 : 11.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1.18,
+                  ),
+                ),
+                if (caption.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    caption,
+                    maxLines: _expanded ? null : 2,
+                    overflow:
+                        _expanded
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.32,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+                if (_expanded && ingredients.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Ingredients:',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ...ingredients.map((item) {
+                    final name =
+                        (item['title'] ?? item['name'] ?? '').toString().trim();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        '• $name',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          height: 1.25,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+                if (_expanded && recipeId.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: _openRecipe,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: const Color(0xFFFFB020),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: const Size(0, 32),
+                    ),
+                    child: const Text(
+                      'View Full Recipe',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+                if (caption.isNotEmpty || ingredients.isNotEmpty) ...[
+                  SizedBox(height: _expanded ? 4 : 2),
+                  GestureDetector(
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    child: Text(
+                      _expanded ? 'Less' : 'More',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ],

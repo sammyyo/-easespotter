@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/shopping_layer/community_recipes_screen.dart';
 import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
+import 'package:easespotter/shopping_layer/profile_reels_screen.dart';
 import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
 import 'package:easespotter/widgets/public_profile_widget.dart';
 import '../shopping_layer/notification_feed_screen.dart';
@@ -171,12 +172,14 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   Map<String, dynamic>? _activeProfileHint;
   Future<List<_PeopleSuggestion>>? _peopleSuggestionsFuture;
   String? _peopleSuggestionsUid;
+  late final int _peopleSuggestionsRotationSeed;
 
   @override
   void initState() {
     super.initState();
     _authUser = FirebaseAuth.instance.currentUser;
     _activeProfileHint = widget.initialProfileHint;
+    _peopleSuggestionsRotationSeed = DateTime.now().millisecondsSinceEpoch;
 
     _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (!mounted) return;
@@ -395,7 +398,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           return ListTile(
             leading: const Icon(Icons.star_rounded, color: Colors.deepPurple),
             title: Text(
-              'Add to Top Collaborators (#$rank)',
+              'Add to Shopping Circle (#$rank)',
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             onTap: () => Navigator.pop(ctx, rank),
@@ -442,7 +445,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added to Top Collaborators (#$picked)')),
+        SnackBar(content: Text('Added to Shopping Circle (#$picked)')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -483,7 +486,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
             .doc(uid)
             .collection('recommendations')
             .orderBy('score', descending: true)
-            .limit(8)
+            .limit(20)
             .get();
 
     if (precomputed.docs.isNotEmpty) {
@@ -571,7 +574,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
     });
 
-    return candidates.take(8).toList();
+    return candidates.take(20).toList();
   }
 
   Future<List<_PeopleSuggestion>> _peopleSuggestionsFor(String uid) {
@@ -582,6 +585,24 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     return _peopleSuggestionsFuture!;
   }
 
+  bool _shouldShowPeopleSuggestions(String uid) {
+    final uidHash = uid.codeUnits.fold<int>(0, (total, code) => total + code);
+    return ((_peopleSuggestionsRotationSeed + uidHash) % 3) != 0;
+  }
+
+  List<_PeopleSuggestion> _rotatedPeopleSuggestions(
+    List<_PeopleSuggestion> suggestions,
+  ) {
+    if (suggestions.length <= 1) return suggestions;
+
+    final start = _peopleSuggestionsRotationSeed % suggestions.length;
+    final rotated = <_PeopleSuggestion>[
+      ...suggestions.skip(start),
+      ...suggestions.take(start),
+    ];
+    return rotated.take(8).toList();
+  }
+
   Widget _peopleSuggestionsSection(String uid) {
     return FutureBuilder<List<_PeopleSuggestion>>(
       future: _peopleSuggestionsFor(uid),
@@ -590,7 +611,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           return const SizedBox.shrink();
         }
 
-        final suggestions = snap.data ?? [];
+        final suggestions = _rotatedPeopleSuggestions(snap.data ?? []);
         if (suggestions.isEmpty) return const SizedBox.shrink();
 
         return Padding(
@@ -601,8 +622,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               const Text(
                 'People you might know',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   color: Colors.deepPurple,
                   height: 1.0,
                 ),
@@ -704,207 +725,46 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     );
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _profileReelsStream({
+  Widget _profileContentStrip({
     required String uid,
     required bool isOwnerViewing,
   }) {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('reels')
-        .where('uid', isEqualTo: uid);
-
-    if (!isOwnerViewing) {
-      query = query.where('isPublic', isEqualTo: true);
-    }
-
-    return query.orderBy('createdAt', descending: true).limit(8).snapshots();
-  }
-
-  Widget _profileReelsSection({
-    required String uid,
-    required bool isOwnerViewing,
-  }) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _profileReelsStream(uid: uid, isOwnerViewing: isOwnerViewing),
-      builder: (context, snapshot) {
-        final docs = snapshot.data?.docs ?? [];
-
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            docs.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        if (docs.isEmpty) return const SizedBox.shrink();
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(10, 18, 10, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Reels',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.deepPurple,
-                      height: 1.0,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => ReelsFeedScreen(
-                                authorUid: uid,
-                                includePrivate: isOwnerViewing,
-                              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _ProfileContentAction(
+            tooltip: 'Reels',
+            icon: Icons.video_collection_outlined,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => ProfileReelsScreen(
+                          uid: uid,
+                          isOwnerViewing: isOwnerViewing,
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.video_collection_outlined, size: 18),
-                    label: const Text('View all'),
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 178,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    return _profileReelCard(
-                      uid: uid,
-                      doc: docs[index],
-                      isOwnerViewing: isOwnerViewing,
-                    );
-                  },
                 ),
-              ),
-            ],
           ),
-        );
-      },
-    );
-  }
-
-  Widget _profileReelCard({
-    required String uid,
-    required QueryDocumentSnapshot<Map<String, dynamic>> doc,
-    required bool isOwnerViewing,
-  }) {
-    final data = doc.data();
-    final title = (data['title'] ?? 'Untitled reel').toString();
-    final isPublic = data['isPublic'] == true;
-    final durationSeconds = (data['durationSeconds'] as num?)?.toInt();
-
-    return SizedBox(
-      width: 118,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (_) => ReelsFeedScreen(
-                    authorUid: uid,
-                    initialReelId: doc.id,
-                    includePrivate: isOwnerViewing,
-                  ),
-            ),
-          );
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5DFFF)),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF2B193D), Color(0xFF6D43B8)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.deepPurple.withValues(alpha: 0.10),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+          _ProfileContentAction(
+            tooltip: 'Recipes',
+            icon: Icons.restaurant_menu_rounded,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Stack(
-              children: [
-                const Positioned.fill(
-                  child: Icon(
-                    Icons.play_circle_fill,
-                    color: Colors.white24,
-                    size: 54,
+          _ProfileContentAction(
+            tooltip: 'Reviews',
+            icon: Icons.rate_review_outlined,
+            onTap:
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => _ProfileReviewsScreen(uid: uid),
                   ),
                 ),
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  top: 8,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isPublic ? 'Public' : 'Private',
-                          style: const TextStyle(
-                            color: Colors.deepPurple,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      if (durationSeconds != null)
-                        Text(
-                          '${durationSeconds}s',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  bottom: 10,
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      height: 1.15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1530,7 +1390,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               ),
               const SizedBox(height: 10),
               const Text(
-                'Reorder Top Collaborators',
+                'Reorder Shopping Circle',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
               ),
               const SizedBox(height: 8),
@@ -1750,7 +1610,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 ? const Padding(
                   padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
                   child: Text(
-                    'Top Collaborators couldn’t load (rules/index).',
+                    'Shopping Circle couldn’t load (rules/index).',
                     style: TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 )
@@ -1808,10 +1668,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Top Collaborators',
+                  'Shopping Circle',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: Colors.deepPurple,
                     height: 1.0,
                   ),
@@ -1958,36 +1818,27 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               ),
             ),
             SliverToBoxAdapter(
+              child: _profileContentStrip(
+                uid: resolvedUid,
+                isOwnerViewing: isMe,
+              ),
+            ),
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
+                padding: const EdgeInsets.fromLTRB(5, 14, 5, 0),
                 child: _topCollaboratorsSectionCurated(
                   resolvedUid,
                   isOwnerViewing: isMe,
                 ),
               ),
             ),
-            if (isMe)
+            if (isMe && _shouldShowPeopleSuggestions(resolvedUid))
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: _peopleSuggestionsSection(resolvedUid),
                 ),
               ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: _StoreReviewsPreview(uid: resolvedUid),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: _profileReelsSection(
-                  uid: resolvedUid,
-                  isOwnerViewing: isMe,
-                ),
-              ),
-            ),
             if (_isLoading) const SliverToBoxAdapter(child: SizedBox.shrink()),
             StreamBuilder<QuerySnapshot>(
               stream: _profileRecipesStream,
@@ -2058,9 +1909,72 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   }
 }
 
+class _ProfileContentAction extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _ProfileContentAction({
+    required this.tooltip,
+    required this.icon,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Ink(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: Colors.deepPurple,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileReviewsScreen extends StatelessWidget {
+  final String uid;
+
+  const _ProfileReviewsScreen({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.deepPurple,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Reviews',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(5, 8, 5, 24),
+        children: [_StoreReviewsPreview(uid: uid, limit: 50)],
+      ),
+    );
+  }
+}
+
 class _StoreReviewsPreview extends StatefulWidget {
   final String uid;
-  const _StoreReviewsPreview({required this.uid});
+  final int limit;
+
+  const _StoreReviewsPreview({required this.uid, this.limit = 6});
 
   @override
   State<_StoreReviewsPreview> createState() => _StoreReviewsPreviewState();
@@ -2226,7 +2140,7 @@ class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
         .where('status', isEqualTo: 'published')
         .where('isPublic', isEqualTo: true)
         .orderBy('createdAt', descending: true)
-        .limit(6);
+        .limit(widget.limit);
 
     return StreamBuilder<QuerySnapshot>(
       stream: q.snapshots(),

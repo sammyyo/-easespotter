@@ -34,11 +34,12 @@ class AuthorActionsMenu extends StatelessWidget {
   Future<void> _showDeleteSheet(BuildContext context) async {
     bool understood = false;
 
-    final commentsStream = FirebaseFirestore.instance
-        .collection('recipes')
-        .doc(recipeId)
-        .collection('comments')
-        .snapshots();
+    final commentsStream =
+        FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(recipeId)
+            .collection('comments')
+            .snapshots();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -51,7 +52,12 @@ class AuthorActionsMenu extends StatelessWidget {
         return StatefulBuilder(
           builder: (ctx, setState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                22 + MediaQuery.of(ctx).viewPadding.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -90,7 +96,10 @@ class AuthorActionsMenu extends StatelessWidget {
                           children: [
                             const Text(
                               'Delete this recipe?',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -108,9 +117,7 @@ class AuthorActionsMenu extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               'This action cannot be undone.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: Colors.red),
                             ),
                           ],
@@ -144,16 +151,19 @@ class AuthorActionsMenu extends StatelessWidget {
                         child: FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor:
-                            understood ? Colors.red : Colors.red.withOpacity(0.5),
+                                understood
+                                    ? Colors.red
+                                    : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: understood
-                              ? () {
-                            HapticFeedback.mediumImpact();
-                            Navigator.of(ctx).pop(); // close sheet
-                            onRequestDelete(); // parent shows spinner + cascade delete
-                          }
-                              : null,
+                          onPressed:
+                              understood
+                                  ? () {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.of(ctx).pop(); // close sheet
+                                    onRequestDelete(); // parent shows spinner + cascade delete
+                                  }
+                                  : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -188,11 +198,12 @@ class _MoreDotsButtonState extends State<_MoreDotsButton> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final base = scheme.onSurface; // adaptive to light/dark
-    final bg = _down
-        ? base.withOpacity(0.14)
-        : (_hover || _focused)
-        ? base.withOpacity(0.10)
-        : base.withOpacity(0.06);
+    final bg =
+        _down
+            ? base.withOpacity(0.14)
+            : (_hover || _focused)
+            ? base.withOpacity(0.10)
+            : base.withOpacity(0.06);
     final iconColor = scheme.onSurfaceVariant;
 
     return FocusableActionDetector(

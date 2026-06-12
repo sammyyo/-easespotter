@@ -329,6 +329,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
   @override
   Widget build(BuildContext context) {
     final saving = _isSaving || _isPreparingVideo;
+    final bottomSafePadding = 28 + MediaQuery.of(context).viewPadding.bottom;
 
     return Scaffold(
       appBar: AppBar(
@@ -344,7 +345,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
           saving && _isSaving
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.fromLTRB(20, 20, 20, bottomSafePadding),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

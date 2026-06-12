@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart'; // Added for GPS
 
+import 'package:easespotter/screens/social_profile_screen.dart';
 import 'package:easespotter/screens/store_profile_screen.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
@@ -17,10 +18,12 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   final _searchController = TextEditingController();
   String _query = '';
+  late final int _peopleSuggestionSlot;
 
   @override
   void initState() {
     super.initState();
+    _peopleSuggestionSlot = DateTime.now().millisecondsSinceEpoch % 4;
     _searchController.addListener(() {
       final next = _searchController.text.trim();
       if (next != _query) setState(() => _query = next);
@@ -49,6 +52,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
       ),
     );
+  }
+
+  void _openProfile(_DiscoverPerson person) {
+    SocialProfileScreen.open(
+      context,
+      viewedUid: person.uid,
+      initialProfileHint: {
+        'displayName': person.displayName,
+        'handle': person.handle,
+        'socialHandle': person.handle,
+        'avatarUrl': person.avatarUrl,
+      },
+    );
+  }
+
+  List<Widget> _peopleSuggestionsBlock({
+    required int slot,
+    required String? uid,
+  }) {
+    if (uid == null || _peopleSuggestionSlot != slot) return const [];
+    return [
+      const SizedBox(height: 18),
+      _DiscoverPeopleSuggestions(uid: uid, onOpenProfile: _openProfile),
+    ];
   }
 
   @override
@@ -114,23 +141,27 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             Expanded(
               child:
                   _query.isNotEmpty
-                      ? _StoreSearchResults(
+                      ? _DiscoverSearchResults(
                         query: _query,
                         onOpenStore: _openStore,
+                        onOpenProfile: _openProfile,
                       )
                       : ListView(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         children: [
+                          ..._peopleSuggestionsBlock(slot: 0, uid: uid),
                           const _SectionTitle(title: 'Trending stores'),
                           const SizedBox(height: 10),
                           _TrendingStoresList(onOpenStore: _openStore),
 
                           // NEW: Nearby with GPS
+                          ..._peopleSuggestionsBlock(slot: 1, uid: uid),
                           const SizedBox(height: 18),
                           const _SectionTitle(title: 'Nearby stores'),
                           const SizedBox(height: 10),
                           _NearbyGpsStoresList(onOpenStore: _openStore),
 
+                          ..._peopleSuggestionsBlock(slot: 2, uid: uid),
                           const SizedBox(height: 18),
                           const _SectionTitle(
                             title: 'Nearby based on your visits',
@@ -160,6 +191,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                               onOpenStore: _openStore,
                             ),
 
+                          ..._peopleSuggestionsBlock(slot: 3, uid: uid),
                           const SizedBox(height: 18),
                           const _SectionTitle(title: 'Recently visited'),
                           const SizedBox(height: 10),
@@ -196,13 +228,14 @@ class _SectionTitle extends StatelessWidget {
       style: const TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w700,
+        color: Colors.black87,
         letterSpacing: -0.2,
       ),
     );
   }
 }
 
-class _StoreSearchResults extends StatelessWidget {
+class _DiscoverSearchResults extends StatelessWidget {
   final String query;
   final void Function({
     required String storeId,
@@ -210,121 +243,187 @@ class _StoreSearchResults extends StatelessWidget {
     String? logoUrl,
   })
   onOpenStore;
+  final void Function(_DiscoverPerson person) onOpenProfile;
 
-  const _StoreSearchResults({required this.query, required this.onOpenStore});
+  const _DiscoverSearchResults({
+    required this.query,
+    required this.onOpenStore,
+    required this.onOpenProfile,
+  });
 
   @override
   Widget build(BuildContext context) {
     final q = query.trim().toLowerCase();
 
-    // v1 = fetch a small set, filter locally (fast + simple)
-    // Removed orderBy('updatedAt') for safety as per instruction
-    final stream =
-        FirebaseFirestore.instance.collection('stores').limit(80).snapshots();
+    return FutureBuilder<List<_DiscoverPerson>>(
+      future: _searchPeople(q),
+      builder: (context, peopleSnap) {
+        final people = peopleSnap.data ?? const <_DiscoverPerson>[];
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: stream,
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: [
-              _InfoCard(title: 'Search error', subtitle: '${snap.error}'),
-            ],
-          );
-        }
+        // v1 = fetch a small set, filter locally (fast + simple)
+        // Removed orderBy('updatedAt') for safety as per instruction
+        final stream =
+            FirebaseFirestore.instance
+                .collection('stores')
+                .limit(80)
+                .snapshots();
 
-        if (!snap.hasData) {
-          // FIX: Removed 'const' before ListView
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: const [_LoadingList()],
-          );
-        }
-
-        final docs = snap.data!.docs;
-
-        final matches =
-            docs.where((d) {
-              final data = (d.data() as Map<String, dynamic>);
-              final name =
-                  (data['name'] ?? data['vendorName'] ?? '')
-                      .toString()
-                      .toLowerCase();
-              return name.contains(q);
-            }).toList();
-
-        if (matches.isEmpty) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            children: [
-              _ColorCard(
-                variant: _CardVariant.neutral,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'No matches for “$query”',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Try a shorter keyword or different spelling.',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }
-
-        final show = matches.take(12).toList();
-
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            const _SectionTitle(title: 'Search results'),
-            const SizedBox(height: 10),
-            ...List.generate(show.length, (i) {
-              final doc = show[i];
-              final data = (doc.data() as Map<String, dynamic>);
-
-              final storeId = doc.id;
-              final storeName =
-                  (data['name'] ?? data['vendorName'] ?? 'Store').toString();
-              final logoUrl = StoreLogoService.resolveFromData(data);
-
-              final variant =
-                  (i % 3 == 0)
-                      ? _CardVariant.purple
-                      : (i % 3 == 1)
-                      ? _CardVariant.blue
-                      : _CardVariant.green;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _StoreRowCard(
-                  storeName: storeName,
-                  meta: 'Store',
-                  variant: variant,
-                  logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                  onTap:
-                      () => onOpenStore(
-                        storeId: storeId,
-                        storeName: storeName,
-                        logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-                      ),
-                ),
+        return StreamBuilder<QuerySnapshot>(
+          stream: stream,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  _InfoCard(title: 'Search error', subtitle: '${snap.error}'),
+                ],
               );
-            }),
-          ],
+            }
+
+            if (!snap.hasData &&
+                peopleSnap.connectionState == ConnectionState.waiting) {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: const [_LoadingList()],
+              );
+            }
+
+            final docs = snap.data?.docs ?? const <QueryDocumentSnapshot>[];
+
+            final matches =
+                docs.where((d) {
+                  final data = (d.data() as Map<String, dynamic>);
+                  final name =
+                      (data['name'] ?? data['vendorName'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                  return name.contains(q);
+                }).toList();
+
+            if (matches.isEmpty && people.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  _ColorCard(
+                    variant: _CardVariant.neutral,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No matches for “$query”',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Try a shorter keyword or different spelling.',
+                          style: TextStyle(color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            final show = matches.take(12).toList();
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                if (people.isNotEmpty) ...[
+                  const _SectionTitle(title: 'People'),
+                  const SizedBox(height: 10),
+                  ...people.map(
+                    (person) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _PersonRowCard(
+                        person: person,
+                        onTap: () => onOpenProfile(person),
+                      ),
+                    ),
+                  ),
+                  if (show.isNotEmpty) const SizedBox(height: 8),
+                ],
+                if (show.isNotEmpty) ...[
+                  const _SectionTitle(title: 'Search results'),
+                  const SizedBox(height: 10),
+                  ...List.generate(show.length, (i) {
+                    final doc = show[i];
+                    final data = (doc.data() as Map<String, dynamic>);
+
+                    final storeId = doc.id;
+                    final storeName =
+                        (data['name'] ?? data['vendorName'] ?? 'Store')
+                            .toString();
+                    final logoUrl = StoreLogoService.resolveFromData(data);
+
+                    final variant =
+                        (i % 3 == 0)
+                            ? _CardVariant.purple
+                            : (i % 3 == 1)
+                            ? _CardVariant.blue
+                            : _CardVariant.green;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _StoreRowCard(
+                        storeName: storeName,
+                        meta: 'Store',
+                        variant: variant,
+                        logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+                        onTap:
+                            () => onOpenStore(
+                              storeId: storeId,
+                              storeName: storeName,
+                              logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
+                            ),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  Future<List<_DiscoverPerson>> _searchPeople(String rawQuery) async {
+    final q = rawQuery.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+    if (q.isEmpty) return const [];
+
+    final snap =
+        await FirebaseFirestore.instance.collection('users').limit(120).get();
+
+    return snap.docs
+        .where((doc) {
+          final data = doc.data();
+          if (data['publicProfile'] == false) return false;
+          final displayName =
+              (data['displayName'] ?? '').toString().toLowerCase();
+          final displayNameLower =
+              (data['displayNameLower'] ?? '').toString().toLowerCase();
+          final handle =
+              (data['handle'] ?? data['socialHandle'] ?? '')
+                  .toString()
+                  .toLowerCase();
+          final handleLower =
+              (data['handleLower'] ?? data['socialHandleLower'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+          return displayName.contains(q) ||
+              displayNameLower.contains(q) ||
+              handle.replaceFirst(RegExp(r'^@+'), '').contains(q) ||
+              handleLower.replaceFirst(RegExp(r'^@+'), '').contains(q);
+        })
+        .take(8)
+        .map((doc) => _DiscoverPerson.fromUserDoc(doc))
+        .toList();
   }
 }
 
@@ -940,6 +1039,331 @@ class _RecentVisitsList extends StatelessWidget {
           }),
         );
       },
+    );
+  }
+}
+
+class _DiscoverPerson {
+  final String uid;
+  final String displayName;
+  final String handle;
+  final String avatarUrl;
+  final List<String> reasons;
+
+  const _DiscoverPerson({
+    required this.uid,
+    required this.displayName,
+    required this.handle,
+    required this.avatarUrl,
+    required this.reasons,
+  });
+
+  factory _DiscoverPerson.fromUserDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    List<String> reasons = const ['Suggested profile'],
+  }) {
+    final data = doc.data();
+    final handle = (data['handle'] ?? data['socialHandle'] ?? '')
+        .toString()
+        .trim()
+        .replaceFirst(RegExp(r'^@+'), '');
+    final displayName = (data['displayName'] ?? '').toString().trim();
+    return _DiscoverPerson(
+      uid: doc.id,
+      displayName: displayName.isNotEmpty ? displayName : '@$handle',
+      handle: handle,
+      avatarUrl: (data['avatarUrl'] ?? '').toString().trim(),
+      reasons: reasons,
+    );
+  }
+
+  factory _DiscoverPerson.fromRecommendationDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+    return _DiscoverPerson(
+      uid: (data['uid'] ?? doc.id).toString(),
+      displayName: (data['displayName'] ?? 'Suggested profile').toString(),
+      handle: (data['handle'] ?? '').toString().trim().replaceFirst(
+        RegExp(r'^@+'),
+        '',
+      ),
+      avatarUrl: (data['avatarUrl'] ?? '').toString(),
+      reasons:
+          (data['reasons'] is List)
+              ? List<String>.from(data['reasons'])
+              : const ['Suggested profile'],
+    );
+  }
+}
+
+class _DiscoverPeopleSuggestions extends StatelessWidget {
+  final String uid;
+  final void Function(_DiscoverPerson person) onOpenProfile;
+
+  const _DiscoverPeopleSuggestions({
+    required this.uid,
+    required this.onOpenProfile,
+  });
+
+  Future<List<_DiscoverPerson>> _loadSuggestions() async {
+    final precomputed =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('recommendations')
+            .orderBy('score', descending: true)
+            .limit(8)
+            .get();
+
+    if (precomputed.docs.isNotEmpty) {
+      return precomputed.docs
+          .map(_DiscoverPerson.fromRecommendationDoc)
+          .toList();
+    }
+
+    final me =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final following = List<String>.from(me.data()?['following'] ?? const []);
+    final excluded = <String>{uid, ...following};
+
+    final usersSnap =
+        await FirebaseFirestore.instance.collection('users').limit(80).get();
+    final people = <_DiscoverPerson>[];
+
+    for (final doc in usersSnap.docs) {
+      if (excluded.contains(doc.id)) continue;
+      final data = doc.data();
+      if (data['publicProfile'] == false) continue;
+
+      final displayName = (data['displayName'] ?? '').toString().trim();
+      final handle =
+          (data['handle'] ?? data['socialHandle'] ?? '').toString().trim();
+      if (displayName.isEmpty && handle.isEmpty) continue;
+
+      final avatarUrl = (data['avatarUrl'] ?? '').toString().trim();
+      final reasons = <String>[
+        avatarUrl.isNotEmpty ? 'Active profile' : 'Suggested profile',
+      ];
+      people.add(_DiscoverPerson.fromUserDoc(doc, reasons: reasons));
+    }
+
+    people.sort(
+      (a, b) =>
+          a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()),
+    );
+    return people.take(8).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<_DiscoverPerson>>(
+      future: _loadSuggestions(),
+      builder: (context, snapshot) {
+        final people = snapshot.data ?? const <_DiscoverPerson>[];
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        if (people.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionTitle(title: 'People you might know'),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 178,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: people.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, index) {
+                  final person = people[index];
+                  return _PersonSuggestionCard(
+                    person: person,
+                    onTap: () => onOpenProfile(person),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PersonSuggestionCard extends StatelessWidget {
+  final _DiscoverPerson person;
+  final VoidCallback onTap;
+
+  const _PersonSuggestionCard({required this.person, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = person.avatarUrl.startsWith('http');
+    final initial =
+        person.displayName.isNotEmpty
+            ? person.displayName.characters.first.toUpperCase()
+            : '?';
+    final reason =
+        person.reasons.isNotEmpty ? person.reasons.first : 'Suggested profile';
+
+    return SizedBox(
+      width: 138,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE9E4FF)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 27,
+                backgroundColor: const Color(0xFFF3EDFF),
+                backgroundImage:
+                    hasImage ? NetworkImage(person.avatarUrl) : null,
+                child:
+                    hasImage
+                        ? null
+                        : Text(
+                          initial,
+                          style: const TextStyle(
+                            color: Colors.deepPurple,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                person.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (person.handle.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '@${person.handle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54),
+                ),
+              ],
+              const Spacer(),
+              Text(
+                reason,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.deepPurple,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonRowCard extends StatelessWidget {
+  final _DiscoverPerson person;
+  final VoidCallback onTap;
+
+  const _PersonRowCard({required this.person, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final initial =
+        person.displayName.isNotEmpty
+            ? person.displayName.characters.first.toUpperCase()
+            : '?';
+
+    return _ColorCard(
+      variant: _CardVariant.neutral,
+      onTap: onTap,
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: const Color(0xFFEDE7FF),
+            backgroundImage:
+                person.avatarUrl.startsWith('http')
+                    ? NetworkImage(person.avatarUrl)
+                    : null,
+            child:
+                person.avatarUrl.startsWith('http')
+                    ? null
+                    : Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.deepPurple,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  person.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (person.handle.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    '@${person.handle}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+                if (person.reasons.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Text(
+                    person.reasons.first,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.deepPurple,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Icon(Icons.chevron_right, color: Colors.black45),
+        ],
+      ),
     );
   }
 }

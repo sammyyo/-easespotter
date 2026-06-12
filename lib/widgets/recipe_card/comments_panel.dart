@@ -69,14 +69,13 @@ class _CommentsPanelState extends State<CommentsPanel> {
     setState(() => _sending = true);
 
     try {
-      final recipeRef =
-          FirebaseFirestore.instance.collection('recipes').doc(widget.recipeId);
+      final recipeRef = FirebaseFirestore.instance
+          .collection('recipes')
+          .doc(widget.recipeId);
 
       // ✅ Increment total comments count on the parent recipe doc
       // This ensures replies are counted in the main "comments count"
-      await recipeRef.update({
-        'commentsCount': FieldValue.increment(1),
-      });
+      await recipeRef.update({'commentsCount': FieldValue.increment(1)});
 
       if (_replyingToCommentId == null) {
         await recipeRef.collection('comments').add({
@@ -92,12 +91,12 @@ class _CommentsPanelState extends State<CommentsPanel> {
             .doc(_replyingToCommentId)
             .collection('replies')
             .add({
-          'content': text,
-          'userId': currentUser.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'upvotedBy': <String>[],
-          'upvotesCount': 0,
-        });
+              'content': text,
+              'userId': currentUser.uid,
+              'createdAt': FieldValue.serverTimestamp(),
+              'upvotedBy': <String>[],
+              'upvotesCount': 0,
+            });
       }
 
       _ctrl.clear();
@@ -113,9 +112,11 @@ class _CommentsPanelState extends State<CommentsPanel> {
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_replyingToCommentId == null
-              ? 'Couldn’t post comment. Please try again.'
-              : 'Couldn’t post reply. Please try again.'),
+          content: Text(
+            _replyingToCommentId == null
+                ? 'Couldn’t post comment. Please try again.'
+                : 'Couldn’t post reply. Please try again.',
+          ),
         ),
       );
     } finally {
@@ -125,12 +126,13 @@ class _CommentsPanelState extends State<CommentsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final commentsStream = FirebaseFirestore.instance
-        .collection('recipes')
-        .doc(widget.recipeId)
-        .collection('comments')
-        .orderBy('createdAt', descending: true)
-        .snapshots();
+    final commentsStream =
+        FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(widget.recipeId)
+            .collection('comments')
+            .orderBy('createdAt', descending: true)
+            .snapshots();
 
     return SafeArea(
       top: false,
@@ -246,7 +248,8 @@ class _CommentsPanelState extends State<CommentsPanel> {
               focusNode: _focusNode,
               isSending: _sending,
               onSend: _send,
-              replyingToLabel: _replyingToCommentId == null ? null : _replyingToName,
+              replyingToLabel:
+                  _replyingToCommentId == null ? null : _replyingToName,
             ),
           ),
         ],
@@ -258,12 +261,13 @@ class _CommentsPanelState extends State<CommentsPanel> {
 // ===== Single comment tile with Reply + nested replies =====
 class CommentTile extends StatefulWidget {
   final String recipeId;
-  final String ownerUid;   // recipe owner uid
-  final String commentId;  // comment doc id
-  final String userId;     // author of this comment
+  final String ownerUid; // recipe owner uid
+  final String commentId; // comment doc id
+  final String userId; // author of this comment
   final String content;
   final String timeLabel;
-  final void Function({required String commentId, required String name}) onReplyTap;
+  final void Function({required String commentId, required String name})
+  onReplyTap;
 
   const CommentTile({
     super.key,
@@ -300,7 +304,10 @@ class _CommentTileState extends State<CommentTile> {
         .snapshots();
   }
 
-  Future<void> _toggleLike(BuildContext context, {required bool isLiked}) async {
+  Future<void> _toggleLike(
+    BuildContext context, {
+    required bool isLiked,
+  }) async {
     final current = FirebaseAuth.instance.currentUser;
     if (current == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -330,7 +337,9 @@ class _CommentTileState extends State<CommentTile> {
       }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t update like. Please try again.')),
+        const SnackBar(
+          content: Text('Couldn’t update like. Please try again.'),
+        ),
       );
     }
   }
@@ -345,7 +354,8 @@ class _CommentTileState extends State<CommentTile> {
 
       const chunk = 300;
       while (true) {
-        final replies = await commentRef.collection('replies').limit(chunk).get();
+        final replies =
+            await commentRef.collection('replies').limit(chunk).get();
         if (replies.docs.isEmpty) break;
         final b = FirebaseFirestore.instance.batch();
         for (final r in replies.docs) {
@@ -356,12 +366,14 @@ class _CommentTileState extends State<CommentTile> {
 
       await commentRef.delete();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Comment deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Comment deleted.')));
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to delete comment. Please try again.')),
+        const SnackBar(
+          content: Text('Failed to delete comment. Please try again.'),
+        ),
       );
     }
   }
@@ -375,23 +387,27 @@ class _CommentTileState extends State<CommentTile> {
       return;
     }
 
-    final canDelete = current.uid == widget.userId || current.uid == widget.ownerUid;
+    final canDelete =
+        current.uid == widget.userId || current.uid == widget.ownerUid;
     if (!canDelete) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You don't have permission to delete this comment.")),
+        const SnackBar(
+          content: Text("You don't have permission to delete this comment."),
+        ),
       );
       return;
     }
 
     bool understood = false;
 
-    final repliesStream = FirebaseFirestore.instance
-        .collection('recipes')
-        .doc(widget.recipeId)
-        .collection('comments')
-        .doc(widget.commentId)
-        .collection('replies')
-        .snapshots();
+    final repliesStream =
+        FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(widget.recipeId)
+            .collection('comments')
+            .doc(widget.commentId)
+            .collection('replies')
+            .snapshots();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -404,7 +420,12 @@ class _CommentTileState extends State<CommentTile> {
         return StatefulBuilder(
           builder: (ctx, setState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                22 + MediaQuery.of(ctx).viewPadding.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -440,7 +461,10 @@ class _CommentTileState extends State<CommentTile> {
                           children: [
                             const Text(
                               'Delete this comment?',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -458,9 +482,7 @@ class _CommentTileState extends State<CommentTile> {
                             const SizedBox(height: 4),
                             Text(
                               'This action cannot be undone.',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: Colors.red),
                             ),
                           ],
@@ -490,16 +512,19 @@ class _CommentTileState extends State<CommentTile> {
                         child: FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor:
-                            understood ? Colors.red : Colors.red.withOpacity(0.5),
+                                understood
+                                    ? Colors.red
+                                    : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: understood
-                              ? () async {
-                            HapticFeedback.mediumImpact();
-                            Navigator.of(ctx).pop();
-                            await _deleteComment(context);
-                          }
-                              : null,
+                          onPressed:
+                              understood
+                                  ? () async {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.of(ctx).pop();
+                                    await _deleteComment(context);
+                                  }
+                                  : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -526,10 +551,13 @@ class _CommentTileState extends State<CommentTile> {
       stream: _commentStream(),
       builder: (context, snap) {
         final data = snap.data?.data() ?? const <String, dynamic>{};
-        final List<String> upvotedBy =
-        ((data['upvotedBy'] ?? []) as List).map((e) => e.toString()).toList(growable: false);
+        final List<String> upvotedBy = ((data['upvotedBy'] ?? []) as List)
+            .map((e) => e.toString())
+            .toList(growable: false);
         final int upvotesCount =
-        (data['upvotesCount'] is int) ? data['upvotesCount'] as int : upvotedBy.length;
+            (data['upvotesCount'] is int)
+                ? data['upvotesCount'] as int
+                : upvotedBy.length;
         final isLiked = current != null && upvotedBy.contains(current.uid);
 
         final cached = ProfileCache.peek(widget.userId);
@@ -543,19 +571,25 @@ class _CommentTileState extends State<CommentTile> {
             initialData: cached,
             builder: (context, snapshot) {
               final p =
-                  snapshot.data ?? UserProfile(uid: widget.userId, displayName: '', avatarUrl: '');
+                  snapshot.data ??
+                  UserProfile(
+                    uid: widget.userId,
+                    displayName: '',
+                    avatarUrl: '',
+                  );
               if (snapshot.hasData) ProfileCache.putMany([p]);
 
               final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
               final hasImage = p.avatarUrl.isNotEmpty;
 
-              final repliesCountStream = FirebaseFirestore.instance
-                  .collection('recipes')
-                  .doc(widget.recipeId)
-                  .collection('comments')
-                  .doc(widget.commentId)
-                  .collection('replies')
-                  .snapshots();
+              final repliesCountStream =
+                  FirebaseFirestore.instance
+                      .collection('recipes')
+                      .doc(widget.recipeId)
+                      .collection('comments')
+                      .doc(widget.commentId)
+                      .collection('replies')
+                      .snapshots();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,19 +620,24 @@ class _CommentTileState extends State<CommentTile> {
                             children: [
                               CircleAvatar(
                                 radius: avatarRadius,
-                                backgroundColor:
-                                Theme.of(context).colorScheme.secondary.withOpacity(0.12),
-                                backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-                                child: hasImage
-                                    ? null
-                                    : Text(
-                                  (name.trim().isNotEmpty
-                                      ? name.trim().characters.first
-                                      : 'U')
-                                      .toUpperCase(),
-                                  style:
-                                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                                ),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.secondary.withOpacity(0.12),
+                                backgroundImage:
+                                    hasImage ? NetworkImage(p.avatarUrl) : null,
+                                child:
+                                    hasImage
+                                        ? null
+                                        : Text(
+                                          (name.trim().isNotEmpty
+                                                  ? name.trim().characters.first
+                                                  : 'U')
+                                              .toUpperCase(),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                               ),
                               const SizedBox(width: gap),
                             ],
@@ -631,7 +670,9 @@ class _CommentTileState extends State<CommentTile> {
                                       Flexible(
                                         child: Text(
                                           name,
-                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -640,7 +681,10 @@ class _CommentTileState extends State<CommentTile> {
                                       Text(
                                         widget.timeLabel,
                                         style: TextStyle(
-                                          color: Theme.of(context).textTheme.bodySmall?.color,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall?.color,
                                           fontSize: 12,
                                         ),
                                       ),
@@ -657,22 +701,31 @@ class _CommentTileState extends State<CommentTile> {
                                   scale: isLiked ? 1.15 : 1.0,
                                   duration: const Duration(milliseconds: 150),
                                   child: Icon(
-                                    isLiked ? Icons.favorite : Icons.favorite_border,
+                                    isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
                                     color: isLiked ? Colors.red : Colors.grey,
                                   ),
                                 ),
-                                onPressed: () => _toggleLike(context, isLiked: isLiked),
+                                onPressed:
+                                    () =>
+                                        _toggleLike(context, isLiked: isLiked),
                               ),
                               const SizedBox(width: 6),
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 180),
-                                transitionBuilder: (child, anim) =>
-                                    ScaleTransition(scale: anim, child: child),
+                                transitionBuilder:
+                                    (child, anim) => ScaleTransition(
+                                      scale: anim,
+                                      child: child,
+                                    ),
                                 child: Text(
                                   '$upvotesCount',
                                   key: ValueKey<int>(upvotesCount),
                                   style: const TextStyle(
-                                      fontSize: 14, fontWeight: FontWeight.w600),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],
@@ -697,12 +750,18 @@ class _CommentTileState extends State<CommentTile> {
                       children: [
                         TextButton.icon(
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             minimumSize: const Size(0, 0),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () {
-                            widget.onReplyTap(commentId: widget.commentId, name: name);
+                            widget.onReplyTap(
+                              commentId: widget.commentId,
+                              name: name,
+                            );
                             setState(() {
                               _showReplies = true;
                             });
@@ -719,15 +778,22 @@ class _CommentTileState extends State<CommentTile> {
                               return const SizedBox.shrink();
                             }
                             final label =
-                            _showReplies ? 'Hide replies ($count)' : 'View replies ($count)';
+                                _showReplies
+                                    ? 'Hide replies ($count)'
+                                    : 'View replies ($count)';
                             return TextButton(
                               style: TextButton.styleFrom(
-                                padding:
-                                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 minimumSize: const Size(0, 0),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              onPressed: () => setState(() => _showReplies = !_showReplies),
+                              onPressed:
+                                  () => setState(
+                                    () => _showReplies = !_showReplies,
+                                  ),
                               child: Text(label),
                             );
                           },
@@ -771,14 +837,15 @@ class RepliesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
-        .collection('recipes')
-        .doc(recipeId)
-        .collection('comments')
-        .doc(commentId)
-        .collection('replies')
-        .orderBy('createdAt', descending: false)
-        .snapshots();
+    final stream =
+        FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(recipeId)
+            .collection('comments')
+            .doc(commentId)
+            .collection('replies')
+            .orderBy('createdAt', descending: false)
+            .snapshots();
 
     final replyIndent = parentLeftIndent + 24;
 
@@ -792,44 +859,45 @@ class RepliesList extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(left: replyIndent - parentLeftIndent),
           child: Column(
-            children: docs.map((d) {
-              final data = d.data();
-              final content = (data['content'] ?? '') as String;
-              final userId = (data['userId'] ?? '') as String;
-              final ts = data['createdAt'];
-              DateTime? dt;
-              if (ts is Timestamp) dt = ts.toDate();
+            children:
+                docs.map((d) {
+                  final data = d.data();
+                  final content = (data['content'] ?? '') as String;
+                  final userId = (data['userId'] ?? '') as String;
+                  final ts = data['createdAt'];
+                  DateTime? dt;
+                  if (ts is Timestamp) dt = ts.toDate();
 
-              String timeLabel;
-              if (dt == null) {
-                timeLabel = 'now';
-              } else {
-                final diff = DateTime.now().difference(dt);
-                if (diff.inMinutes < 1) {
-                  timeLabel = 'now';
-                } else if (diff.inMinutes < 60) {
-                  timeLabel = '${diff.inMinutes}m';
-                } else if (diff.inHours < 24) {
-                  timeLabel = '${diff.inHours}h';
-                } else {
-                  timeLabel = '${diff.inDays}d';
-                }
-              }
+                  String timeLabel;
+                  if (dt == null) {
+                    timeLabel = 'now';
+                  } else {
+                    final diff = DateTime.now().difference(dt);
+                    if (diff.inMinutes < 1) {
+                      timeLabel = 'now';
+                    } else if (diff.inMinutes < 60) {
+                      timeLabel = '${diff.inMinutes}m';
+                    } else if (diff.inHours < 24) {
+                      timeLabel = '${diff.inHours}h';
+                    } else {
+                      timeLabel = '${diff.inDays}d';
+                    }
+                  }
 
-              return Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 6),
-                child: ReplyTile(
-                  recipeId: recipeId,
-                  ownerUid: ownerUid,
-                  commentId: commentId,
-                  replyId: d.id,
-                  userId: userId,
-                  content: content,
-                  timeLabel: timeLabel,
-                  leftIndent: replyIndent,
-                ),
-              );
-            }).toList(),
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 6),
+                    child: ReplyTile(
+                      recipeId: recipeId,
+                      ownerUid: ownerUid,
+                      commentId: commentId,
+                      replyId: d.id,
+                      userId: userId,
+                      content: content,
+                      timeLabel: timeLabel,
+                      leftIndent: replyIndent,
+                    ),
+                  );
+                }).toList(),
           ),
         );
       },
@@ -879,7 +947,10 @@ class ReplyTile extends StatelessWidget {
         .snapshots();
   }
 
-  Future<void> _toggleLike(BuildContext context, {required bool isLiked}) async {
+  Future<void> _toggleLike(
+    BuildContext context, {
+    required bool isLiked,
+  }) async {
     final current = FirebaseAuth.instance.currentUser;
     if (current == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -911,7 +982,9 @@ class ReplyTile extends StatelessWidget {
       }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t update like. Please try again.')),
+        const SnackBar(
+          content: Text('Couldn’t update like. Please try again.'),
+        ),
       );
     }
   }
@@ -927,16 +1000,17 @@ class ReplyTile extends StatelessWidget {
           .doc(replyId)
           .delete();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reply deleted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Reply deleted.')));
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to delete reply. Please try again.')),
+        const SnackBar(
+          content: Text('Failed to delete reply. Please try again.'),
+        ),
       );
     }
   }
-
 
   Future<void> _showDeleteSheet(BuildContext context) async {
     final current = FirebaseAuth.instance.currentUser;
@@ -950,7 +1024,9 @@ class ReplyTile extends StatelessWidget {
     final canDelete = current.uid == userId || current.uid == ownerUid;
     if (!canDelete) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You don't have permission to delete this reply.")),
+        const SnackBar(
+          content: Text("You don't have permission to delete this reply."),
+        ),
       );
       return;
     }
@@ -968,7 +1044,12 @@ class ReplyTile extends StatelessWidget {
         return StatefulBuilder(
           builder: (ctx, setState) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                22 + MediaQuery.of(ctx).viewPadding.bottom,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1004,12 +1085,13 @@ class ReplyTile extends StatelessWidget {
                           children: [
                             Text(
                               'Delete this reply?',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             SizedBox(height: 6),
-                            Text(
-                              'This will permanently remove the reply.',
-                            ),
+                            Text('This will permanently remove the reply.'),
                             SizedBox(height: 4),
                           ],
                         ),
@@ -1021,10 +1103,9 @@ class ReplyTile extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'This action cannot be undone.',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: Colors.red),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.red),
                     ),
                   ),
 
@@ -1053,16 +1134,19 @@ class ReplyTile extends StatelessWidget {
                         child: FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor:
-                            understood ? Colors.red : Colors.red.withOpacity(0.5),
+                                understood
+                                    ? Colors.red
+                                    : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: understood
-                              ? () async {
-                            HapticFeedback.mediumImpact();
-                            Navigator.of(ctx).pop();
-                            await _deleteReply(context);
-                          }
-                              : null,
+                          onPressed:
+                              understood
+                                  ? () async {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.of(ctx).pop();
+                                    await _deleteReply(context);
+                                  }
+                                  : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -1077,7 +1161,6 @@ class ReplyTile extends StatelessWidget {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final current = FirebaseAuth.instance.currentUser;
@@ -1089,10 +1172,13 @@ class ReplyTile extends StatelessWidget {
       stream: _replyStream(),
       builder: (context, snap) {
         final data = snap.data?.data() ?? const <String, dynamic>{};
-        final List<String> upvotedBy =
-        ((data['upvotedBy'] ?? []) as List).map((e) => e.toString()).toList(growable: false);
+        final List<String> upvotedBy = ((data['upvotedBy'] ?? []) as List)
+            .map((e) => e.toString())
+            .toList(growable: false);
         final int upvotesCount =
-        (data['upvotesCount'] is int) ? data['upvotesCount'] as int : upvotedBy.length;
+            (data['upvotesCount'] is int)
+                ? data['upvotesCount'] as int
+                : upvotedBy.length;
         final isLiked = current != null && upvotedBy.contains(current.uid);
 
         final cached = ProfileCache.peek(userId);
@@ -1105,7 +1191,9 @@ class ReplyTile extends StatelessWidget {
             stream: _profileStream(userId),
             initialData: cached,
             builder: (context, snapshot) {
-              final p = snapshot.data ?? UserProfile(uid: userId, displayName: '', avatarUrl: '');
+              final p =
+                  snapshot.data ??
+                  UserProfile(uid: userId, displayName: '', avatarUrl: '');
               if (snapshot.hasData) ProfileCache.putMany([p]);
 
               final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
@@ -1121,7 +1209,7 @@ class ReplyTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         SizedBox(width: leftIndent - avatarSize - gap),
-                        
+
                         // ✅ Wrap Reply Avatar in InkWell for navigation
                         InkWell(
                           onTap: () async {
@@ -1142,24 +1230,30 @@ class ReplyTile extends StatelessWidget {
                             children: [
                               CircleAvatar(
                                 radius: avatarRadius,
-                                backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.12),
-                                backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-                                child: hasImage
-                                    ? null
-                                    : Text(
-                                  (name.trim().isNotEmpty
-                                      ? name.trim().characters.first
-                                      : 'U')
-                                      .toUpperCase(),
-                                  style:
-                                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                                ),
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.secondary.withOpacity(0.12),
+                                backgroundImage:
+                                    hasImage ? NetworkImage(p.avatarUrl) : null,
+                                child:
+                                    hasImage
+                                        ? null
+                                        : Text(
+                                          (name.trim().isNotEmpty
+                                                  ? name.trim().characters.first
+                                                  : 'U')
+                                              .toUpperCase(),
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                               ),
                               const SizedBox(width: gap),
                             ],
                           ),
                         ),
-                        
+
                         Expanded(
                           child: Row(
                             children: [
@@ -1184,7 +1278,9 @@ class ReplyTile extends StatelessWidget {
                                       Flexible(
                                         child: Text(
                                           name,
-                                          style: const TextStyle(fontWeight: FontWeight.w700),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -1193,9 +1289,12 @@ class ReplyTile extends StatelessWidget {
                                       Text(
                                         timeLabel,
                                         style: TextStyle(
-                                            color:
-                                            Theme.of(context).textTheme.bodySmall?.color,
-                                            fontSize: 11),
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall?.color,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1209,23 +1308,32 @@ class ReplyTile extends StatelessWidget {
                                   scale: isLiked ? 1.15 : 1.0,
                                   duration: const Duration(milliseconds: 150),
                                   child: Icon(
-                                    isLiked ? Icons.favorite : Icons.favorite_border,
+                                    isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
                                     color: isLiked ? Colors.red : Colors.grey,
                                     size: 18,
                                   ),
                                 ),
-                                onPressed: () => _toggleLike(context, isLiked: isLiked),
+                                onPressed:
+                                    () =>
+                                        _toggleLike(context, isLiked: isLiked),
                               ),
                               const SizedBox(width: 4),
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 180),
-                                transitionBuilder: (child, anim) =>
-                                    ScaleTransition(scale: anim, child: child),
+                                transitionBuilder:
+                                    (child, anim) => ScaleTransition(
+                                      scale: anim,
+                                      child: child,
+                                    ),
                                 child: Text(
                                   '$upvotesCount',
                                   key: ValueKey<int>(upvotesCount),
                                   style: const TextStyle(
-                                      fontSize: 12, fontWeight: FontWeight.w600),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -1286,9 +1394,7 @@ class CommentComposer extends StatelessWidget {
                 theme.brightness == Brightness.dark ? 0.35 : 0.6,
               ),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: theme.dividerColor.withOpacity(0.7),
-              ),
+              border: Border.all(color: theme.dividerColor.withOpacity(0.7)),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
@@ -1305,19 +1411,25 @@ class CommentComposer extends StatelessWidget {
                     minLines: 1,
                     maxLines: 4,
                     textInputAction: TextInputAction.send,
-                    onChanged: (_) =>
-                        (context as Element).markNeedsBuild(),
+                    onChanged: (_) => (context as Element).markNeedsBuild(),
                     onSubmitted: (_) {
                       if (canSend) onSend();
                     },
                     decoration: InputDecoration(
-                      hintText: user == null
-                          ? (replyingToLabel == null ? 'Sign in to leave a comment…' : 'Sign in to reply…')
-                          : (replyingToLabel == null ? 'Leave a comment…' : 'Write a reply…'),
+                      hintText:
+                          user == null
+                              ? (replyingToLabel == null
+                                  ? 'Sign in to leave a comment…'
+                                  : 'Sign in to reply…')
+                              : (replyingToLabel == null
+                                  ? 'Leave a comment…'
+                                  : 'Write a reply…'),
                       isDense: true,
                       border: InputBorder.none,
-                      contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 0,
+                        vertical: 4,
+                      ),
                     ),
                   ),
                 ),
@@ -1330,13 +1442,15 @@ class CommentComposer extends StatelessWidget {
 
         // Send button
         Tooltip(
-          message: user == null
-              ? 'Sign in to comment'
-              : (canSend ? 'Send' : 'Type a comment'),
+          message:
+              user == null
+                  ? 'Sign in to comment'
+                  : (canSend ? 'Send' : 'Type a comment'),
           child: Material(
-            color: canSend
-                ? theme.colorScheme.primary
-                : theme.colorScheme.primary.withOpacity(0.5),
+            color:
+                canSend
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.primary.withOpacity(0.5),
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
@@ -1345,17 +1459,19 @@ class CommentComposer extends StatelessWidget {
                 width: 40,
                 height: 40,
                 child: Center(
-                  child: isSending
-                      ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor:
-                      AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                      : const Icon(Icons.send, color: Colors.white),
+                  child:
+                      isSending
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                          : const Icon(Icons.send, color: Colors.white),
                 ),
               ),
             ),
@@ -1389,21 +1505,29 @@ class ComposerAvatar extends StatelessWidget {
           .map((doc) => UserProfile.fromDoc(uid!, doc.data())),
       initialData: cached,
       builder: (context, snapshot) {
-        final p = snapshot.data ?? UserProfile(uid: uid!, displayName: '', avatarUrl: '');
+        final p =
+            snapshot.data ??
+            UserProfile(uid: uid!, displayName: '', avatarUrl: '');
         if (snapshot.hasData) ProfileCache.putMany([p]);
 
         final name = p.displayName.isNotEmpty ? p.displayName : 'U';
         final hasImage = p.avatarUrl.isNotEmpty;
         return CircleAvatar(
           radius: 14,
-          backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.12),
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.secondary.withOpacity(0.12),
           backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-          child: hasImage
-              ? null
-              : Text(
-            (name.trim().characters.first).toUpperCase(),
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
+          child:
+              hasImage
+                  ? null
+                  : Text(
+                    (name.trim().characters.first).toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
         );
       },
     );

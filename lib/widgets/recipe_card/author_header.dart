@@ -17,10 +17,7 @@ class AuthorHeader extends StatelessWidget {
 
   Future<void> _navigateToProfile(BuildContext context) async {
     if (uid.isEmpty) return;
-    await SocialProfileScreen.open(
-      context,
-      viewedUid: uid,
-    );
+    await SocialProfileScreen.open(context, viewedUid: uid);
   }
 
   @override
@@ -32,8 +29,9 @@ class AuthorHeader extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor:
-            Theme.of(context).colorScheme.secondary.withOpacity(0.12),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.secondary.withOpacity(0.12),
             child: const Text(
               'U',
               style: TextStyle(fontWeight: FontWeight.w700),
@@ -44,7 +42,7 @@ class AuthorHeader extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 180),
             child: const Text(
               'Unknown User',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -59,12 +57,12 @@ class AuthorHeader extends StatelessWidget {
       stream: _profileStream(uid),
       initialData: cached,
       builder: (context, snapshot) {
-        final p = snapshot.data ??
+        final p =
+            snapshot.data ??
             UserProfile(uid: uid, displayName: '', avatarUrl: '');
         if (snapshot.hasData) ProfileCache.putMany([p]);
 
-        final name =
-        p.displayName.isNotEmpty ? p.displayName : 'Unknown User';
+        final name = p.displayName.isNotEmpty ? p.displayName : 'Unknown User';
         final hasImage = p.avatarUrl.isNotEmpty;
 
         // ✅ Wrap in InkWell/GestureDetector for navigation
@@ -78,20 +76,20 @@ class AuthorHeader extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .secondary
-                      .withOpacity(0.12),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.secondary.withOpacity(0.12),
                   backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-                  child: hasImage
-                      ? null
-                      : Text(
-                    (name.isNotEmpty
-                        ? name.trim().characters.first
-                        : 'U')
-                        .toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
+                  child:
+                      hasImage
+                          ? null
+                          : Text(
+                            (name.isNotEmpty
+                                    ? name.trim().characters.first
+                                    : 'U')
+                                .toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                 ),
                 const SizedBox(width: 10),
                 ConstrainedBox(
@@ -99,7 +97,7 @@ class AuthorHeader extends StatelessWidget {
                   child: Text(
                     name,
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,

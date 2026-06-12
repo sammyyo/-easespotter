@@ -391,6 +391,27 @@ exports.onReelComment = onDocumentCreated(
 
       const reelData = reelSnap.data();
       const ownerUid = reelData.authorUid || reelData.uid;
+      const rating = Number(comment.rating || 0);
+
+      if (Number.isInteger(rating) && rating >= 1 && rating <= 5) {
+        await db.runTransaction(async (transaction) => {
+          const freshReelSnap = await transaction.get(reelSnap.ref);
+          if (!freshReelSnap.exists) return;
+
+          const freshReelData = freshReelSnap.data() || {};
+          const oldSum = Number(freshReelData.ratingSum || 0);
+          const oldCount = Number(freshReelData.ratingCount || 0);
+          const nextSum = oldSum + rating;
+          const nextCount = oldCount + 1;
+
+          transaction.update(reelSnap.ref, {
+            ratingSum: nextSum,
+            ratingCount: nextCount,
+            averageRating: nextSum / nextCount,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+      }
 
       if (!ownerUid || ownerUid === authorUid) return;
 

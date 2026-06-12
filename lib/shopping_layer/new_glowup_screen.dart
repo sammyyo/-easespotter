@@ -30,10 +30,10 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
 
   //  Feed-style tags w/ icons + clean query values
   final List<GlowTag> _tags = const [
-    GlowTag('Pantry',       'pantry',       Icons.kitchen_rounded),
-    GlowTag('Budget',       'budget',       Icons.attach_money_rounded),
-    GlowTag('Vegan',        'vegan',        Icons.eco_rounded),
-    GlowTag('Snacks',       'snacks',       Icons.fastfood_rounded),
+    GlowTag('Pantry', 'pantry', Icons.kitchen_rounded),
+    GlowTag('Budget', 'budget', Icons.attach_money_rounded),
+    GlowTag('Vegan', 'vegan', Icons.eco_rounded),
+    GlowTag('Snacks', 'snacks', Icons.fastfood_rounded),
     GlowTag('Before/After', 'before-after', Icons.compare_rounded),
   ];
 
@@ -50,15 +50,13 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       aspectRatio: const CropAspectRatio(ratioX: 4, ratioY: 5),
       uiSettings: [
         AndroidUiSettings(
-            toolbarTitle: 'Crop Image',
-            toolbarColor: Colors.deepPurple,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.original,
-            lockAspectRatio: true),
-        IOSUiSettings(
-          title: 'Crop Image',
-          aspectRatioLockEnabled: true,
+          toolbarTitle: 'Crop Image',
+          toolbarColor: Colors.deepPurple,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: true,
         ),
+        IOSUiSettings(title: 'Crop Image', aspectRatioLockEnabled: true),
       ],
     );
 
@@ -83,8 +81,9 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
 
     try {
       final fileName = '${user.uid}_${DateTime.now().millisecondsSinceEpoch}';
-      final storageRef =
-      FirebaseStorage.instance.ref().child('glowup_images/$fileName.jpg');
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'glowup_images/$fileName.jpg',
+      );
 
       final uploadTask = await storageRef.putFile(_selectedImage!);
       if (uploadTask.state != TaskState.success) {
@@ -109,9 +108,9 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       await FirebaseFirestore.instance.collection('glowups').add(glowUpDoc);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Glow-Up submitted!')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Glow-Up submitted!')));
       Navigator.pop(context);
     } catch (e) {
       debugPrint('Glow-Up submission error: $e');
@@ -129,56 +128,62 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _tags.map((tag) {
-        final bool selected = _selectedTagValues.contains(tag.queryValue);
+      children:
+          _tags.map((tag) {
+            final bool selected = _selectedTagValues.contains(tag.queryValue);
 
-        return Semantics(
-          button: true,
-          selected: selected,
-          label: 'Tag: ${tag.label}',
-          child: ChoiceChip(
-            labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-            avatar: Icon(
-              tag.icon,
-              size: 18,
-              color: selected
-                  ? Colors.white
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-            ),
-            label: Text(
-              tag.label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: selected
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.onSurface,
+            return Semantics(
+              button: true,
+              selected: selected,
+              label: 'Tag: ${tag.label}',
+              child: ChoiceChip(
+                labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                avatar: Icon(
+                  tag.icon,
+                  size: 18,
+                  color:
+                      selected
+                          ? Colors.white
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                ),
+                label: Text(
+                  tag.label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color:
+                        selected
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                selected: selected,
+                showCheckmark: false,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                selectedColor: Colors.deepPurple,
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color:
+                        selected
+                            ? Colors.deepPurple
+                            : Theme.of(context).dividerColor,
+                  ),
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onSelected: (_) {
+                  setState(() {
+                    if (selected) {
+                      _selectedTagValues.remove(tag.queryValue);
+                    } else {
+                      _selectedTagValues.add(tag.queryValue);
+                    }
+                  });
+                },
               ),
-            ),
-            selected: selected,
-            showCheckmark: false,
-            backgroundColor:
-            Theme.of(context).colorScheme.surfaceContainerHighest,
-            selectedColor: Colors.deepPurple,
-            shape: StadiumBorder(
-              side: BorderSide(
-                color: selected
-                    ? Colors.deepPurple
-                    : Theme.of(context).dividerColor,
-              ),
-            ),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onSelected: (_) {
-              setState(() {
-                if (selected) {
-                  _selectedTagValues.remove(tag.queryValue);
-                } else {
-                  _selectedTagValues.add(tag.queryValue);
-                }
-              });
-            },
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
   }
 
@@ -188,10 +193,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       controller: _titleController,
       textCapitalization: TextCapitalization.words,
       maxLength: 60,
-      style: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-      ),
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: 'Glow-Up title',
         hintText: 'e.g. Pantry',
@@ -199,25 +201,19 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         fillColor: Colors.white,
         counterText: '',
         prefixIcon: const Icon(Icons.edit_outlined),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFE0E0E0),
-            width: 1.2,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Colors.deepPurple,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
         ),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -232,34 +228,24 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       decoration: InputDecoration(
         labelText: 'Story / what changed',
         alignLabelWithHint: true,
-        hintText:
-        'Description…',
+        hintText: 'Description…',
         helperText: 'Tip: Focus on the transformation and 2–4 key details.',
-        helperStyle: const TextStyle(
-          fontSize: 12,
-          color: Colors.black54,
-        ),
+        helperStyle: const TextStyle(fontSize: 12, color: Colors.black54),
         filled: true,
         fillColor: const Color(0xFFF8F7FF),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFE0E0E0),
-            width: 1.2,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Colors.deepPurple,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
         ),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -273,6 +259,8 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomSafePadding = 28 + MediaQuery.of(context).viewPadding.bottom;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.deepPurple,
@@ -280,108 +268,105 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'New Glow-Up Story',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Section label
-            Text(
-              'Story details',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade800,
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, bottomSafePadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Section label
+                    Text(
+                      'Story details',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ✏️ Title
+                    _buildTitleField(),
+                    const SizedBox(height: 18),
+
+                    // 📝 Description
+                    _buildDescriptionField(),
+                    const SizedBox(height: 24),
+
+                    const Text(
+                      'Tags',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+                    _buildTagChips(),
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'Image',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 6),
+
+                    _selectedImage == null
+                        ? OutlinedButton.icon(
+                          icon: const Icon(Icons.image),
+                          label: const Text('Pick Image'),
+                          onPressed: _pickImage,
+                        )
+                        : Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(
+                                _selectedImage!,
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _pickImage,
+                              child: const Text('Change Image'),
+                            ),
+                          ],
+                        ),
+                    const SizedBox(height: 12),
+
+                    SwitchListTile(
+                      title: const Text('Make this Glow-Up Public'),
+                      value: _isPublic,
+                      onChanged: (val) => setState(() => _isPublic = val),
+                    ),
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.check),
+                        label: const Text('Submit'),
+                        onPressed: _submitGlowUp,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-
-            // ✏️ Title
-            _buildTitleField(),
-            const SizedBox(height: 18),
-
-            // 📝 Description
-            _buildDescriptionField(),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Tags',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            _buildTagChips(),
-            const SizedBox(height: 16),
-
-            const Text(
-              'Image',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-
-            _selectedImage == null
-                ? OutlinedButton.icon(
-              icon: const Icon(Icons.image),
-              label: const Text('Pick Image'),
-              onPressed: _pickImage,
-            )
-                : Column(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(
-                    _selectedImage!,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                TextButton(
-                  onPressed: _pickImage,
-                  child: const Text('Change Image'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            SwitchListTile(
-              title: const Text('Make this Glow-Up Public'),
-              value: _isPublic,
-              onChanged: (val) =>
-                  setState(() => _isPublic = val),
-            ),
-            const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.check),
-                label: const Text('Submit'),
-                onPressed: _submitGlowUp,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
