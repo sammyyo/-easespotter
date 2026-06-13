@@ -3,22 +3,19 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class StoreApiService {
-  //  Fixed as per instruction: always uses easespotter.com
-  static const String baseUrl = 'https://easespotter.com';
+  static const String baseUrl = 'https://easespotter-production.up.railway.app';
 
   /// Store payload (includes productsByCategory, productsByAisle, etc.)
   static Future<Map<String, dynamic>> fetchStoreById(int storeId) async {
-    //  Added debug print to confirm which service is used
-    debugPrint('USING StoreApiService from store_api_service.dart (easespotter.com)');
+    debugPrint('USING StoreApiService from store_api_service.dart ($baseUrl)');
 
-    //  Set URI to exact pattern requested
     final uri = Uri.parse('$baseUrl/api/stores/$storeId');
     debugPrint('StoreApiService: fetching $uri');
 
     try {
-      final res = await http.get(uri, headers: {
-        'Content-Type': 'application/json',
-      }).timeout(const Duration(seconds: 15));
+      final res = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 15));
 
       debugPrint('StoreApiService: Response ${res.statusCode} ${res.body}');
 
@@ -29,7 +26,8 @@ class StoreApiService {
       final decoded = jsonDecode(res.body);
 
       if (decoded is Map<String, dynamic>) {
-        if (decoded['success'] == true && decoded['data'] is Map<String, dynamic>) {
+        if (decoded['success'] == true &&
+            decoded['data'] is Map<String, dynamic>) {
           return decoded['data'] as Map<String, dynamic>;
         }
         return decoded;
@@ -43,16 +41,20 @@ class StoreApiService {
   }
 
   /// Store addresses from the Neon-backed website data.
-  static Future<List<Map<String, dynamic>>> fetchStoreAddresses(int storeId) async {
+  static Future<List<Map<String, dynamic>>> fetchStoreAddresses(
+    int storeId,
+  ) async {
     final uri = Uri.parse('$baseUrl/api/stores/$storeId/addresses');
     debugPrint('StoreApiService: fetching addresses $uri');
 
     try {
-      final res = await http.get(uri, headers: {
-        'Content-Type': 'application/json',
-      }).timeout(const Duration(seconds: 15));
+      final res = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 15));
 
-      debugPrint('StoreApiService Addresses: Response ${res.statusCode} ${res.body}');
+      debugPrint(
+        'StoreApiService Addresses: Response ${res.statusCode} ${res.body}',
+      );
 
       if (res.statusCode < 200 || res.statusCode >= 300) {
         throw Exception('API error ${res.statusCode}: ${res.body}');
@@ -90,11 +92,13 @@ class StoreApiService {
     debugPrint('StoreApiService: fetching directory $uri');
 
     try {
-      final res = await http.get(uri, headers: {
-        'Content-Type': 'application/json',
-      }).timeout(const Duration(seconds: 15));
+      final res = await http
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 15));
 
-      debugPrint('StoreApiService Directory: Response ${res.statusCode} ${res.body}');
+      debugPrint(
+        'StoreApiService Directory: Response ${res.statusCode} ${res.body}',
+      );
 
       if (res.statusCode < 200 || res.statusCode >= 300) {
         throw Exception('API error ${res.statusCode}: ${res.body}');

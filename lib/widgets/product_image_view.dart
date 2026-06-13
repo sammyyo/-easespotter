@@ -63,14 +63,6 @@ class ProductImageView extends StatelessWidget {
   }
 
   String _normalizeImageUrl(String value) {
-    final uri = Uri.tryParse(value);
-    if (uri == null) return value;
-
-    if (uri.host == 'easespotter.com' &&
-        uri.path.startsWith('/uploads/products/')) {
-      return uri.replace(host: 'www.easespotter.com').toString();
-    }
-
     return value;
   }
 

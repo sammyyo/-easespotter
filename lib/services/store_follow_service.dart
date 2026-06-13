@@ -188,11 +188,6 @@ class StoreFollowService {
   }
 
   static String _normalizeProductImageUrl(Uri uri) {
-    if (uri.host == 'easespotter.com' &&
-        uri.path.startsWith('/uploads/products/')) {
-      return uri.replace(host: 'www.easespotter.com').toString();
-    }
-
     return uri.toString();
   }
 

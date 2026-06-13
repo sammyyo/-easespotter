@@ -47,8 +47,10 @@ class GroceryListService {
     final items = await getList();
     final normalized = title.trim().toLowerCase();
 
-    final exists = items.any((item) =>
-        (item['title'] ?? '').toString().trim().toLowerCase() == normalized);
+    final exists = items.any(
+      (item) =>
+          (item['title'] ?? '').toString().trim().toLowerCase() == normalized,
+    );
 
     if (exists) return false;
 
@@ -80,7 +82,7 @@ class GroceryListService {
         'unitPrice': 0.0,
         'price': 0.0,
         'source': source,
-      }
+      },
     ];
 
     await saveList(items);
@@ -89,18 +91,14 @@ class GroceryListService {
   Future<bool> addStoreItem({
     required String name,
     String category = 'General',
-    String? storeId,
-    String? storeName,
-    String? barcode,
-    String? aisle,
-    String? shelf,
-    String? location,
   }) async {
     final items = await getList();
 
-    final exists = items.any((item) =>
-    (item['title'] ?? '').toString().trim().toLowerCase() ==
-        name.trim().toLowerCase());
+    final exists = items.any(
+      (item) =>
+          (item['title'] ?? '').toString().trim().toLowerCase() ==
+          name.trim().toLowerCase(),
+    );
 
     if (exists) return false;
 
@@ -112,12 +110,6 @@ class GroceryListService {
       'unitPrice': 0.0,
       'price': 0.0,
       'source': 'store',
-      'storeId': storeId,
-      'storeName': storeName,
-      'barcode': barcode,
-      'aisle': aisle,
-      'shelf': shelf,
-      'location': location ?? _formatLocation(aisle, shelf),
     });
 
     await saveList(items);
@@ -138,10 +130,11 @@ class GroceryListService {
     final items = await getList();
 
     // Build a fast lookup set once (instead of scanning items repeatedly)
-    final existing = items
-        .map((i) => (i['title'] ?? '').toString().trim().toLowerCase())
-        .where((s) => s.isNotEmpty)
-        .toSet();
+    final existing =
+        items
+            .map((i) => (i['title'] ?? '').toString().trim().toLowerCase())
+            .where((s) => s.isNotEmpty)
+            .toSet();
 
     int addedCount = 0;
 
@@ -173,14 +166,5 @@ class GroceryListService {
     }
 
     return addedCount;
-  }
-
-  static String? _formatLocation(String? aisle, String? shelf) {
-    final a = (aisle ?? '').trim();
-    final s = (shelf ?? '').trim();
-    if (a.isEmpty && s.isEmpty) return null;
-    if (a.isEmpty) return s;
-    if (s.isEmpty) return a;
-    return '$a · $s';
   }
 }

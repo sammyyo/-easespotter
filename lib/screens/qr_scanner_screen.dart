@@ -377,17 +377,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       safe[entry.key.toString()] =
           rawProducts.whereType<Map>().map((product) {
             final safeProduct = Map<String, dynamic>.from(product);
-            safeProduct.remove('image');
-            safeProduct.remove('imageUrl');
-            safeProduct.remove('imageURL');
-            safeProduct.remove('image_url');
-            safeProduct.remove('productImageUrl');
-            safeProduct.remove('productImageURL');
-            safeProduct.remove('product_image_url');
-            safeProduct.remove('productImage');
-            safeProduct.remove('thumbnail');
-            safeProduct.remove('thumbnailUrl');
-            safeProduct.remove('thumbnail_url');
             return safeProduct;
           }).toList();
     }

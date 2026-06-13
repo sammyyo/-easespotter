@@ -349,11 +349,6 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       return '${StoreApiService.baseUrl}/$value';
     }
 
-    if (uri.host == 'easespotter.com' &&
-        uri.path.startsWith('/uploads/products/')) {
-      return uri.replace(host: 'www.easespotter.com').toString();
-    }
-
     return value;
   }
 

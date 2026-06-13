@@ -326,47 +326,85 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
           'Community Recipes',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        actions: [
-          if (signedIn)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Transform.scale(
-                  scale: 0.78,
-                  child: Switch(
-                    value: _cookWithWhatIHave,
-                    activeColor: Colors.white,
-                    activeTrackColor: Colors.white24,
-                    inactiveThumbColor: Colors.white70,
-                    inactiveTrackColor: Colors.white24,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    onChanged: (v) {
-                      setState(() => _cookWithWhatIHave = v);
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
       body:
           (!_cookWithWhatIHave || !signedIn)
-              ? _buildNormalBody()
+              ? _buildRecipeBody(signedIn: signedIn, child: _buildNormalBody())
               : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: _inventory.streamInventory(),
                 builder: (context, invSnap) {
                   if (invSnap.connectionState == ConnectionState.waiting) {
-                    return _buildNormalBody(showOverlayLoader: true);
+                    return _buildRecipeBody(
+                      signedIn: signedIn,
+                      child: _buildNormalBody(showOverlayLoader: true),
+                    );
                   }
 
                   final invDocs = invSnap.data?.docs ?? const [];
                   final inventoryNames = _normalizeInventoryNames(invDocs);
 
-                  return _buildCookWithWhatIHaveBody(inventoryNames);
+                  return _buildRecipeBody(
+                    signedIn: signedIn,
+                    child: _buildCookWithWhatIHaveBody(inventoryNames),
+                  );
                 },
               ),
       floatingActionButton: _buildFloatingMenu(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildRecipeBody({required bool signedIn, required Widget child}) {
+    return Column(
+      children: [
+        if (signedIn) _buildCookWithWhatIHavePill(),
+        Expanded(child: child),
+      ],
+    );
+  }
+
+  Widget _buildCookWithWhatIHavePill() {
+    final isActive = _cookWithWhatIHave;
+
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Material(
+          color: isActive ? Colors.deepPurple : const Color(0xFFF3EDFF),
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            onTap: () {
+              setState(() => _cookWithWhatIHave = !_cookWithWhatIHave);
+            },
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isActive ? Icons.inventory_2 : Icons.inventory_2_outlined,
+                    size: 18,
+                    color: isActive ? Colors.white : Colors.deepPurple,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Cook With What I Have',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: isActive ? Colors.white : Colors.deepPurple,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

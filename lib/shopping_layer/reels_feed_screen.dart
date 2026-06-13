@@ -1803,6 +1803,36 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (isRecipeReel && ratingCount > 0) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.34),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.star_rounded,
+                  size: 15,
+                  color: Color(0xFFFFB020),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '${averageRating.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         Row(
           children: [
             Flexible(
@@ -1872,36 +1902,6 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (isRecipeReel && ratingCount > 0) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.34),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.star_rounded,
-                  size: 15,
-                  color: Color(0xFFFFB020),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  '${averageRating.toStringAsFixed(1)} · $ratingCount rating${ratingCount == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],

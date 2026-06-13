@@ -97,33 +97,6 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     return true;
   }
 
-  Future<void> _forceAppendGroceryItem({
-    required String title,
-    required String category,
-    String source = 'store',
-    Map<String, dynamic>? storeItem,
-  }) async {
-    final list = await _loadGroceryPrefsList();
-
-    final newItem = <String, dynamic>{
-      'title': title.trim(),
-      'checked': false,
-      'category': category,
-      'quantity': 1,
-      'unitPrice': 0.0,
-      'price': 0.0,
-      'source': source,
-    };
-
-    if (storeItem != null) {
-      final loc = (storeItem['location'] ?? '').toString().trim();
-      if (loc.isNotEmpty) newItem['location'] = loc;
-    }
-
-    list.add(newItem);
-    await _saveGroceryPrefsList(list);
-  }
-
   int _parsePositiveInt(String s, {int fallback = 1, int max = 9999}) {
     final v = int.tryParse(s.trim());
     if (v == null || v <= 0) return fallback;
@@ -423,6 +396,35 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     return StoreLogoService.resolveFromData(widget.storeData);
   }
 
+  String _currentStoreId() {
+    return (widget.storeData['vendorId'] ??
+            widget.storeData['storeId'] ??
+            widget.storeData['vendorid'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  String _currentStoreName() {
+    return (widget.storeData['vendorName'] ??
+            widget.storeData['name'] ??
+            widget.storeData['vendorBusinessName'] ??
+            'Unknown Store')
+        .toString()
+        .trim();
+  }
+
+  num? _unitPriceFromItem(Map<String, dynamic> item) {
+    final raw = (item['price'] ?? item['unitPrice'] ?? '').toString().trim();
+    if (raw.isEmpty) return null;
+    final cleaned = raw
+        .replaceAll(RegExp(r'[^0-9.,-]'), '')
+        .replaceAll(',', '.');
+    final value = double.tryParse(cleaned);
+    if (value == null || value < 0) return null;
+    return value;
+  }
+
   String _firstStringValue(Map<dynamic, dynamic> data, List<String> keys) {
     for (final key in keys) {
       final value = data[key]?.toString().trim();
@@ -446,11 +448,6 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   }
 
   String _normalizeProductImageUrl(Uri uri) {
-    if (uri.host == 'easespotter.com' &&
-        uri.path.startsWith('/uploads/products/')) {
-      return uri.replace(host: 'www.easespotter.com').toString();
-    }
-
     return uri.toString();
   }
 
@@ -745,37 +742,8 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     super.initState();
     _cacheStoreData();
 
-    final Map<String, dynamic> productsByCategory =
-        widget.storeData['productsByCategory'] ?? {};
-    final flattened =
-        productsByCategory.entries.expand((entry) {
-          final category = entry.key;
-          final List items = entry.value;
-          return items.whereType<Map>().map((item) {
-            final product = Map<String, dynamic>.from(item);
-            final imageUrl = _imageUrlFromItem(product);
-
-            return {
-              ...product,
-              'name': product['name'],
-              'location': _locationText(product),
-              'category': category,
-              'storeName': widget.storeData['vendorName'] ?? 'Unknown Store',
-              'price': product['price'] ?? '',
-              if (imageUrl.isNotEmpty) ...{
-                'imageUrl': imageUrl,
-                'image': imageUrl,
-                'productImageUrl': imageUrl,
-                'thumbnailUrl': imageUrl,
-              },
-              'barcode': product['barcode'],
-              'aisle': _locationValue(product, 'aisle'),
-              'shelf': _locationValue(product, 'shelf'),
-            };
-          });
-        }).toList();
-
-    _allItems = List<Map<String, dynamic>>.from(flattened);
+    _allItems = _buildSearchItems(widget.storeData);
+    _refreshStoreProductsFromApi();
     _loadBookmarkedKeys();
 
     final storeId = widget.storeData['vendorId']?.toString() ?? '';
@@ -794,27 +762,146 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     }
   }
 
-  Future<void> _cacheStoreData() async {
+  List<Map<String, dynamic>> _buildSearchItems(Map<String, dynamic> storeData) {
+    final Map<String, dynamic> productsByCategory =
+        storeData['productsByCategory'] ?? {};
+    final flattened =
+        productsByCategory.entries.expand((entry) {
+          final category = entry.key;
+          final List items = entry.value;
+          return items.whereType<Map>().map((item) {
+            final product = Map<String, dynamic>.from(item);
+            final imageUrl = _imageUrlFromItem(product);
+
+            return {
+              ...product,
+              'name': product['name'],
+              'location': _locationText(product),
+              'category': category,
+              'storeName': storeData['vendorName'] ?? 'Unknown Store',
+              'price': product['price'] ?? '',
+              if (imageUrl.isNotEmpty) ...{
+                'imageUrl': imageUrl,
+                'image': imageUrl,
+                'productImageUrl': imageUrl,
+                'thumbnailUrl': imageUrl,
+              },
+              'barcode': product['barcode'],
+              'aisle': _locationValue(product, 'aisle'),
+              'shelf': _locationValue(product, 'shelf'),
+            };
+          });
+        }).toList();
+
+    return List<Map<String, dynamic>>.from(flattened);
+  }
+
+  Future<void> _refreshStoreProductsFromApi() async {
+    final hasMissingImages = _allItems.any(
+      (item) => _imageUrlFromItem(item).isEmpty,
+    );
+    if (_allItems.isEmpty || !hasMissingImages) {
+      return;
+    }
+
     final storeId =
-        (widget.storeData['vendorId'] ?? widget.storeData['storeId'] ?? '')
+        (widget.storeData['vendorId'] ??
+                widget.storeData['storeId'] ??
+                widget.storeData['vendorid'] ??
+                '')
             .toString()
             .trim();
+    final numericStoreId = int.tryParse(storeId);
+    if (numericStoreId == null) return;
+
+    try {
+      final apiData = await StoreApiService.fetchStoreById(numericStoreId);
+      final refreshedStoreData = <String, dynamic>{
+        ...widget.storeData,
+        ...apiData,
+      };
+      final refreshedItems = _buildSearchItems(refreshedStoreData);
+      if (!mounted || refreshedItems.isEmpty) return;
+
+      setState(() {
+        _allItems = refreshedItems;
+        _replaceSelectedItemsWithRefreshedImages(refreshedItems);
+      });
+      await _cacheStoreDataFrom(refreshedStoreData);
+    } catch (e) {
+      debugPrint('Store product image refresh failed: $e');
+    }
+  }
+
+  void _replaceSelectedItemsWithRefreshedImages(
+    List<Map<String, dynamic>> refreshedItems,
+  ) {
+    for (var index = 0; index < _selectedItems.length; index++) {
+      final selected = _selectedItems[index];
+      if (_imageUrlFromItem(selected).isNotEmpty) continue;
+
+      final refreshed = _findMatchingSearchItem(selected, refreshedItems);
+      if (refreshed != null && _imageUrlFromItem(refreshed).isNotEmpty) {
+        _selectedItems[index] = refreshed;
+      }
+    }
+  }
+
+  Map<String, dynamic>? _findMatchingSearchItem(
+    Map<String, dynamic> target,
+    List<Map<String, dynamic>> candidates,
+  ) {
+    final targetName = (target['name'] ?? '').toString().trim().toLowerCase();
+    if (targetName.isEmpty) return null;
+
+    final targetPrice = (target['price'] ?? '').toString().trim();
+    final targetLocation = (target['location'] ?? '').toString().trim();
+
+    for (final item in candidates) {
+      if ((item['name'] ?? '').toString().trim().toLowerCase() != targetName) {
+        continue;
+      }
+      final itemPrice = (item['price'] ?? '').toString().trim();
+      if (targetPrice.isNotEmpty &&
+          itemPrice.isNotEmpty &&
+          itemPrice != targetPrice) {
+        continue;
+      }
+      final itemLocation = (item['location'] ?? '').toString().trim();
+      if (targetLocation.isNotEmpty &&
+          itemLocation.isNotEmpty &&
+          itemLocation != targetLocation) {
+        continue;
+      }
+      return item;
+    }
+
+    return null;
+  }
+
+  Future<void> _cacheStoreData() async {
+    await _cacheStoreDataFrom(widget.storeData);
+  }
+
+  Future<void> _cacheStoreDataFrom(Map<String, dynamic> storeData) async {
+    final storeId =
+        (storeData['vendorId'] ?? storeData['storeId'] ?? '').toString().trim();
     if (storeId.isEmpty) return;
 
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         'store_cache_$storeId',
-        jsonEncode(_safeStoreCacheData(widget.storeData)),
+        jsonEncode(_safeStoreCacheData(storeData)),
       );
     } catch (e) {
       debugPrint('Store cache save failed: $e');
     }
 
     try {
-      final logoUrl = _storeLogoUrl();
+      final logoUrl = StoreLogoService.resolveFromData(storeData);
       final storeName =
-          (widget.storeData['vendorName'] ?? widget.storeData['name'] ?? '')
+          (storeData['vendorName'] ?? storeData['name'] ?? '')
               .toString()
               .trim();
 
@@ -824,11 +911,11 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
         if (storeName.isNotEmpty) 'name': storeName,
         if (storeName.isNotEmpty) 'vendorName': storeName,
         if (logoUrl.isNotEmpty) 'logoUrl': logoUrl,
-        if (_safeProductsByCategory(widget.storeData) != null)
-          'productsByCategory': _safeProductsByCategory(widget.storeData),
-        if (widget.storeData['totalProducts'] != null)
-          'totalProducts': widget.storeData['totalProducts'],
-        'payload': _safeStoreCacheData(widget.storeData),
+        if (_safeProductsByCategory(storeData) != null)
+          'productsByCategory': _safeProductsByCategory(storeData),
+        if (storeData['totalProducts'] != null)
+          'totalProducts': storeData['totalProducts'],
+        'payload': _safeStoreCacheData(storeData),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
@@ -1035,6 +1122,13 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           barcode: barcode,
           by: amount,
           source: 'store',
+          storeId: _currentStoreId(),
+          storeName: _currentStoreName(),
+          aisle: _locationValue(item, 'aisle'),
+          shelf: _locationValue(item, 'shelf'),
+          location: (item['location'] ?? '').toString(),
+          imageUrl: _imageUrlFromItem(item),
+          unitPrice: _unitPriceFromItem(item),
         );
       } else {
         // If no barcode, best-effort: just upsert +amount (no stable doc id)
@@ -1043,6 +1137,13 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           barcode: null,
           quantity: amount,
           source: 'store',
+          storeId: _currentStoreId(),
+          storeName: _currentStoreName(),
+          aisle: _locationValue(item, 'aisle'),
+          shelf: _locationValue(item, 'shelf'),
+          location: (item['location'] ?? '').toString(),
+          imageUrl: _imageUrlFromItem(item),
+          unitPrice: _unitPriceFromItem(item),
         );
       }
 
