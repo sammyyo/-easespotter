@@ -611,60 +611,95 @@ class _ChatScreenState extends State<ChatScreen> {
   }) async {
     const emojis = ['❤️', '🔥', '👍', '😂', '😮', '😢'];
 
-    final chosen = await showModalBottomSheet<String>(
+    final chosen = await showDialog<String>(
       context: context,
-      showDragHandle: true,
-      builder: (_) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "React",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final e in emojis)
-                      InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () => Navigator.pop(context, e),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      builder: (dialogContext) {
+        return Dialog(
+          elevation: 10,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+          backgroundColor: Colors.transparent,
+          child: Align(
+            alignment: Alignment.center,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 360),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final e in emojis)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.pop(dialogContext, e),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 140),
+                          curve: Curves.easeOut,
+                          width: 42,
+                          height: 42,
+                          alignment: Alignment.center,
                           decoration: BoxDecoration(
+                            shape: BoxShape.circle,
                             color:
                                 current == e
-                                    ? Colors.deepPurple.withOpacity(0.12)
-                                    : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color:
-                                  current == e
-                                      ? Colors.deepPurple
-                                      : Colors.grey.shade300,
-                            ),
+                                    ? Colors.deepPurple.withValues(alpha: 0.12)
+                                    : Colors.transparent,
+                            border:
+                                current == e
+                                    ? Border.all(
+                                      color: Colors.deepPurple.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                    )
+                                    : null,
                           ),
-                          child: Text(e, style: const TextStyle(fontSize: 22)),
+                          child: Text(
+                            e,
+                            style: const TextStyle(fontSize: 24, height: 1),
+                          ),
                         ),
                       ),
+                    ),
+                  if (current != null) ...[
+                    Container(
+                      width: 1,
+                      height: 26,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      color: Colors.grey.shade200,
+                    ),
+                    InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => Navigator.pop(dialogContext, '__remove__'),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey.shade100,
+                        ),
+                        child: Icon(
+                          Icons.close,
+                          size: 20,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                if (current != null)
-                  TextButton.icon(
-                    onPressed: () => Navigator.pop(context, '__remove__'),
-                    icon: const Icon(Icons.remove_circle_outline),
-                    label: const Text("Remove reaction"),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         );

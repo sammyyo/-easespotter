@@ -179,7 +179,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   Future<Map<String, dynamic>> _fetchStoreDataById(int storeId) async {
     try {
       final decoded = await StoreApiService.fetchStoreDirectory(storeId);
-      return _extractStoreData(decoded);
+      final storeData = _extractStoreData(decoded);
+      if (_hasProducts(storeData)) {
+        return storeData;
+      }
+      debugPrint('QR directory fetch for store $storeId returned no products');
     } catch (directoryError) {
       debugPrint(
         'QR directory fetch failed for store $storeId: $directoryError',
@@ -194,6 +198,27 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     }
 
     throw Exception('No store data found for store ID $storeId');
+  }
+
+  bool _hasProducts(Map<String, dynamic> storeData) {
+    final totalProducts = storeData['totalProducts'];
+    if (totalProducts is num && totalProducts > 0) return true;
+
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is Map) {
+      return productsByCategory.values.any(
+        (items) => items is List && items.isNotEmpty,
+      );
+    }
+
+    final productsByAisle = storeData['productsByAisle'];
+    if (productsByAisle is Map) {
+      return productsByAisle.values.any(
+        (items) => items is List && items.isNotEmpty,
+      );
+    }
+
+    return false;
   }
 
   int? _storeIdFromUri(Uri uri) {

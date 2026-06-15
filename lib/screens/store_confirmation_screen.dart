@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easespotter/services/bookmark_service.dart';
+import 'package:easespotter/screens/product_details_screen.dart';
 import 'package:easespotter/services/store_follow_service.dart';
 import 'package:easespotter/services/grocery_list_service.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
@@ -36,6 +37,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   Timer? _searchDebounce;
   String _lastNotFoundQuery = '';
   bool _isLoading = false;
+  Future<void>? _productsRefreshFuture;
 
   bool _isFollowingStore = false;
   bool _checkingFollow = true;
@@ -596,109 +598,113 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           ),
           elevation: 2,
           margin: const EdgeInsets.symmetric(vertical: 6),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _productThumbnail(item, width: 92, height: 92),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          height: 1.15,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _openProductDetails(item),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _productThumbnail(item, width: 92, height: 92),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 9),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          if (location.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF3F0FF),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                location,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.deepPurple,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
+                        const SizedBox(height: 9),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            if (location.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F0FF),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  location,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                            ),
-                          if (price.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFF3E0),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                '€$price',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFFB45F06),
+                            if (price.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF3E0),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '€$price',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFB45F06),
+                                  ),
                                 ),
                               ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            _itemActionButton(
+                              icon: Icons.kitchen,
+                              color: Colors.deepPurple,
+                              tooltip: 'Brought home (add to inventory)',
+                              onPressed: () => _guardedAddToHomeInventory(item),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _itemActionButton(
-                            icon: Icons.kitchen,
-                            color: Colors.deepPurple,
-                            tooltip: 'Brought home (add to inventory)',
-                            onPressed: () => _guardedAddToHomeInventory(item),
-                          ),
-                          const SizedBox(width: 8),
-                          _itemActionButton(
-                            icon: Icons.playlist_add,
-                            color: Colors.teal,
-                            tooltip: 'Add to Grocery List',
-                            onPressed: () => _guardedAddToGroceryList(item),
-                          ),
-                          const SizedBox(width: 8),
-                          _itemActionButton(
-                            icon:
-                                isBookmarked
-                                    ? Icons.bookmark
-                                    : Icons.bookmark_border,
-                            color: isBookmarked ? Colors.orange : Colors.grey,
-                            tooltip:
-                                isBookmarked
-                                    ? 'Remove from bookmarks'
-                                    : 'Add to bookmarks',
-                            onPressed: () => _toggleBookmark(item),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: 8),
+                            _itemActionButton(
+                              icon: Icons.playlist_add,
+                              color: Colors.teal,
+                              tooltip: 'Add to Grocery List',
+                              onPressed: () => _guardedAddToGroceryList(item),
+                            ),
+                            const SizedBox(width: 8),
+                            _itemActionButton(
+                              icon:
+                                  isBookmarked
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                              color: isBookmarked ? Colors.orange : Colors.grey,
+                              tooltip:
+                                  isBookmarked
+                                      ? 'Remove from bookmarks'
+                                      : 'Add to bookmarks',
+                              onPressed: () => _toggleBookmark(item),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -730,6 +736,15 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     );
   }
 
+  void _openProductDetails(Map<String, dynamic> item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailsScreen(product: _bookmarkPayload(item)),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _searchDebounce?.cancel();
@@ -743,7 +758,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     _cacheStoreData();
 
     _allItems = _buildSearchItems(widget.storeData);
-    _refreshStoreProductsFromApi();
+    _productsRefreshFuture = _refreshStoreProductsFromApi();
     _loadBookmarkedKeys();
 
     final storeId = widget.storeData['vendorId']?.toString() ?? '';
@@ -797,13 +812,6 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   }
 
   Future<void> _refreshStoreProductsFromApi() async {
-    final hasMissingImages = _allItems.any(
-      (item) => _imageUrlFromItem(item).isEmpty,
-    );
-    if (_allItems.isEmpty || !hasMissingImages) {
-      return;
-    }
-
     final storeId =
         (widget.storeData['vendorId'] ??
                 widget.storeData['storeId'] ??
@@ -838,8 +846,6 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   ) {
     for (var index = 0; index < _selectedItems.length; index++) {
       final selected = _selectedItems[index];
-      if (_imageUrlFromItem(selected).isNotEmpty) continue;
-
       final refreshed = _findMatchingSearchItem(selected, refreshedItems);
       if (refreshed != null && _imageUrlFromItem(refreshed).isNotEmpty) {
         _selectedItems[index] = refreshed;
@@ -978,7 +984,12 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await _productsRefreshFuture;
+    } catch (_) {
+      // Fall back to whatever products were passed into this screen.
+    }
+    await Future.delayed(const Duration(milliseconds: 150));
 
     final match = _allItems.firstWhere(
       (item) => item['name'].toLowerCase().contains(trimmed),

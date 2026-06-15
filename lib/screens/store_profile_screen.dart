@@ -153,9 +153,26 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       final directoryData = _extractStoreData(
         await StoreApiService.fetchStoreDirectory(vendorId),
       );
-      return directoryData;
+      if (_hasProducts(directoryData)) {
+        return directoryData;
+      }
+      debugPrint(
+        'StoreProfile directory fetch for $vendorId returned no products',
+      );
     } catch (e) {
       debugPrint('StoreProfile directory fetch failed for $vendorId: $e');
+    }
+
+    try {
+      final storeData = _extractStoreData(
+        await StoreApiService.fetchStoreById(vendorId),
+      );
+      if (_hasProducts(storeData)) {
+        return storeData;
+      }
+      debugPrint('StoreProfile full store fetch for $vendorId had no products');
+    } catch (e) {
+      debugPrint('StoreProfile full store fetch failed for $vendorId: $e');
     }
 
     final firestoreData = await _firestoreStorefrontData(vendorId);
@@ -235,10 +252,54 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     return storeData;
   }
 
+  bool _hasProducts(Map<String, dynamic> storeData) {
+    final totalProducts = storeData['totalProducts'];
+    if (totalProducts is num && totalProducts > 0) return true;
+
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is Map) {
+      return productsByCategory.values.any(
+        (items) => items is List && items.isNotEmpty,
+      );
+    }
+
+    final productsByAisle = storeData['productsByAisle'];
+    if (productsByAisle is Map) {
+      return productsByAisle.values.any(
+        (items) => items is List && items.isNotEmpty,
+      );
+    }
+
+    return false;
+  }
+
   Map<String, dynamic> _asMap(dynamic value) {
     if (value is Map<String, dynamic>) return value;
     if (value is Map) return Map<String, dynamic>.from(value);
     return <String, dynamic>{};
+  }
+
+  bool _isPlaceholderStoreName(String value) {
+    final clean = value.trim();
+    if (clean.isEmpty) return true;
+    final lower = clean.toLowerCase();
+    return lower == 'store' ||
+        lower == widget.storeId.trim().toLowerCase() ||
+        RegExp(r'^store\s*#?\s*\d+$').hasMatch(lower);
+  }
+
+  String _storeNameFromData(Map<String, dynamic> data) {
+    for (final key in const [
+      'name',
+      'vendorName',
+      'storeName',
+      'vendorBusinessName',
+      'businessName',
+    ]) {
+      final value = data[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty && !_isPlaceholderStoreName(value)) return value;
+    }
+    return '';
   }
 
   @override
@@ -285,11 +346,15 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
         final storeDoc =
             (storeSnap.data?.data() as Map<String, dynamic>?) ?? {};
 
+        final docName = _storeNameFromData(storeDoc);
+        final passedName = widget.storeName?.trim() ?? '';
         final resolvedName =
-            (widget.storeName?.trim().isNotEmpty == true)
-                ? widget.storeName!
-                : (storeDoc['name'] ?? storeDoc['vendorName'] ?? 'Store')
-                    .toString();
+            docName.isNotEmpty
+                ? docName
+                : (passedName.isNotEmpty &&
+                    !_isPlaceholderStoreName(passedName))
+                ? passedName
+                : 'Store';
 
         final resolvedLogo =
             (widget.logoUrl?.trim().isNotEmpty == true)

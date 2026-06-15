@@ -42,7 +42,7 @@ class ProductImageView extends StatelessWidget {
 
     final uri = Uri.tryParse(_normalizeImageUrl(clean));
     if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
-      if (_isAvifUri(uri)) {
+      if (uri.path.toLowerCase().endsWith('.avif')) {
         return AvifImage.network(
           uri.toString(),
           fit: fit,
@@ -64,10 +64,6 @@ class ProductImageView extends StatelessWidget {
 
   String _normalizeImageUrl(String value) {
     return value;
-  }
-
-  bool _isAvifUri(Uri uri) {
-    return uri.path.toLowerCase().endsWith('.avif');
   }
 
   _DecodedDataImage? _decodeDataImage(String value) {

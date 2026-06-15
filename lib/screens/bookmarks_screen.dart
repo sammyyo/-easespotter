@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/services/bookmark_service.dart';
+import 'package:easespotter/screens/product_details_screen.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
@@ -439,26 +440,23 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
     final updatedItems =
         items.map((e) => Map<String, dynamic>.from(e)).toList();
-    final directoryCache = <String, List<Map<String, dynamic>>>{};
+    final productCache = <String, List<Map<String, dynamic>>>{};
     var updated = false;
 
     for (final item in updatedItems) {
-      if (_imageUrlFromItem(item).isNotEmpty) continue;
-
       final storeId = await _storeIdForBookmark(item);
       final numericStoreId = int.tryParse(storeId);
       if (numericStoreId == null) continue;
 
       final products =
-          directoryCache[storeId] ??= await _loadDirectoryProducts(
-            numericStoreId,
-          );
+          productCache[storeId] ??= await _loadStoreProducts(numericStoreId);
 
       final product = _findMatchingProduct(item, products);
       if (product == null) continue;
 
       final imageUrl = _imageUrlFromItem(product);
       if (imageUrl.isEmpty) continue;
+      if (imageUrl == _imageUrlFromItem(item)) continue;
 
       item['imageUrl'] = imageUrl;
       item['image'] = imageUrl;
@@ -500,12 +498,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadDirectoryProducts(int storeId) async {
+  Future<List<Map<String, dynamic>>> _loadStoreProducts(int storeId) async {
     try {
-      final response = await StoreApiService.fetchStoreDirectory(storeId);
-      final data = response['data'];
-      if (data is! Map) return [];
-
+      final data = await StoreApiService.fetchStoreById(storeId);
       final productsByCategory = data['productsByCategory'];
       if (productsByCategory is! Map) return [];
 
@@ -526,7 +521,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
       return products;
     } catch (e) {
-      debugPrint('Bookmark image backfill failed for store $storeId: $e');
+      debugPrint('Bookmark product backfill failed for store $storeId: $e');
       return [];
     }
   }
@@ -608,116 +603,131 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         elevation: 2,
-        child: Stack(
-          children: [
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openProductDetails(item),
+          child: Stack(
+            children: [
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: _storeAvatar(
+                    storeName: storeName,
+                    logoUrl: logoUrl,
+                    size: 30,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 54, 12),
+                child: Row(
+                  children: [
+                    _productThumbnail(item, width: 92, height: 92),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              if (location.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F0FF),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    location,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.deepPurple,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              if (price != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF3E0),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '€$price',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFB45F06),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            storeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                child: _storeAvatar(
-                  storeName: storeName,
-                  logoUrl: logoUrl,
-                  size: 30,
-                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 54, 12),
-              child: Row(
-                children: [
-                  _productThumbnail(item, width: 92, height: 92),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            if (location.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF3F0FF),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  location,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.deepPurple,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            if (price != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3E0),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  '€$price',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFFB45F06),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          storeName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _openProductDetails(Map<String, dynamic> item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) =>
+                ProductDetailsScreen(product: Map<String, dynamic>.from(item)),
       ),
     );
   }

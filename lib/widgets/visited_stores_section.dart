@@ -97,6 +97,7 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
           final agg = aggregates.putIfAbsent(
             storeId,
             () => _VisitedStoreAggregate(
+              userId: widget.userId,
               storeId: storeId,
               storeName: storeName,
               visits: 0,
@@ -117,7 +118,8 @@ class _VisitedStoresSectionState extends State<VisitedStoresSection> {
             agg.logoUrl = logoUrl;
           }
 
-          if (storeName.isNotEmpty) {
+          if (!_isPlaceholderStoreNameStatic(storeName, storeId) ||
+              _isPlaceholderStoreNameStatic(agg.storeName, storeId)) {
             agg.storeName = storeName;
           }
         }
@@ -279,6 +281,7 @@ class _InsightCard extends StatelessWidget {
 }
 
 class _VisitedStoreAggregate {
+  final String userId;
   final String storeId;
   int visits;
   Timestamp? lastVisitedAt;
@@ -286,6 +289,7 @@ class _VisitedStoreAggregate {
   String? logoUrl;
 
   _VisitedStoreAggregate({
+    required this.userId,
     required this.storeId,
     required this.storeName,
     required this.visits,
@@ -310,6 +314,75 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
   static const Color _cardBorder = Color(0xFFD9E1FF);
 
   _VisitedStoreAggregate get store => widget.store;
+
+  bool _isPlaceholderStoreName(String value) {
+    return _isPlaceholderStoreNameStatic(value, store.storeId);
+  }
+
+  String _storeNameFromData(Map<String, dynamic>? data) {
+    if (data == null) return '';
+    for (final key in const [
+      'name',
+      'vendorName',
+      'storeName',
+      'vendorBusinessName',
+      'businessName',
+    ]) {
+      final value = data[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty && !_isPlaceholderStoreName(value)) return value;
+    }
+    return '';
+  }
+
+  String _displayStoreName(String? fetchedName) {
+    final cleanFetched = fetchedName?.trim() ?? '';
+    if (cleanFetched.isNotEmpty) return cleanFetched;
+    if (!_isPlaceholderStoreName(store.storeName)) return store.storeName;
+    return 'Store';
+  }
+
+  Future<({String? logoUrl, String? storeName})> _storeDisplayData() async {
+    Map<String, dynamic>? storeData;
+    Map<String, dynamic>? followedData;
+
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('stores')
+              .doc(store.storeId)
+              .get();
+      storeData = snap.data();
+    } catch (_) {
+      storeData = null;
+    }
+
+    final storeName = _storeNameFromData(storeData);
+    final storeLogo = StoreLogoService.resolveFromData(storeData);
+    if (storeName.isNotEmpty && storeLogo.isNotEmpty) {
+      return (storeName: storeName, logoUrl: storeLogo);
+    }
+
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(store.userId)
+              .collection('followedStores')
+              .doc(store.storeId)
+              .get();
+      followedData = snap.data();
+    } catch (_) {
+      followedData = null;
+    }
+
+    final followedName = _storeNameFromData(followedData);
+    final followedLogo = StoreLogoService.resolveFromData(followedData);
+
+    return (
+      storeName: storeName.isNotEmpty ? storeName : followedName,
+      logoUrl: storeLogo.isNotEmpty ? storeLogo : followedLogo,
+    );
+  }
 
   Widget _fallbackInitial() {
     return Image.asset(
@@ -347,7 +420,7 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
     );
   }
 
-  Widget _buildContent(String? logoUrl) {
+  Widget _buildContent(String? logoUrl, String displayName) {
     final resolvedLogo = StoreLogoService.resolveUrl(logoUrl);
 
     return AnimatedScale(
@@ -389,7 +462,7 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
             ),
             const SizedBox(height: 8),
             Text(
-              store.storeName,
+              displayName,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -418,7 +491,7 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
                     () => _openReviewSheet(
                       context,
                       storeId: store.storeId,
-                      storeName: store.storeName,
+                      storeName: displayName,
                       logoUrl: logoUrl,
                     ),
                 style: ElevatedButton.styleFrom(
@@ -441,25 +514,27 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
 
   @override
   Widget build(BuildContext context) {
-    if (store.logoUrl != null && store.logoUrl!.isNotEmpty) {
-      return _tapWrapper(context, store.logoUrl);
+    if (store.logoUrl != null &&
+        store.logoUrl!.isNotEmpty &&
+        !_isPlaceholderStoreName(store.storeName)) {
+      return _tapWrapper(context, store.logoUrl, _displayStoreName(null));
     }
 
-    return FutureBuilder<DocumentSnapshot>(
-      future:
-          FirebaseFirestore.instance
-              .collection('stores')
-              .doc(store.storeId)
-              .get(),
+    return FutureBuilder<({String? logoUrl, String? storeName})>(
+      future: _storeDisplayData(),
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final fetchedLogo = StoreLogoService.resolveFromData(data);
-        return _tapWrapper(context, fetchedLogo);
+        final fetchedLogo = snapshot.data?.logoUrl ?? '';
+        final fetchedName = snapshot.data?.storeName ?? '';
+        return _tapWrapper(
+          context,
+          fetchedLogo,
+          _displayStoreName(fetchedName),
+        );
       },
     );
   }
 
-  Widget _tapWrapper(BuildContext context, String? logoUrl) {
+  Widget _tapWrapper(BuildContext context, String? logoUrl, String storeName) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -476,15 +551,24 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
                 builder:
                     (_) => StoreProfileScreen(
                       storeId: store.storeId,
-                      storeName: store.storeName,
+                      storeName: storeName,
                       logoUrl: logoUrl,
                     ),
               ),
             ),
-        child: _buildContent(logoUrl),
+        child: _buildContent(logoUrl, storeName),
       ),
     );
   }
+}
+
+bool _isPlaceholderStoreNameStatic(String value, String storeId) {
+  final clean = value.trim();
+  if (clean.isEmpty) return true;
+  final lower = clean.toLowerCase();
+  return lower == 'store' ||
+      lower == storeId.trim().toLowerCase() ||
+      RegExp(r'^store\s*#?\s*\d+$').hasMatch(lower);
 }
 
 // ✅ Bottom Sheet Added

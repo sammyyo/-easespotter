@@ -506,7 +506,7 @@ class _Promotion {
       storeId: storeId,
       storeName: storeName,
       title: title,
-      imageUrl: imageUrl.isEmpty ? null : imageUrl,
+      imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
       startsAt: _dateValue(data, const [
         'startsAt',
         'startAt',
@@ -551,7 +551,140 @@ class _Promotion {
 
     final promos = <_Promotion>[];
     final seen = <String>{};
+    final productsById = _productsById(storeData);
+    final promotionMaps = _explicitPromotionMaps(storeData);
 
+    for (final promoData in promotionMaps) {
+      final promoId = _stringValue(promoData, const [
+        'id',
+        'promotionId',
+        'promoId',
+        'campaignId',
+      ], fallback: promoData.hashCode.toString());
+      final appliedIds = _appliedProductIds(promoData);
+
+      for (final productId in appliedIds) {
+        final product = productsById[productId];
+        if (product == null) continue;
+
+        final dedupeKey = 'api:$storeId:$promoId:product:$productId';
+        if (!seen.add(dedupeKey)) continue;
+
+        promos.add(
+          _Promotion.fromPromotedProduct(
+            product: product,
+            promotion: promoData,
+            storeId: storeId,
+            storeName: storeName,
+            storeLogoUrl: storeLogoUrl,
+            dedupeKey: dedupeKey,
+          ),
+        );
+      }
+    }
+
+    _addProductsWithEmbeddedPromotions(
+      storeData: storeData,
+      storeId: storeId,
+      storeName: storeName,
+      storeLogoUrl: storeLogoUrl,
+      promos: promos,
+      seen: seen,
+    );
+
+    return promos;
+  }
+
+  factory _Promotion.fromPromotedProduct({
+    required Map<String, dynamic> product,
+    required Map<String, dynamic> promotion,
+    required String storeId,
+    required String storeName,
+    required String storeLogoUrl,
+    required String dedupeKey,
+  }) {
+    final productName = _stringValue(product, const [
+      'name',
+      'title',
+      'productName',
+      'itemName',
+    ], fallback: 'Promoted product');
+    final promoName = _stringValue(promotion, const [
+      'title',
+      'name',
+      'headline',
+      'promoTitle',
+    ], fallback: '');
+    final discount = _stringValue(promotion, const [
+      'discountPercent',
+      'discount',
+      'discountPercentage',
+      'percentOff',
+    ], fallback: '');
+    final productImage = _stringValue(product, const [
+      'imageUrl',
+      'imageURL',
+      'image_url',
+      'image',
+      'photoUrl',
+      'photoURL',
+      'productImageUrl',
+      'productImageURL',
+      'thumbnail',
+      'thumbnailUrl',
+    ], fallback: '');
+    final imageUrl = productImage.isNotEmpty ? productImage : storeLogoUrl;
+    final subtitleParts = <String>[storeName];
+    if (promoName.isNotEmpty) subtitleParts.add(promoName);
+    if (discount.isNotEmpty) subtitleParts.add('$discount% off');
+
+    final data = <String, dynamic>{
+      ...promotion,
+      'storeId': storeId,
+      'storeName': subtitleParts.join(' · '),
+      'title': productName,
+      if (imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+    };
+
+    return _Promotion.fromMap(
+      data,
+      fallbackStoreId: storeId,
+      fallbackDedupeKey: dedupeKey,
+    );
+  }
+
+  static Map<String, Map<String, dynamic>> _productsById(
+    Map<String, dynamic> storeData,
+  ) {
+    final products = <String, Map<String, dynamic>>{};
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is! Map) return products;
+
+    for (final entry in productsByCategory.entries) {
+      final rawProducts = entry.value;
+      if (rawProducts is! List) continue;
+
+      for (final rawProduct in rawProducts) {
+        if (rawProduct is! Map) continue;
+        final product = Map<String, dynamic>.from(rawProduct);
+        final id = _stringValue(product, const [
+          'id',
+          'productId',
+          'productID',
+          'itemId',
+          'itemID',
+        ], fallback: '');
+        if (id.isNotEmpty) products[id] = product;
+      }
+    }
+
+    return products;
+  }
+
+  static List<Map<String, dynamic>> _explicitPromotionMaps(
+    Map<String, dynamic> storeData,
+  ) {
+    final maps = <Map<String, dynamic>>[];
     for (final key in const [
       'activePromotions',
       'promotions',
@@ -559,154 +692,99 @@ class _Promotion {
       'offers',
       'discounts',
     ]) {
-      _collectApiPromotions(
-        node: storeData[key],
-        storeId: storeId,
-        storeName: storeName,
-        storeLogoUrl: storeLogoUrl,
-        promos: promos,
-        seen: seen,
-        path: 'store.$key',
-        depth: 0,
-        forceParse: true,
-      );
+      final node = storeData[key];
+      if (node is List) {
+        maps.addAll(node.whereType<Map>().map(Map<String, dynamic>.from));
+      } else if (node is Map) {
+        maps.add(Map<String, dynamic>.from(node));
+      }
     }
-
-    if (promos.isEmpty) {
-      _collectApiPromotions(
-        node: storeData,
-        storeId: storeId,
-        storeName: storeName,
-        storeLogoUrl: storeLogoUrl,
-        promos: promos,
-        seen: seen,
-        path: 'store',
-        depth: 0,
-        forceParse: false,
-      );
-    }
-
-    return promos;
+    return maps;
   }
 
-  static void _collectApiPromotions({
-    required dynamic node,
+  static Set<String> _appliedProductIds(Map<String, dynamic> promotion) {
+    final raw =
+        promotion['appliedProducts'] ??
+        promotion['productIds'] ??
+        promotion['productIDs'] ??
+        promotion['products'] ??
+        promotion['items'];
+    final ids = <String>{};
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          final id = _stringValue(Map<String, dynamic>.from(item), const [
+            'id',
+            'productId',
+            'productID',
+            'itemId',
+            'itemID',
+          ], fallback: '');
+          if (id.isNotEmpty) ids.add(id);
+        } else {
+          final id = item.toString().trim();
+          if (id.isNotEmpty && id.toLowerCase() != 'null') ids.add(id);
+        }
+      }
+    }
+    return ids;
+  }
+
+  static void _addProductsWithEmbeddedPromotions({
+    required Map<String, dynamic> storeData,
     required String storeId,
     required String storeName,
     required String storeLogoUrl,
     required List<_Promotion> promos,
     required Set<String> seen,
-    required String path,
-    required int depth,
-    required bool forceParse,
   }) {
-    if (depth > 6 || node == null) return;
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is! Map) return;
 
-    if (node is List) {
-      for (int i = 0; i < node.length; i++) {
-        _collectApiPromotions(
-          node: node[i],
-          storeId: storeId,
-          storeName: storeName,
-          storeLogoUrl: storeLogoUrl,
-          promos: promos,
-          seen: seen,
-          path: '$path[$i]',
-          depth: depth + 1,
-          forceParse: forceParse,
-        );
-      }
-      return;
-    }
+    for (final entry in productsByCategory.entries) {
+      final rawProducts = entry.value;
+      if (rawProducts is! List) continue;
 
-    if (node is String) {
-      final title = node.trim();
-      if (forceParse && title.isNotEmpty) {
-        promos.add(
-          _Promotion(
-            storeId: storeId,
-            storeName: storeName,
-            title: title,
-            imageUrl: null,
-            startsAt: null,
-            endsAt: null,
-            status: '',
-            dedupeKey: 'api:$storeId:$path:$title',
-          ),
-        );
-      }
-      return;
-    }
+      for (final rawProduct in rawProducts) {
+        if (rawProduct is! Map) continue;
+        final product = Map<String, dynamic>.from(rawProduct);
+        final embedded = product['promotions'];
+        if (embedded is! List || embedded.isEmpty) continue;
 
-    if (node is! Map) return;
+        for (final rawPromotion in embedded) {
+          final promotion =
+              rawPromotion is Map
+                  ? Map<String, dynamic>.from(rawPromotion)
+                  : <String, dynamic>{'name': rawPromotion.toString()};
+          final productId = _stringValue(product, const [
+            'id',
+            'productId',
+            'productID',
+            'itemId',
+            'itemID',
+          ], fallback: product.hashCode.toString());
+          final promoId = _stringValue(promotion, const [
+            'id',
+            'promotionId',
+            'promoId',
+            'campaignId',
+          ], fallback: promotion.hashCode.toString());
+          final dedupeKey = 'api:$storeId:embedded:$promoId:product:$productId';
+          if (!seen.add(dedupeKey)) continue;
 
-    final data = Map<String, dynamic>.from(node);
-    final shouldParseThisMap = forceParse || _mapLooksLikePromotion(data);
-    if (shouldParseThisMap) {
-      data.putIfAbsent('storeId', () => storeId);
-      data.putIfAbsent('storeName', () => storeName);
-      if (storeLogoUrl.isNotEmpty) {
-        data.putIfAbsent('logoUrl', () => storeLogoUrl);
-      }
-      final id = _stringValue(data, const [
-        'id',
-        'promotionId',
-        'promoId',
-        'campaignId',
-      ], fallback: '');
-      final dedupeKey =
-          id.isNotEmpty
-              ? 'api:$storeId:$id'
-              : 'api:$storeId:$path:${data.hashCode}';
-
-      if (seen.add(dedupeKey)) {
-        promos.add(
-          _Promotion.fromMap(
-            data,
-            fallbackStoreId: storeId,
-            fallbackDedupeKey: dedupeKey,
-          ),
-        );
+          promos.add(
+            _Promotion.fromPromotedProduct(
+              product: product,
+              promotion: promotion,
+              storeId: storeId,
+              storeName: storeName,
+              storeLogoUrl: storeLogoUrl,
+              dedupeKey: dedupeKey,
+            ),
+          );
+        }
       }
     }
-
-    data.forEach((key, value) {
-      final childForceParse = forceParse || _keyLooksLikePromotion(key);
-      _collectApiPromotions(
-        node: value,
-        storeId: storeId,
-        storeName: storeName,
-        storeLogoUrl: storeLogoUrl,
-        promos: promos,
-        seen: seen,
-        path: '$path.$key',
-        depth: depth + 1,
-        forceParse: childForceParse,
-      );
-    });
-  }
-
-  static bool _keyLooksLikePromotion(Object key) {
-    final text = key.toString().toLowerCase();
-    return text.contains('promo') ||
-        text.contains('deal') ||
-        text.contains('offer') ||
-        text.contains('discount') ||
-        text.contains('coupon') ||
-        text.contains('campaign') ||
-        text.contains('sale');
-  }
-
-  static bool _mapLooksLikePromotion(Map<String, dynamic> data) {
-    if (!data.keys.any(_keyLooksLikePromotion)) return false;
-    return data.keys.any((key) {
-      final text = key.toString().toLowerCase();
-      return text.contains('title') ||
-          text.contains('name') ||
-          text.contains('headline') ||
-          text.contains('description') ||
-          text.contains('message');
-    });
   }
 
   static String _stringValue(
@@ -721,6 +799,17 @@ class _Promotion {
       if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
     }
     return fallback;
+  }
+
+  static String _absoluteImageUrl(String rawUrl) {
+    final value = rawUrl.trim();
+    if (value.isEmpty) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return value;
+    if (value.startsWith('//')) return 'https:$value';
+    if (value.startsWith('/')) return '${StoreApiService.baseUrl}$value';
+    return '${StoreApiService.baseUrl}/$value';
   }
 
   static DateTime? _dateValue(Map<String, dynamic> data, List<String> keys) {
