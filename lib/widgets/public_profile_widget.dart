@@ -545,10 +545,21 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                   IconButton(
                                     tooltip: 'Edit profile',
                                     visualDensity: VisualDensity.compact,
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 20,
-                                      color: Colors.deepPurple,
+                                    icon: Container(
+                                      width: 30,
+                                      height: 30,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: Colors.deepPurple,
+                                          width: 1.2,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 18,
+                                        color: Colors.deepPurple,
+                                      ),
                                     ),
                                     onPressed:
                                         () => Navigator.push(

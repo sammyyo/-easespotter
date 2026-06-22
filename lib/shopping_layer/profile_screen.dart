@@ -112,7 +112,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final doc =
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
       if (doc.exists) {
         final data = doc.data()!;
@@ -131,18 +134,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load profile: $e')));
       }
     }
 
     if (_createdAt == null) {
       final now = Timestamp.now();
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({'createdAt': now}, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'createdAt': now,
+      }, SetOptions(merge: true));
       _createdAt = now;
     }
 
@@ -263,29 +265,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       setState(() => _saving = true);
 
-      final ref =
-      FirebaseStorage.instance.ref().child('avatars/${user.uid}.jpg');
+      final ref = FirebaseStorage.instance.ref().child(
+        'avatars/${user.uid}.jpg',
+      );
       await ref.putFile(File(picked.path));
       final url = await ref.getDownloadURL();
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(
-        {
-          'avatarUrl': url,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'avatarUrl': url,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       _imageUrl = url;
       _recomputeDirty();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload image: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to upload image: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -300,10 +297,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isPublic = !_isPublic);
     _recomputeDirty();
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({'publicProfile': _isPublic}, SetOptions(merge: true));
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'publicProfile': _isPublic,
+    }, SetOptions(merge: true));
   }
 
   Future<void> _saveProfile() async {
@@ -327,23 +323,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final handleNormalized = _normalizeHandle(handleRaw);
       final displayName = _nameController.text.trim();
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-        {
-          'displayName': displayName,
-          'displayNameLower': displayName.toLowerCase(),
-          'bio': _bioController.text.trim(),
-          'handle': handleRaw,
-          'handleLower': handleNormalized.isEmpty ? null : handleNormalized,
-          'socialHandle': handleRaw,
-          'socialHandleLower': handleNormalized.isEmpty ? null : handleNormalized,
-          'tagline': _taglineController.text.trim(),
-          'moodMusicUrl': _musicController.text.trim(),
-          'profileUrls': _currentUrls(),
-          'publicProfile': _isPublic,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'displayName': displayName,
+        'displayNameLower': displayName.toLowerCase(),
+        'bio': _bioController.text.trim(),
+        'handle': handleRaw,
+        'handleLower': handleNormalized.isEmpty ? null : handleNormalized,
+        'socialHandle': handleRaw,
+        'socialHandleLower': handleNormalized.isEmpty ? null : handleNormalized,
+        'tagline': _taglineController.text.trim(),
+        'moodMusicUrl': _musicController.text.trim(),
+        'profileUrls': _currentUrls(),
+        'publicProfile': _isPublic,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       _initialName = _nameController.text;
       _initialBio = _bioController.text;
@@ -366,9 +359,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {});
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -377,13 +370,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _recomputeDirty() {
     final nowDirty =
         _nameController.text != _initialName ||
-            _bioController.text != _initialBio ||
-            _handleController.text != _initialHandle ||
-            _taglineController.text != _initialTagline ||
-            _musicController.text != _initialMusic ||
-            _currentUrls().join('|') != _initialUrls.join('|') ||
-            _imageUrl != _initialImageUrl ||
-            _isPublic != _initialPublic;
+        _bioController.text != _initialBio ||
+        _handleController.text != _initialHandle ||
+        _taglineController.text != _initialTagline ||
+        _musicController.text != _initialMusic ||
+        _currentUrls().join('|') != _initialUrls.join('|') ||
+        _imageUrl != _initialImageUrl ||
+        _isPublic != _initialPublic;
 
     if (nowDirty != _dirty && mounted) {
       setState(() => _dirty = nowDirty);
@@ -395,27 +388,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved changes. If you leave now, they will be lost.',
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Stay'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Discard changes?'),
+            content: const Text(
+              'You have unsaved changes. If you leave now, they will be lost.',
             ),
-            child: const Text('Discard'),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Stay'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Discard'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     return result ?? false;
@@ -502,11 +498,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('socialHandleLower', isEqualTo: normalized)
-          .limit(2)
-          .get();
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .where('socialHandleLower', isEqualTo: normalized)
+              .limit(2)
+              .get();
 
       bool taken = false;
       for (final d in snap.docs) {
@@ -691,14 +688,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
   // UPDATED helper to use new FollowListScreen API and Arrays
   Widget _buildStatItem(String label, String fieldName, int tabIndex) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
         final data = snapshot.data!.data() as Map<String, dynamic>?;
@@ -711,10 +708,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => FollowListScreen(
-                  userId: FirebaseAuth.instance.currentUser!.uid,
-                  initialTabIndex: tabIndex,
-                ),
+                builder:
+                    (context) => FollowListScreen(
+                      userId: FirebaseAuth.instance.currentUser!.uid,
+                      initialTabIndex: tabIndex,
+                    ),
               ),
             );
           },
@@ -731,10 +729,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
             ),
@@ -779,38 +774,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _canSave
                         ? 'You have unsaved changes'
                         : (_checkingHandle
-                        ? 'Checking handle...'
-                        : (_handleErrorText ?? 'Fix errors to save')),
+                            ? 'Checking handle...'
+                            : (_handleErrorText ?? 'Fix errors to save')),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: _canSave
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade700,
+                      color:
+                          _canSave
+                              ? Colors.grey.shade800
+                              : Colors.grey.shade700,
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton.icon(
                   onPressed: _canSave ? _saveProfile : null,
-                  icon: _saving
-                      ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                      : const Icon(Icons.save),
+                  icon:
+                      _saving
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Icon(Icons.save),
                   label: Text(_saving ? 'Saving...' : 'Save'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepPurple,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                    Colors.deepPurple.withOpacity(0.35),
+                    disabledBackgroundColor: Colors.deepPurple.withOpacity(
+                      0.35,
+                    ),
                     disabledForegroundColor: Colors.white70,
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -834,9 +834,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Theme.of(context).textTheme.titleLarge;
 
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return PopScope(
@@ -890,18 +888,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   onTap: _saving ? null : _pickAndUploadImage,
                                   child: CircleAvatar(
                                     radius: 36,
-                                    backgroundImage: (_imageUrl != null &&
-                                        _imageUrl!.isNotEmpty)
-                                        ? NetworkImage(_imageUrl!)
-                                        : null,
+                                    backgroundImage:
+                                        (_imageUrl != null &&
+                                                _imageUrl!.isNotEmpty)
+                                            ? NetworkImage(_imageUrl!)
+                                            : null,
                                     backgroundColor: Colors.deepPurple,
-                                    child: (_imageUrl == null || _imageUrl!.isEmpty)
-                                        ? const Icon(
-                                      Icons.person,
-                                      color: Colors.white,
-                                      size: 34,
-                                    )
-                                        : null,
+                                    child:
+                                        (_imageUrl == null ||
+                                                _imageUrl!.isEmpty)
+                                            ? const Icon(
+                                              Icons.person,
+                                              color: Colors.white,
+                                              size: 34,
+                                            )
+                                            : null,
                                   ),
                                 ),
                                 Positioned(
@@ -913,7 +914,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     decoration: BoxDecoration(
                                       color: _tint,
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: _tintBorder),
+                                      border: Border.all(
+                                        color: Colors.indigo.shade400,
+                                      ),
                                     ),
                                     child: Icon(
                                       Icons.edit,
@@ -987,25 +990,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             hint: '@samuel',
                             prefix: const Icon(Icons.alternate_email, size: 20),
                             errorText: _handleErrorText,
-                            suffix: _checkingHandle
-                                ? const Padding(
-                              padding: EdgeInsets.all(12.0),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            )
-                                : (_handleController.text.trim().isEmpty
-                                ? null
-                                : Icon(
-                              _handleErrorText == null
-                                  ? Icons.check_circle
-                                  : Icons.error,
-                              color: _handleErrorText == null
-                                  ? Colors.green
-                                  : Colors.redAccent,
-                            )),
+                            suffix:
+                                _checkingHandle
+                                    ? const Padding(
+                                      padding: EdgeInsets.all(12.0),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                    : (_handleController.text.trim().isEmpty
+                                        ? null
+                                        : Icon(
+                                          _handleErrorText == null
+                                              ? Icons.check_circle
+                                              : Icons.error,
+                                          color:
+                                              _handleErrorText == null
+                                                  ? Colors.green
+                                                  : Colors.redAccent,
+                                        )),
                           ),
                         ),
 
@@ -1016,8 +1023,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: _inputDec(
                             label: 'Tagline',
                             hint: 'e.g. “Snack Queen”',
-                            prefix:
-                            const Icon(Icons.auto_awesome_outlined, size: 20),
+                            prefix: const Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 20,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -1036,8 +1045,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: _inputDec(
                             label: 'Mood Music URL',
                             hint: 'Spotify link (open.spotify.com)',
-                            prefix:
-                            const Icon(Icons.music_note_outlined, size: 20),
+                            prefix: const Icon(
+                              Icons.music_note_outlined,
+                              size: 20,
+                            ),
                             errorText: _musicErrorText,
                           ),
                         ),
@@ -1056,11 +1067,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             TextField(
                               controller: _urlControllers[_activeUrlIndex],
-                              onChanged: (v) => _onUrlChanged(_activeUrlIndex, v),
+                              onChanged:
+                                  (v) => _onUrlChanged(_activeUrlIndex, v),
                               decoration: _inputDec(
                                 label: 'Link ${_activeUrlIndex + 1}',
                                 hint: 'https://',
-                                prefix: const Icon(Icons.link_outlined, size: 20),
+                                prefix: const Icon(
+                                  Icons.link_outlined,
+                                  size: 20,
+                                ),
                                 errorText: _urlErrors[_activeUrlIndex],
                               ),
                             ),
@@ -1070,32 +1085,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               runSpacing: 6,
                               children: [
                                 OutlinedButton.icon(
-                                  onPressed: _activeUrlIndex > 0
-                                      ? () => _goToUrlIndex(-1)
-                                      : null,
+                                  onPressed:
+                                      _activeUrlIndex > 0
+                                          ? () => _goToUrlIndex(-1)
+                                          : null,
                                   icon: const Icon(Icons.chevron_left),
                                   label: const Text('Prev'),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: _activeUrlIndex <
-                                          _urlControllers.length - 1
-                                      ? () => _goToUrlIndex(1)
-                                      : null,
+                                  onPressed:
+                                      _activeUrlIndex <
+                                              _urlControllers.length - 1
+                                          ? () => _goToUrlIndex(1)
+                                          : null,
                                   icon: const Icon(Icons.chevron_right),
                                   label: const Text('Next'),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: _urlControllers.length > 1 ||
-                                          _urlControllers.first.text.trim().isNotEmpty
-                                      ? _removeCurrentUrl
-                                      : null,
+                                  onPressed:
+                                      _urlControllers.length > 1 ||
+                                              _urlControllers.first.text
+                                                  .trim()
+                                                  .isNotEmpty
+                                          ? _removeCurrentUrl
+                                          : null,
                                   icon: const Icon(Icons.delete_outline),
                                   label: const Text('Remove'),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: _urlControllers.length >= _maxUrls
-                                      ? null
-                                      : _addUrlField,
+                                  onPressed:
+                                      _urlControllers.length >= _maxUrls
+                                          ? null
+                                          : _addUrlField,
                                   icon: const Icon(Icons.add_circle_outline),
                                   label: const Text('Add link'),
                                 ),
@@ -1107,22 +1128,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Row(
-                              children: List.generate(_urlControllers.length, (i) {
+                              children: List.generate(_urlControllers.length, (
+                                i,
+                              ) {
                                 final active = i == _activeUrlIndex;
                                 return Container(
                                   width: active ? 20 : 8,
                                   height: 6,
                                   margin: const EdgeInsets.only(right: 6),
                                   decoration: BoxDecoration(
-                                    color: active
-                                        ? Colors.deepPurple
-                                        : Colors.deepPurple.withOpacity(0.2),
+                                    color:
+                                        active
+                                            ? Colors.deepPurple
+                                            : Colors.deepPurple.withOpacity(
+                                              0.2,
+                                            ),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 );
                               }),
                             ),
-                        ),
+                          ),
                       ],
                     ),
                   ),
