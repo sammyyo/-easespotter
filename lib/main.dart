@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/screens/auth_gate.dart';
 import 'package:easespotter/screens/followed_stores_screen.dart';
@@ -6,7 +9,10 @@ import 'package:easespotter/screens/login_screen.dart';
 import 'package:easespotter/screens/promotions_screen.dart';
 import 'package:easespotter/screens/signup_screen.dart';
 import 'package:easespotter/screens/upgrade_account_screen.dart';
+import 'package:easespotter/shopping_layer/glowup_detail_screen.dart';
 import 'package:easespotter/shopping_layer/new_wall_post_screen.dart';
+import 'package:easespotter/shopping_layer/recipe_detail_screen.dart';
+import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,16 +26,17 @@ import 'package:easespotter/screens/grocery_list_screen.dart';
 import 'package:easespotter/settings/settings_screen.dart';
 import 'package:easespotter/discover/discover_screen.dart';
 import 'package:easespotter/services/motivation_service.dart';
-import 'package:easespotter/screens/my_visited_stores_screen.dart'; 
+import 'package:easespotter/screens/my_visited_stores_screen.dart';
 
 Future<void> ensureUserProfileExistsForAnyUser(User user) async {
   final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
   if (!(await ref.get()).exists) {
     await ref.set({
       'uid': user.uid,
-      'displayName': user.displayName?.trim().isNotEmpty == true
-          ? user.displayName
-          : (user.isAnonymous ? 'Guest' : 'User'),
+      'displayName':
+          user.displayName?.trim().isNotEmpty == true
+              ? user.displayName
+              : (user.isAnonymous ? 'Guest' : 'User'),
       'avatarUrl': user.photoURL ?? '',
       'bio': '',
       'publicProfile': !user.isAnonymous, // keep guests private by default
@@ -38,27 +45,16 @@ Future<void> ensureUserProfileExistsForAnyUser(User user) async {
   }
 }
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Ensure a single authenticated user ALWAYS exists (anonymous or real)
-  User? user = FirebaseAuth.instance.currentUser;
-
-  if (user == null) {
-    final cred = await FirebaseAuth.instance.signInAnonymously();
-    user = cred.user;
-    debugPrint("Signed in anonymously as ${user?.uid}");
-  } else {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null && !user.isAnonymous) {
     debugPrint("Existing user detected: ${user.uid}");
+    await ensureUserProfileExistsForAnyUser(user);
   }
-
-  // Make sure this user has a Firestore profile entry
-  await ensureUserProfileExistsForAnyUser(user!);
 
   // Load motivations
   await MotivationService.loadMotivations();
@@ -67,12 +63,129 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initDeepLinks() async {
+    try {
+      final initialLink = await _appLinks.getInitialLink();
+      if (initialLink != null) {
+        _handleIncomingLink(initialLink);
+      }
+    } catch (e) {
+      debugPrint('Failed to read initial app link: $e');
+    }
+
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      _handleIncomingLink,
+      onError: (Object e) {
+        debugPrint('Failed to handle app link: $e');
+      },
+    );
+  }
+
+  String? _shareCodeFromUri(Uri uri) {
+    final value = _idFromUri(uri, 'share');
+    return value?.toUpperCase();
+  }
+
+  String? _idFromUri(Uri uri, String firstPathSegment) {
+    final isEaseSpotterHost = uri.host.toLowerCase() == 'easespotter.com';
+    final isExpectedPath =
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments.first.toLowerCase() == firstPathSegment.toLowerCase();
+
+    if (!isEaseSpotterHost || !isExpectedPath) return null;
+
+    final value = uri.pathSegments[1].trim();
+    if (value.isEmpty) return null;
+    return value;
+  }
+
+  void _handleIncomingLink(Uri uri) {
+    final firstSegment =
+        uri.pathSegments.isEmpty ? '' : uri.pathSegments.first.toLowerCase();
+
+    void openDeepLink() {
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) return;
+
+      switch (firstSegment) {
+        case 'share':
+          final code = _shareCodeFromUri(uri);
+          if (code == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder:
+                  (_) => GroceryListScreen(
+                    showBackButton: true,
+                    initialShareCode: code,
+                  ),
+            ),
+          );
+          return;
+        case 'recipes':
+          final recipeId = _idFromUri(uri, 'recipes');
+          if (recipeId == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => RecipeDetailScreen(recipeId: recipeId),
+            ),
+          );
+          return;
+        case 'glowup':
+          final glowUpId = _idFromUri(uri, 'glowup');
+          if (glowUpId == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder: (_) => GlowUpDetailScreen(glowUpId: glowUpId),
+            ),
+          );
+          return;
+        case 'reels':
+          final reelId = _idFromUri(uri, 'reels');
+          if (reelId == null) return;
+          navigator.push(
+            MaterialPageRoute(
+              builder:
+                  (_) => ReelsFeedScreen(
+                    initialReelId: reelId,
+                    includePrivate: false,
+                  ),
+            ),
+          );
+          return;
+      }
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => openDeepLink());
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'EaseSpotter',
       theme: ThemeData(
@@ -96,7 +209,8 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/upgrade': (context) => const UpgradeAccountScreen(),
-        '/my-stores': (context) => const MyVisitedStoresScreen(), // ✅ Added route
+        '/my-stores':
+            (context) => const MyVisitedStoresScreen(), // ✅ Added route
       },
     );
   }
@@ -115,9 +229,10 @@ class _TestWebViewScreenState extends State<TestWebViewScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse('https://www.youtube.com/embed/dQw4w9WgXcQ'));
+    _controller =
+        WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..loadRequest(Uri.parse('https://www.youtube.com/embed/dQw4w9WgXcQ'));
   }
 
   @override

@@ -12,7 +12,20 @@
           "package_name": "com.example.easespotter"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "171701293716-hfs2lcsmjd4m71d4osoikidvh9d8ukni.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.easespotter",
+            "certificate_hash": "df694d7110b7a116c287ab5960ae5c80477f9c05"
+          }
+        },
+        {
+          "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB1lXnFfGfr2ff6iDvwIYNlpukA-Ubn168"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "171701293716-g0mr4tbrl1c8n4bpk0ci1vnivlf29fd1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.easespotter"
+              }
+            }
+          ]
         }
       }
     }

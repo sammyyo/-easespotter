@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -22,6 +24,18 @@ bool _isRecipeReelData(Map<String, dynamic> data) {
   return type == 'recipe' || recipeId.isNotEmpty;
 }
 
+String _compactCount(int value) {
+  if (value >= 1000000) {
+    final compact = value / 1000000;
+    return '${compact.toStringAsFixed(compact >= 10 ? 0 : 1)}M';
+  }
+  if (value >= 1000) {
+    final compact = value / 1000;
+    return '${compact.toStringAsFixed(compact >= 10 ? 0 : 1)}K';
+  }
+  return value.toString();
+}
+
 class ReelsFeedScreen extends StatefulWidget {
   final String? authorUid;
   final String? initialReelId;
@@ -44,6 +58,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
   PageController? _pageController;
   String? _controllerKey;
   _ReelFeedMode _mode = _ReelFeedMode.reels;
+  int _activePageIndex = 0;
 
   @override
   void initState() {
@@ -136,9 +151,8 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
             ? 0
             : docs.indexWhere((doc) => doc.id == widget.initialReelId);
     _controllerKey = key;
-    _pageController = PageController(
-      initialPage: initialIndex < 0 ? 0 : initialIndex,
-    );
+    _activePageIndex = initialIndex < 0 ? 0 : initialIndex;
+    _pageController = PageController(initialPage: _activePageIndex);
     return _pageController!;
   }
 
@@ -205,9 +219,16 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
               controller: _controllerFor(docs),
               scrollDirection: Axis.vertical,
               itemCount: docs.length,
+              onPageChanged: (index) {
+                setState(() => _activePageIndex = index);
+              },
               itemBuilder: (context, index) {
                 final doc = docs[index];
-                return _ReelPage(reelId: doc.id, data: doc.data());
+                return _ReelPage(
+                  reelId: doc.id,
+                  data: doc.data(),
+                  isActive: index == _activePageIndex,
+                );
               },
             ),
             Positioned(
@@ -408,8 +429,13 @@ class _ReelTabLabel extends StatelessWidget {
 class _ReelPage extends StatefulWidget {
   final String reelId;
   final Map<String, dynamic> data;
+  final bool isActive;
 
-  const _ReelPage({required this.reelId, required this.data});
+  const _ReelPage({
+    required this.reelId,
+    required this.data,
+    required this.isActive,
+  });
 
   @override
   State<_ReelPage> createState() => _ReelPageState();
@@ -423,6 +449,8 @@ class _ReelPageState extends State<_ReelPage> {
   bool _savingGroceryItems = false;
   bool _grocerySaved = false;
   bool _savingReel = false;
+  bool _viewWriteStarted = false;
+  Timer? _viewTimer;
   Set<int>? _selectedGroceryIndexes;
 
   List<Map<String, dynamic>> get _groceryItems {
@@ -453,6 +481,20 @@ class _ReelPageState extends State<_ReelPage> {
   void initState() {
     super.initState();
     _initVideo();
+    _scheduleViewIfEligible();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReelPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reelId != widget.reelId) {
+      _viewWriteStarted = false;
+      _viewTimer?.cancel();
+    }
+    if (oldWidget.isActive != widget.isActive ||
+        oldWidget.reelId != widget.reelId) {
+      _scheduleViewIfEligible();
+    }
   }
 
   Future<void> _initVideo() async {
@@ -472,8 +514,57 @@ class _ReelPageState extends State<_ReelPage> {
         _controller = controller;
         _isReady = true;
       });
+      _scheduleViewIfEligible();
     } catch (_) {
       await controller.dispose();
+    }
+  }
+
+  void _scheduleViewIfEligible() {
+    _viewTimer?.cancel();
+    if (!widget.isActive || !_isReady || _viewWriteStarted) return;
+
+    _viewTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted || !widget.isActive || _viewWriteStarted) return;
+      final controller = _controller;
+      if (controller == null || !controller.value.isPlaying) return;
+      _recordView();
+    });
+  }
+
+  Future<void> _recordView() async {
+    final viewerUid = FirebaseAuth.instance.currentUser?.uid;
+    final ownerUid =
+        (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+    if (viewerUid == null ||
+        viewerUid.isEmpty ||
+        ownerUid.isEmpty ||
+        viewerUid == ownerUid) {
+      return;
+    }
+    if (_viewWriteStarted) return;
+
+    _viewWriteStarted = true;
+    final viewRef = FirebaseFirestore.instance
+        .collection('reels')
+        .doc(widget.reelId)
+        .collection('views')
+        .doc(viewerUid);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final existing = await transaction.get(viewRef);
+        if (existing.exists) return;
+
+        transaction.set(viewRef, {
+          'viewerUid': viewerUid,
+          'reelId': widget.reelId,
+          'authorUid': ownerUid,
+          'viewedAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (_) {
+      _viewWriteStarted = false;
     }
   }
 
@@ -858,6 +949,7 @@ class _ReelPageState extends State<_ReelPage> {
 
   @override
   void dispose() {
+    _viewTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
@@ -871,6 +963,7 @@ class _ReelPageState extends State<_ReelPage> {
     final likes =
         (widget.data['likesCount'] as num?)?.toInt() ?? likedBy.length;
     final commentsCount = (widget.data['commentsCount'] as num?)?.toInt() ?? 0;
+    final views = (widget.data['viewCount'] as num?)?.toInt() ?? 0;
     final savedRef = _savedReelRef();
 
     return GestureDetector(
@@ -988,6 +1081,14 @@ class _ReelPageState extends State<_ReelPage> {
                   iconColor: Colors.white,
                   label: commentsCount.toString(),
                   onPressed: _openCommentsSheet,
+                ),
+                const SizedBox(height: 12),
+                _ReelActionButton(
+                  tooltip: 'Views',
+                  icon: Icons.visibility_outlined,
+                  iconColor: Colors.white,
+                  label: _compactCount(views),
+                  onPressed: () {},
                 ),
                 const SizedBox(height: 12),
                 if (savedRef == null)
@@ -1732,9 +1833,9 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
         return OutlinedButton(
           onPressed: _updatingFollow ? null : () => _toggleFollow(isFollowing),
           style: OutlinedButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-            minimumSize: const Size(0, 32),
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 0),
+            minimumSize: const Size(92, 42),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             foregroundColor: Colors.white,
             side: BorderSide(color: Colors.white.withValues(alpha: 0.72)),
             backgroundColor:
@@ -1748,8 +1849,8 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
           child:
               _updatingFollow
                   ? const SizedBox(
-                    width: 14,
-                    height: 14,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
@@ -1758,7 +1859,7 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
                   : Text(
                     isFollowing ? 'Following' : 'Follow',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1834,6 +1935,7 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
           const SizedBox(height: 8),
         ],
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Flexible(
               child: Container(
@@ -1866,7 +1968,7 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             _followButton(),
           ],
         ),

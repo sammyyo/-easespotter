@@ -8,6 +8,7 @@ import 'package:easespotter/screens/favorites_list_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 
 class GroceryListScreenController {
   static void Function({
@@ -23,6 +24,7 @@ class GroceryListScreen extends StatefulWidget {
   final bool showBackButton;
   final int? initialAddedCount;
   final String? initialRecipeTitle;
+  final String? initialShareCode;
 
   const GroceryListScreen({
     super.key,
@@ -30,6 +32,7 @@ class GroceryListScreen extends StatefulWidget {
     this.showBackButton = false,
     this.initialAddedCount,
     this.initialRecipeTitle,
+    this.initialShareCode,
   });
 
   @override
@@ -61,6 +64,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   bool _viewingFromRecipe = false;
   bool _showOptions = true;
   bool _showHeader = true;
+  bool _handledInitialShareCode = false;
   late ScrollController _scrollController;
 
   final GlobalKey _categoryFieldKey = GlobalKey();
@@ -107,12 +111,12 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     _loadFavoriteLists();
     _loadCurrency();
     _loadCollaborations();
-    _signInAnonymously();
     _scrollController = ScrollController();
     _scrollController.addListener(_handleScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialRecipeSnack();
+      _joinInitialShareCodeIfNeeded();
     });
   }
 
@@ -146,7 +150,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   Future<void> _loadCollaborations() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('collaborations');
+    final saved = prefs.getString(UserScopedPrefs.key('collaborations'));
     if (saved != null) {
       final List<dynamic> decoded = jsonDecode(saved);
       setState(() {
@@ -155,11 +159,15 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     }
   }
 
-  Future<void> _signInAnonymously() async {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-      if (mounted) setState(() {});
+  String? _currentSignedInUid({bool showMessage = false}) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.isAnonymous) return user.uid;
+    if (showMessage && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to use this feature.')),
+      );
     }
+    return null;
   }
 
   String _shareLinkForCode(String code) =>
@@ -180,17 +188,19 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     return trimmed.toUpperCase();
   }
 
+  void _joinInitialShareCodeIfNeeded() {
+    final code = widget.initialShareCode?.trim();
+    if (code == null || code.isEmpty || _handledInitialShareCode) return;
+
+    _handledInitialShareCode = true;
+    _joinCollaborationFromInput(code);
+  }
+
   Future<void> _startNewCollaboration() async {
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.signInAnonymously();
-      }
-
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid = _currentSignedInUid(showMessage: true);
       if (uid == null) {
-        throw Exception(
-          'Could not authenticate before starting collaboration.',
-        );
+        return;
       }
 
       final code = await _shareService.shareGroceryList(
@@ -206,7 +216,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       });
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('collaborations', jsonEncode(_collaborations));
+      await prefs.setString(
+        UserScopedPrefs.key('collaborations'),
+        jsonEncode(_collaborations),
+      );
 
       _listenToCollaboration(code);
 
@@ -392,7 +405,14 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       });
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('collaborations', jsonEncode(_collaborations));
+      await prefs.setString(
+        UserScopedPrefs.key('grocery_list'),
+        jsonEncode(list),
+      );
+      await prefs.setString(
+        UserScopedPrefs.key('collaborations'),
+        jsonEncode(_collaborations),
+      );
 
       _listenToCollaboration(code);
     } else {
@@ -440,7 +460,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   Future<void> _loadGroceryList() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? listJson = prefs.getString('grocery_list');
+    final String? listJson = prefs.getString(
+      UserScopedPrefs.key('grocery_list'),
+    );
     if (listJson != null) {
       final decoded = List<Map<String, dynamic>>.from(jsonDecode(listJson));
 
@@ -476,7 +498,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   Future<void> _saveGroceryList() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('grocery_list', jsonEncode(_groceryItems));
+    await prefs.setString(
+      UserScopedPrefs.key('grocery_list'),
+      jsonEncode(_groceryItems),
+    );
     await _updateCollaboration();
   }
 
@@ -493,7 +518,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   Future<void> _loadFavoriteLists() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? favJson = prefs.getString('favorite_lists');
+    final String? favJson = prefs.getString(
+      UserScopedPrefs.key('favorite_lists'),
+    );
     if (favJson != null) {
       setState(() {
         _favoriteLists = List<Map<String, dynamic>>.from(jsonDecode(favJson));
@@ -574,11 +601,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     required String name,
     required String barcode,
   }) async {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = _currentSignedInUid();
+    if (uid == null) return null;
     final col = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -716,9 +740,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     final barcode = (item['barcode'] ?? '').toString().trim();
 
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
+    if (_currentSignedInUid(showMessage: true) == null) return;
 
     try {
       final existing = await _findInventoryItemForListItem(
@@ -870,7 +892,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
                   if (title.isNotEmpty) {
                     final prefs = await SharedPreferences.getInstance();
-                    final String? favJson = prefs.getString('favorite_lists');
+                    final String? favJson = prefs.getString(
+                      UserScopedPrefs.key('favorite_lists'),
+                    );
                     List<Map<String, dynamic>> currentFavorites = [];
 
                     if (favJson != null) {
@@ -886,7 +910,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     });
 
                     await prefs.setString(
-                      'favorite_lists',
+                      UserScopedPrefs.key('favorite_lists'),
                       jsonEncode(currentFavorites),
                     );
 
@@ -1032,7 +1056,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                                     final prefs =
                                         await SharedPreferences.getInstance();
                                     await prefs.setString(
-                                      'collaborations',
+                                      UserScopedPrefs.key('collaborations'),
                                       jsonEncode(_collaborations),
                                     );
 
@@ -1111,12 +1135,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     late final String link;
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.signInAnonymously();
-      }
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final uid = _currentSignedInUid(showMessage: true);
       if (uid == null) {
-        throw Exception('Could not authenticate before sharing.');
+        return;
       }
 
       final code = await _shareService.shareGroceryList(

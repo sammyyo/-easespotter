@@ -578,3 +578,33 @@ exports.onReelReaction = onDocumentUpdated(
       }
     },
 );
+
+/**
+ * Trigger: Reel View Created
+ * Increments the parent reel's denormalized viewCount once per view doc.
+ */
+exports.onReelViewCreated = onDocumentCreated(
+    "reels/{reelId}/views/{viewerUid}",
+    async (event) => {
+      const snap = event.data;
+      if (!snap) return;
+
+      const {reelId, viewerUid} = event.params;
+      if (!reelId || !viewerUid) return;
+
+      const reelRef = db.collection("reels").doc(reelId);
+      const reelSnap = await reelRef.get();
+      if (!reelSnap.exists) return;
+
+      const reelData = reelSnap.data() || {};
+      const ownerUid = reelData.authorUid || reelData.uid;
+      if (ownerUid && ownerUid === viewerUid) {
+        return;
+      }
+
+      await reelRef.set({
+        viewCount: FieldValue.increment(1),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    },
+);

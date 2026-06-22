@@ -9,11 +9,21 @@ class ShareService {
   String _generateShareCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     Random random = Random();
-    return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
+    return List.generate(
+      6,
+      (index) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 
   /// Share a grocery list and return the generated code
-  Future<String> shareGroceryList(List<Map<String, dynamic>> groceryItems, {String? creatorUid}) async {
+  Future<String> shareGroceryList(
+    List<Map<String, dynamic>> groceryItems, {
+    required String creatorUid,
+  }) async {
+    if (creatorUid.trim().isEmpty) {
+      throw ArgumentError.value(creatorUid, 'creatorUid', 'Must not be empty');
+    }
+
     final String code = _generateShareCode();
     final Timestamp now = Timestamp.now();
     final Timestamp expiresAt = Timestamp.fromMillisecondsSinceEpoch(
@@ -23,8 +33,8 @@ class ShareService {
     try {
       await _firestore.collection('grocery_shares').doc(code).set({
         'code': code,
-        'uid': creatorUid ?? 'anonymous',
-        'creatorUid': creatorUid ?? 'anonymous',
+        'uid': creatorUid,
+        'creatorUid': creatorUid,
         'collaborators': <String>[],
         'list': groceryItems,
         'createdAt': now,
@@ -42,7 +52,8 @@ class ShareService {
   /// Fetch a grocery list by code
   Future<List<Map<String, dynamic>>?> fetchGroceryList(String code) async {
     try {
-      final DocumentSnapshot doc = await _firestore.collection('grocery_shares').doc(code).get();
+      final DocumentSnapshot doc =
+          await _firestore.collection('grocery_shares').doc(code).get();
 
       if (!doc.exists) {
         return null;
@@ -53,7 +64,10 @@ class ShareService {
 
       if (expiresAt.toDate().isBefore(DateTime.now())) {
         // List expired
-        await _firestore.collection('grocery_shares').doc(code).delete(); // Clean up
+        await _firestore
+            .collection('grocery_shares')
+            .doc(code)
+            .delete(); // Clean up
         return null;
       }
 

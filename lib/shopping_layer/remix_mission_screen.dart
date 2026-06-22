@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
-
+import 'package:easespotter/services/user_scoped_prefs.dart';
 
 class RemixMissionScreen extends StatefulWidget {
   final String missionId;
@@ -30,15 +29,16 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
   void initState() {
     super.initState();
     _listTitleController.text = "Remix: ${widget.missionTitle}";
-    _editableItems = widget.originalItems.map((item) {
-      return {
-        'title': item['title'] ?? '',
-        'quantity': 1,
-        'category': 'General',
-        'checked': false,
-        'source': 'remix:${widget.missionId}',
-      };
-    }).toList();
+    _editableItems =
+        widget.originalItems.map((item) {
+          return {
+            'title': item['title'] ?? '',
+            'quantity': 1,
+            'category': 'General',
+            'checked': false,
+            'source': 'remix:${widget.missionId}',
+          };
+        }).toList();
   }
 
   void _updateItemTitle(int index, String value) {
@@ -61,24 +61,30 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
 
     // Save to SharedPreferences (existing logic)
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString('grocery_list') ?? '[]';
+    final stored = prefs.getString(UserScopedPrefs.key('grocery_list')) ?? '[]';
     final existing = List<Map<String, dynamic>>.from(jsonDecode(stored));
     final updated = [...existing, ..._editableItems];
-    await prefs.setString('grocery_list', jsonEncode(updated));
+    await prefs.setString(
+      UserScopedPrefs.key('grocery_list'),
+      jsonEncode(updated),
+    );
 
     // 🔁 Create minimal Firestore log
-    final remixDoc = await FirebaseFirestore.instance.collection('remixed_lists').add({
-      'title': _listTitleController.text.trim(),
-      'originalMissionId': widget.missionId,
-      'createdBy': user.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    final remixDoc = await FirebaseFirestore.instance
+        .collection('remixed_lists')
+        .add({
+          'title': _listTitleController.text.trim(),
+          'originalMissionId': widget.missionId,
+          'createdBy': user.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
     // 🔔 Notify original mission creator
-    final originalMissionDoc = await FirebaseFirestore.instance
-        .collection('missions')
-        .doc(widget.missionId)
-        .get();
+    final originalMissionDoc =
+        await FirebaseFirestore.instance
+            .collection('missions')
+            .doc(widget.missionId)
+            .get();
 
     final originalOwnerId = originalMissionDoc.data()?['createdBy'];
 
@@ -88,13 +94,13 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
           .doc(originalOwnerId)
           .collection('notifications')
           .add({
-        'type': 'remix',
-        'message': 'remixed your mission: ${widget.missionTitle}',
-        'sourceUid': user.uid,
-        'relatedId': remixDoc.id,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+            'type': 'remix',
+            'message': 'remixed your mission: ${widget.missionTitle}',
+            'sourceUid': user.uid,
+            'relatedId': remixDoc.id,
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -104,13 +110,15 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
     Navigator.popUntil(context, (route) => route.isFirst);
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Remix This List',
+      appBar: AppBar(
+        title: const Text(
+          'Remix This List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -121,7 +129,10 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
               decoration: const InputDecoration(labelText: 'Custom List Title'),
             ),
             const SizedBox(height: 20),
-            const Text('Review & Edit Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Review & Edit Items:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: ListView.builder(
@@ -133,7 +144,9 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
                       title: TextFormField(
                         initialValue: item['title'],
                         onChanged: (val) => _updateItemTitle(index, val),
-                        decoration: const InputDecoration(border: InputBorder.none),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                        ),
                       ),
                       subtitle: Row(
                         children: [
@@ -160,9 +173,11 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
                 onPressed: _saveRemixedList,
                 icon: const Icon(Icons.save),
                 label: const Text('Save to My Grocery List'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                ),
               ),
-            )
+            ),
           ],
         ),
       ),

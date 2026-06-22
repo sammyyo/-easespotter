@@ -19,27 +19,31 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
     final c = TextEditingController();
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add to Home Inventory'),
-        content: TextField(
-          controller: c,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            hintText: 'e.g. Milk',
-            helperText: 'Barcode: $barcode',
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Add to Home Inventory'),
+            content: TextField(
+              controller: c,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                hintText: 'e.g. Milk',
+                helperText: 'Barcode: $barcode',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final v = c.text.trim();
+                  Navigator.pop(ctx, v.isEmpty ? null : v);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () {
-              final v = c.text.trim();
-              Navigator.pop(ctx, v.isEmpty ? null : v);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -47,13 +51,18 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
     if (_scanned) return;
 
     final rawValue =
-    capture.barcodes.isNotEmpty ? capture.barcodes.first.rawValue : null;
+        capture.barcodes.isNotEmpty ? capture.barcodes.first.rawValue : null;
 
     if (rawValue == null || rawValue.trim().isEmpty) return;
 
-    // Ensure user exists (your app often uses anonymous auth)
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please sign in to scan inventory.')),
+        );
+      }
+      return;
     }
 
     _scanned = true;
@@ -72,11 +81,7 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
         return;
       }
 
-      await _inventory.increment(
-        name: name,
-        barcode: barcode,
-        source: 'scan',
-      );
+      await _inventory.increment(name: name, barcode: barcode, source: 'scan');
 
       if (!mounted) return;
 
@@ -88,9 +93,9 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Scan failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
     } finally {
       await _controller.start();
       _scanned = false;
@@ -109,8 +114,10 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
       appBar: AppBar(
         backgroundColor: Colors.deepPurple,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Scan to Home Inventory',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+        title: const Text(
+          'Scan to Home Inventory',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
       ),
       body: MobileScanner(
         controller: _controller,

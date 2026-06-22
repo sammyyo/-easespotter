@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easespotter/services/profile_visibility.dart';
 import '../widgets/public_profile_widget.dart';
 
 class DiscoverPeopleScreen extends StatefulWidget {
@@ -24,24 +25,31 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
 
   Future<void> _loadUsers() async {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    final query = await FirebaseFirestore.instance
-        .collection('users')
-        .where('publicProfile', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .get();
+    final query =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .where('publicProfile', isEqualTo: true)
+            .orderBy('createdAt', descending: true)
+            .limit(50)
+            .get();
 
-    final users = query.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'id': doc.id,
-        'displayName': data['displayName'] ?? '',
-        'avatarUrl': data['avatarUrl'],
-        'socialHandle': data['socialHandle'] ?? '',
-        'bio': data['bio'] ?? '',
-        'followers': List<String>.from(data['followers'] ?? []),
-      };
-    }).where((user) => user['id'] != currentUid).toList();
+    final users =
+        query.docs
+            .map((doc) {
+              final data = doc.data();
+              if (!isSuggestableUserProfile(data)) return null;
+              return {
+                'id': doc.id,
+                'displayName': data['displayName'] ?? '',
+                'avatarUrl': data['avatarUrl'],
+                'socialHandle': data['socialHandle'] ?? '',
+                'bio': data['bio'] ?? '',
+                'followers': List<String>.from(data['followers'] ?? []),
+              };
+            })
+            .whereType<Map<String, dynamic>>()
+            .where((user) => user['id'] != currentUid)
+            .toList();
 
     setState(() {
       _results = users;
@@ -53,12 +61,15 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   void _search(String keyword) {
     final lower = keyword.toLowerCase();
     setState(() {
-      _filteredResults = _results.where((user) {
-        final name = (user['displayName'] ?? '').toLowerCase();
-        final handle = (user['socialHandle'] ?? '').toLowerCase();
-        final bio = (user['bio'] ?? '').toLowerCase();
-        return name.contains(lower) || handle.contains(lower) || bio.contains(lower);
-      }).toList();
+      _filteredResults =
+          _results.where((user) {
+            final name = (user['displayName'] ?? '').toLowerCase();
+            final handle = (user['socialHandle'] ?? '').toLowerCase();
+            final bio = (user['bio'] ?? '').toLowerCase();
+            return name.contains(lower) ||
+                handle.contains(lower) ||
+                bio.contains(lower);
+          }).toList();
     });
   }
 
@@ -69,9 +80,8 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
 
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage: user['avatarUrl'] != null
-            ? NetworkImage(user['avatarUrl'])
-            : null,
+        backgroundImage:
+            user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
         child: user['avatarUrl'] == null ? const Icon(Icons.person) : null,
       ),
       title: Text(user['displayName']),
@@ -83,7 +93,9 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => PublicProfileWidget(uid: userId)),
+                MaterialPageRoute(
+                  builder: (_) => PublicProfileWidget(uid: userId),
+                ),
               );
             },
             child: const Text('View'),
@@ -95,24 +107,25 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
               if (isFollowing) {
                 // Unfollow
                 await userRef.doc(currentUserId).update({
-                  'following': FieldValue.arrayRemove([userId])
+                  'following': FieldValue.arrayRemove([userId]),
                 });
                 await userRef.doc(userId).update({
-                  'followers': FieldValue.arrayRemove([currentUserId])
+                  'followers': FieldValue.arrayRemove([currentUserId]),
                 });
               } else {
                 // Follow
                 await userRef.doc(currentUserId).set({
-                  'following': FieldValue.arrayUnion([userId])
+                  'following': FieldValue.arrayUnion([userId]),
                 }, SetOptions(merge: true));
                 await userRef.doc(userId).set({
-                  'followers': FieldValue.arrayUnion([currentUserId])
+                  'followers': FieldValue.arrayUnion([currentUserId]),
                 }, SetOptions(merge: true));
               }
               await _loadUsers(); // Refresh state
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: isFollowing ? Colors.grey.shade300 : Colors.deepPurple,
+              backgroundColor:
+                  isFollowing ? Colors.grey.shade300 : Colors.deepPurple,
               foregroundColor: isFollowing ? Colors.black : Colors.white,
             ),
             child: Text(isFollowing ? 'Unfollow' : 'Follow'),
@@ -125,37 +138,41 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Discover People',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
+      appBar: AppBar(
+        title: const Text(
+          'Discover People',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-      )),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _search,
-              decoration: InputDecoration(
-                hintText: 'Search by name, handle, or bio',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.separated(
-              itemCount: _filteredResults.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (_, i) => _buildUserTile(_filteredResults[i]),
-            ),
-          ),
-        ],
       ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _search,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name, handle, or bio',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _filteredResults.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder:
+                          (_, i) => _buildUserTile(_filteredResults[i]),
+                    ),
+                  ),
+                ],
+              ),
     );
   }
 }

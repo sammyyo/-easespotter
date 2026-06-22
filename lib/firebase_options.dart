@@ -60,20 +60,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBfFmKTRcCVI8rs9_sKw_XCnYkNBVzGiA8',
-    appId: '1:171701293716:ios:3ba0842fdae7a7af731a81',
+    appId: '1:171701293716:ios:8aa288357ca8dd4b731a81',
     messagingSenderId: '171701293716',
     projectId: 'easespotter',
     storageBucket: 'easespotter.firebasestorage.app',
-    iosBundleId: 'com.example.easespotter',
+    iosBundleId: 'com.samuel.easespotter',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBfFmKTRcCVI8rs9_sKw_XCnYkNBVzGiA8',
-    appId: '1:171701293716:ios:3ba0842fdae7a7af731a81',
+    appId: '1:171701293716:ios:8aa288357ca8dd4b731a81',
     messagingSenderId: '171701293716',
     projectId: 'easespotter',
     storageBucket: 'easespotter.firebasestorage.app',
-    iosBundleId: 'com.example.easespotter',
+    iosBundleId: 'com.samuel.easespotter',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

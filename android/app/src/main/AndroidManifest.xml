@@ -35,6 +35,27 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="easespotter.com"
+                    android:pathPrefix="/share" />
+                <data
+                    android:scheme="https"
+                    android:host="easespotter.com"
+                    android:pathPrefix="/recipes" />
+                <data
+                    android:scheme="https"
+                    android:host="easespotter.com"
+                    android:pathPrefix="/glowup" />
+                <data
+                    android:scheme="https"
+                    android:host="easespotter.com"
+                    android:pathPrefix="/reels" />
+            </intent-filter>
         </activity>
 
         <meta-data

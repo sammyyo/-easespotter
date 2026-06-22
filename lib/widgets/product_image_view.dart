@@ -12,7 +12,7 @@ class ProductImageView extends StatelessWidget {
   const ProductImageView({
     super.key,
     required this.image,
-    this.fit = BoxFit.cover,
+    this.fit = BoxFit.contain,
     this.fallback = const Icon(Icons.shopping_bag, color: Colors.deepPurple),
   });
 
@@ -27,6 +27,7 @@ class ProductImageView extends StatelessWidget {
         return AvifImage.memory(
           dataImage.bytes,
           fit: fit,
+          alignment: Alignment.center,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => fallback,
         );
@@ -35,6 +36,7 @@ class ProductImageView extends StatelessWidget {
       return Image.memory(
         dataImage.bytes,
         fit: fit,
+        alignment: Alignment.center,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => fallback,
       );
@@ -46,6 +48,7 @@ class ProductImageView extends StatelessWidget {
         return AvifImage.network(
           uri.toString(),
           fit: fit,
+          alignment: Alignment.center,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => fallback,
         );
@@ -54,6 +57,7 @@ class ProductImageView extends StatelessWidget {
       return Image.network(
         uri.toString(),
         fit: fit,
+        alignment: Alignment.center,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => fallback,
       );

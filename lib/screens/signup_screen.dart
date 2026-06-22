@@ -1,11 +1,13 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../services/auth_service.dart';
 import '../helper/user_profile_service.dart';
+import '../widgets/google_logo.dart';
 import 'main_scaffold.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -34,6 +36,10 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _agreeTos = true; // default on; toggle if you prefer
+
+  bool get _supportsAppleSignIn =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   @override
   void dispose() {
@@ -65,6 +71,8 @@ class _SignupScreenState extends State<SignupScreen> {
         return 'That password is too weak. Try adding numbers & symbols.';
       case 'operation-not-allowed':
         return 'Email sign-up is disabled for now.';
+      case 'account-exists-with-different-credential':
+        return 'An account already exists with this email. Try another sign-in method.';
       default:
         return e.message ?? 'Sign up failed. Please try again.';
     }
@@ -125,8 +133,12 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // ignore: unused_element
   Future<void> _googleSignup() async {
+    if (!_agreeTos) {
+      _showSnack('Please agree to the Terms to continue.');
+      return;
+    }
+
     setState(() => _loading = true);
     try {
       final user = await AuthService.signInWithGoogle();
@@ -142,8 +154,36 @@ class _SignupScreenState extends State<SignupScreen> {
       _goToHome();
     } on FirebaseAuthException catch (e) {
       _showSnack(_mapAuthError(e));
+    } catch (e) {
+      _showSnack('Google sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _appleSignup() async {
+    if (!_agreeTos) {
+      _showSnack('Please agree to the Terms to continue.');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final user = await AuthService.signInWithApple();
+      if (user != null) {
+        await UserProfileService(FirebaseFirestore.instance).getOrCreate(
+          uid: user.uid,
+          displayName: user.displayName ?? _displayName.text.trim(),
+          avatarUrl: user.photoURL,
+          publicProfile: true,
+        );
+      }
+      if (!mounted) return;
+      _goToHome();
+    } on FirebaseAuthException catch (e) {
+      _showSnack(_mapAuthError(e));
     } catch (_) {
-      _showSnack('Google sign-in failed. Please try again.');
+      _showSnack('Apple sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -178,20 +218,8 @@ class _SignupScreenState extends State<SignupScreen> {
     return null;
   }
 
-  // ignore: unused_element
   Widget _googleLogo({double size = 18}) {
-    return Image.network(
-      'https://developers.google.com/identity/images/g-logo.png',
-      height: size,
-      width: size,
-      fit: BoxFit.contain,
-      errorBuilder:
-          (_, __, ___) => const Icon(
-            Icons.g_mobiledata_rounded,
-            size: 20,
-            color: Color(0xFFDB4437),
-          ),
-    );
+    return GoogleLogo(size: size);
   }
 
   void _goToHome() {
@@ -214,7 +242,8 @@ class _SignupScreenState extends State<SignupScreen> {
             Image.asset(
               _backgroundImagePath,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: const Color(0xFFE7EDF3)),
+              errorBuilder:
+                  (_, __, ___) => Container(color: const Color(0xFFE7EDF3)),
             ),
             Container(color: Colors.black.withValues(alpha: 0.45)),
             Container(
@@ -229,7 +258,10 @@ class _SignupScreenState extends State<SignupScreen> {
             SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: ClipRRect(
@@ -239,35 +271,47 @@ class _SignupScreenState extends State<SignupScreen> {
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.86),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
                             child: Theme(
                               data: theme.copyWith(
-                                inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-                                  filled: true,
-                                  fillColor: Colors.white.withValues(alpha: 0.9),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFF2A5B84), width: 1.4),
-                                  ),
-                                ),
+                                inputDecorationTheme: theme.inputDecorationTheme
+                                    .copyWith(
+                                      filled: true,
+                                      fillColor: Colors.white.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFF2A5B84),
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                    ),
                               ),
                               child: Form(
                                 key: _formKey,
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Column(
                                       children: [
@@ -287,18 +331,20 @@ class _SignupScreenState extends State<SignupScreen> {
                                         const SizedBox(height: 8),
                                         Text(
                                           'Create your account',
-                                          style: theme.textTheme.headlineSmall?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF0D1A2A),
-                                          ),
+                                          style: theme.textTheme.headlineSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF0D1A2A),
+                                              ),
                                           textAlign: TextAlign.center,
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
                                           'Join and personalize your shopping experience.',
-                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                            color: const Color(0xFF3A4B5D),
-                                          ),
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: const Color(0xFF3A4B5D),
+                                              ),
                                           textAlign: TextAlign.center,
                                         ),
                                         const SizedBox(height: 12),
@@ -316,7 +362,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                         prefixIcon: Icon(Icons.badge_outlined),
                                       ),
                                       validator: _validateName,
-                                      onFieldSubmitted: (_) => _emailNode.requestFocus(),
+                                      onFieldSubmitted:
+                                          (_) => _emailNode.requestFocus(),
                                     ),
                                     const SizedBox(height: 10),
                                     TextFormField(
@@ -325,19 +372,24 @@ class _SignupScreenState extends State<SignupScreen> {
                                       enabled: !_loading,
                                       keyboardType: TextInputType.emailAddress,
                                       textInputAction: TextInputAction.next,
-                                      autofillHints: const [AutofillHints.email],
+                                      autofillHints: const [
+                                        AutofillHints.email,
+                                      ],
                                       decoration: const InputDecoration(
                                         labelText: 'Email',
                                         hintText: 'you@example.com',
                                         prefixIcon: Icon(Icons.email_outlined),
                                       ),
                                       validator: _validateEmail,
-                                      onFieldSubmitted: (_) => _passwordNode.requestFocus(),
+                                      onFieldSubmitted:
+                                          (_) => _passwordNode.requestFocus(),
                                     ),
                                     const SizedBox(height: 10),
                                     StatefulBuilder(
                                       builder: (context, setInner) {
-                                        final strength = _passwordStrength(_password.text);
+                                        final strength = _passwordStrength(
+                                          _password.text,
+                                        );
                                         return Column(
                                           children: [
                                             TextFormField(
@@ -345,34 +397,56 @@ class _SignupScreenState extends State<SignupScreen> {
                                               focusNode: _passwordNode,
                                               enabled: !_loading,
                                               obscureText: _obscure,
-                                              textInputAction: TextInputAction.next,
-                                              autofillHints: const [AutofillHints.newPassword],
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              autofillHints: const [
+                                                AutofillHints.newPassword,
+                                              ],
                                               decoration: InputDecoration(
                                                 labelText: 'Password',
-                                                prefixIcon: const Icon(Icons.lock_outline),
+                                                prefixIcon: const Icon(
+                                                  Icons.lock_outline,
+                                                ),
                                                 suffixIcon: IconButton(
-                                                  onPressed: _loading
-                                                      ? null
-                                                      : () => setState(() => _obscure = !_obscure),
+                                                  onPressed:
+                                                      _loading
+                                                          ? null
+                                                          : () => setState(
+                                                            () =>
+                                                                _obscure =
+                                                                    !_obscure,
+                                                          ),
                                                   icon: Icon(
-                                                    _obscure ? Icons.visibility_off : Icons.visibility,
+                                                    _obscure
+                                                        ? Icons.visibility_off
+                                                        : Icons.visibility,
                                                   ),
-                                                  tooltip: _obscure ? 'Show password' : 'Hide password',
+                                                  tooltip:
+                                                      _obscure
+                                                          ? 'Show password'
+                                                          : 'Hide password',
                                                 ),
                                               ),
                                               validator: _validatePassword,
                                               onChanged: (_) => setInner(() {}),
-                                              onFieldSubmitted: (_) => _confirmNode.requestFocus(),
+                                              onFieldSubmitted:
+                                                  (_) =>
+                                                      _confirmNode
+                                                          .requestFocus(),
                                             ),
                                             const SizedBox(height: 6),
                                             ClipRRect(
-                                              borderRadius: BorderRadius.circular(6),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                               child: LinearProgressIndicator(
                                                 value: strength,
                                                 minHeight: 6,
-                                                backgroundColor: Colors.grey.shade300,
+                                                backgroundColor:
+                                                    Colors.grey.shade300,
                                                 valueColor:
-                                                    AlwaysStoppedAnimation<Color>(_strengthColor(strength)),
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(_strengthColor(strength)),
                                               ),
                                             ),
                                             const SizedBox(height: 4),
@@ -381,10 +455,17 @@ class _SignupScreenState extends State<SignupScreen> {
                                               child: Text(
                                                 strength < 0.34
                                                     ? 'Weak'
-                                                    : (strength < 0.67 ? 'Medium' : 'Strong'),
-                                                style: theme.textTheme.labelMedium?.copyWith(
-                                                  color: const Color(0xFF3A4B5D),
-                                                ),
+                                                    : (strength < 0.67
+                                                        ? 'Medium'
+                                                        : 'Strong'),
+                                                style: theme
+                                                    .textTheme
+                                                    .labelMedium
+                                                    ?.copyWith(
+                                                      color: const Color(
+                                                        0xFF3A4B5D,
+                                                      ),
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -398,20 +479,32 @@ class _SignupScreenState extends State<SignupScreen> {
                                       enabled: !_loading,
                                       obscureText: _obscureConfirm,
                                       textInputAction: TextInputAction.done,
-                                      autofillHints: const [AutofillHints.newPassword],
+                                      autofillHints: const [
+                                        AutofillHints.newPassword,
+                                      ],
                                       decoration: InputDecoration(
                                         labelText: 'Confirm Password',
-                                        prefixIcon: const Icon(Icons.lock_person_outlined),
+                                        prefixIcon: const Icon(
+                                          Icons.lock_person_outlined,
+                                        ),
                                         suffixIcon: IconButton(
-                                          onPressed: _loading
-                                              ? null
-                                              : () => setState(() => _obscureConfirm = !_obscureConfirm),
+                                          onPressed:
+                                              _loading
+                                                  ? null
+                                                  : () => setState(
+                                                    () =>
+                                                        _obscureConfirm =
+                                                            !_obscureConfirm,
+                                                  ),
                                           icon: Icon(
-                                            _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                                            _obscureConfirm
+                                                ? Icons.visibility_off
+                                                : Icons.visibility,
                                           ),
-                                          tooltip: _obscureConfirm
-                                              ? 'Show password'
-                                              : 'Hide password',
+                                          tooltip:
+                                              _obscureConfirm
+                                                  ? 'Show password'
+                                                  : 'Hide password',
                                         ),
                                       ),
                                       validator: _validateConfirm,
@@ -419,20 +512,28 @@ class _SignupScreenState extends State<SignupScreen> {
                                     ),
                                     const SizedBox(height: 6),
                                     Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
                                       children: [
                                         Checkbox(
                                           value: _agreeTos,
-                                          onChanged: _loading
-                                              ? null
-                                              : (v) => setState(() => _agreeTos = v ?? false),
+                                          onChanged:
+                                              _loading
+                                                  ? null
+                                                  : (v) => setState(
+                                                    () =>
+                                                        _agreeTos = v ?? false,
+                                                  ),
                                         ),
                                         Expanded(
                                           child: Text(
                                             'I agree to the Terms of Service and Privacy Policy.',
-                                            style: theme.textTheme.bodySmall?.copyWith(
-                                              color: const Color(0xFF243447),
-                                            ),
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: const Color(
+                                                    0xFF243447,
+                                                  ),
+                                                ),
                                           ),
                                         ),
                                       ],
@@ -444,75 +545,143 @@ class _SignupScreenState extends State<SignupScreen> {
                                         onPressed: _loading ? null : _signup,
                                         style: ElevatedButton.styleFrom(
                                           elevation: 0,
-                                          backgroundColor: const Color(0xFF1D4E73),
+                                          backgroundColor: const Color(
+                                            0xFF1D4E73,
+                                          ),
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(14),
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
                                           ),
                                         ),
                                         child: AnimatedSwitcher(
-                                          duration: const Duration(milliseconds: 200),
-                                          child: _loading
-                                              ? const SizedBox(
-                                                  height: 22,
-                                                  width: 22,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2.2,
-                                                    color: Colors.white,
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          child:
+                                              _loading
+                                                  ? const SizedBox(
+                                                    height: 22,
+                                                    width: 22,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2.2,
+                                                          color: Colors.white,
+                                                        ),
+                                                  )
+                                                  : const Text(
+                                                    'Create account',
                                                   ),
-                                                )
-                                              : const Text('Create account'),
                                         ),
                                       ),
                                     ),
-                                    // const SizedBox(height: 10),
-                                    // Row(
-                                    //   children: [
-                                    //     Expanded(child: Divider(color: Colors.grey.shade400)),
-                                    //     Padding(
-                                    //       padding: const EdgeInsets.symmetric(horizontal: 8),
-                                    //       child: Text(
-                                    //         'or sign up with',
-                                    //         style: theme.textTheme.labelMedium?.copyWith(
-                                    //           color: const Color(0xFF4F6074),
-                                    //         ),
-                                    //       ),
-                                    //     ),
-                                    //     Expanded(child: Divider(color: Colors.grey.shade400)),
-                                    //   ],
-                                    // ),
-                                    // const SizedBox(height: 10),
-                                    // SizedBox(
-                                    //   height: 42,
-                                    //   child: OutlinedButton.icon(
-                                    //     onPressed: _loading ? null : _googleSignup,
-                                    //     icon: _googleLogo(),
-                                    //     label: const Text(
-                                    //       'Continue with Google',
-                                    //       style: TextStyle(fontWeight: FontWeight.w600),
-                                    //     ),
-                                    //     style: OutlinedButton.styleFrom(
-                                    //       foregroundColor: const Color(0xFF1F3042),
-                                    //       backgroundColor: Colors.white.withValues(alpha: 0.75),
-                                    //       side: BorderSide(color: Colors.grey.shade300),
-                                    //       shape: RoundedRectangleBorder(
-                                    //         borderRadius: BorderRadius.circular(14),
-                                    //       ),
-                                    //     ),
-                                    //   ),
-                                    // ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          child: Text(
+                                            'or sign up with',
+                                            style: theme.textTheme.labelMedium
+                                                ?.copyWith(
+                                                  color: const Color(
+                                                    0xFF4F6074,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    SizedBox(
+                                      height: 42,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            _loading ? null : _googleSignup,
+                                        icon: _googleLogo(),
+                                        label: const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF1F3042,
+                                          ),
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.75),
+                                          side: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (_supportsAppleSignIn) ...[
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 42,
+                                        child: ElevatedButton.icon(
+                                          onPressed:
+                                              _loading ? null : _appleSignup,
+                                          icon: const Icon(Icons.apple),
+                                          label: const Text(
+                                            'Continue with Apple',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            elevation: 0,
+                                            backgroundColor: Colors.black,
+                                            foregroundColor: Colors.white,
+                                            disabledBackgroundColor: Colors
+                                                .black
+                                                .withValues(alpha: 0.45),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 12),
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           'Already have an account?',
-                                          style: theme.textTheme.bodyMedium?.copyWith(
-                                            color: const Color(0xFF243447),
-                                          ),
+                                          style: theme.textTheme.bodyMedium
+                                              ?.copyWith(
+                                                color: const Color(0xFF243447),
+                                              ),
                                         ),
                                         TextButton(
-                                          onPressed: _loading ? null : () => Navigator.pop(context),
+                                          onPressed:
+                                              _loading
+                                                  ? null
+                                                  : () =>
+                                                      Navigator.pop(context),
                                           child: const Text('Log in'),
                                         ),
                                       ],

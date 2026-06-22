@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart'; // Added for GPS
 
 import 'package:easespotter/screens/social_profile_screen.dart';
 import 'package:easespotter/screens/store_profile_screen.dart';
+import 'package:easespotter/services/profile_visibility.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 
@@ -1117,9 +1118,20 @@ class _DiscoverPeopleSuggestions extends StatelessWidget {
             .get();
 
     if (precomputed.docs.isNotEmpty) {
-      return precomputed.docs
-          .map(_DiscoverPerson.fromRecommendationDoc)
-          .toList();
+      final people = <_DiscoverPerson>[];
+      for (final doc in precomputed.docs) {
+        final recommendation = doc.data();
+        final recommendedUid = (recommendation['uid'] ?? doc.id).toString();
+        final userDoc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(recommendedUid)
+                .get();
+        final userData = userDoc.data() ?? recommendation;
+        if (!isSuggestableUserProfile(userData)) continue;
+        people.add(_DiscoverPerson.fromRecommendationDoc(doc));
+      }
+      return people;
     }
 
     final me =
@@ -1134,7 +1146,7 @@ class _DiscoverPeopleSuggestions extends StatelessWidget {
     for (final doc in usersSnap.docs) {
       if (excluded.contains(doc.id)) continue;
       final data = doc.data();
-      if (data['publicProfile'] == false) continue;
+      if (!isSuggestableUserProfile(data)) continue;
 
       final displayName = (data['displayName'] ?? '').toString().trim();
       final handle =

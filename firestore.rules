@@ -865,6 +865,26 @@ service cloud.firestore {
       allow delete: if request.auth != null
         && resource.data.uid == request.auth.uid;
 
+      match /views/{viewerUid} {
+        allow read: if request.auth != null && (
+          viewerUid == request.auth.uid ||
+          get(/databases/$(database)/documents/reels/$(reelId)).data.uid == request.auth.uid
+        );
+
+        allow create: if request.auth != null
+          && viewerUid == request.auth.uid
+          && request.resource.data.viewerUid == request.auth.uid
+          && request.resource.data.reelId == reelId
+          && request.resource.data.keys().hasOnly([
+            'viewerUid',
+            'reelId',
+            'authorUid',
+            'viewedAt'
+          ]);
+
+        allow update, delete: if false;
+      }
+
       match /comments/{commentId} {
         allow read: if request.auth != null;
 

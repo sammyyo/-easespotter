@@ -6,6 +6,7 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'glowup_detail_screen.dart';
 import '../widgets/share_to_connections_sheet.dart';
 import '../widgets/recipe_card/author_header.dart';
+import '../widgets/recipe_card/delete_utils.dart';
 import '../services/notification_service.dart';
 
 /// Top-level model (Dart does NOT support nested classes)
@@ -24,12 +25,12 @@ class GlowUpFeedScreen extends StatefulWidget {
 
 class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
   final List<GlowTag> _tags = const [
-    GlowTag('All',    'all',    Icons.grid_view_rounded),
+    GlowTag('All', 'all', Icons.grid_view_rounded),
     GlowTag('Pantry', 'pantry', Icons.kitchen_rounded),
     GlowTag('Budget', 'budget', Icons.attach_money_rounded),
-    GlowTag('Vegan',  'vegan',  Icons.eco_rounded),
+    GlowTag('Vegan', 'vegan', Icons.eco_rounded),
     GlowTag('Snacks', 'snacks', Icons.fastfood_rounded),
-    GlowTag('Glow-Up','glow-up',Icons.auto_awesome_rounded),
+    GlowTag('Glow-Up', 'glow-up', Icons.auto_awesome_rounded),
   ];
 
   String _selectedTag = 'All';
@@ -44,11 +45,9 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         backgroundColor: Colors.deepPurple,
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Glow-Up Feed',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+        title: const Text(
+          'Glow-Up Feed',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: Column(
@@ -108,9 +107,10 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         .collection('glowups')
         .where('isPublic', isEqualTo: true);
 
-    final filteredQuery = _selectedTag != 'All'
-        ? baseQuery.where('tags', arrayContains: _selectedTag.toLowerCase())
-        : baseQuery;
+    final filteredQuery =
+        _selectedTag != 'All'
+            ? baseQuery.where('tags', arrayContains: _selectedTag.toLowerCase())
+            : baseQuery;
 
     return filteredQuery.orderBy('createdAt', descending: true).snapshots();
   }
@@ -137,20 +137,26 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     final String imageUrl = (data['imageUrl'] ?? '') as String;
     final String title = (data['title'] ?? '') as String;
     final String description = (data['description'] ?? '') as String;
-    final String authorUid = (data['authorUid'] ?? data['uid'] ?? '').toString();
+    final String authorUid =
+        (data['authorUid'] ?? data['uid'] ?? '').toString();
+    final bool isOwner = user != null && user.uid == authorUid;
 
-    final List<String> likedBy =
-    List<String>.from((data['likedBy'] ?? const <dynamic>[]) as List);
+    final List<String> likedBy = List<String>.from(
+      (data['likedBy'] ?? const <dynamic>[]) as List,
+    );
 
     final bool isLiked = canReact && likedBy.contains(user.uid);
     final bool isBusy = _pending.contains(docId);
 
     return GestureDetector(
       key: ValueKey(docId),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => GlowUpDetailScreen(glowUpId: docId)),
-      ),
+      onTap:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GlowUpDetailScreen(glowUpId: docId),
+            ),
+          ),
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         clipBehavior: Clip.antiAlias,
@@ -161,7 +167,20 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
             if (authorUid.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: AuthorHeader(uid: authorUid),
+                child: Row(
+                  children: [
+                    Expanded(child: AuthorHeader(uid: authorUid)),
+                    if (isOwner)
+                      _GlowUpOwnerMenu(
+                        onDelete:
+                            () => _handleDeleteGlowUp(
+                              docId: docId,
+                              imageUrl: imageUrl,
+                              authorUid: authorUid,
+                            ),
+                      ),
+                  ],
+                ),
               ),
 
             if (imageUrl.isNotEmpty)
@@ -177,29 +196,37 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
                       return Container(
                         height: 180,
                         color: Colors.grey.shade200,
-                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       );
                     },
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 180,
-                      color: Colors.grey.shade100,
-                      child: const Icon(Icons.broken_image, size: 48),
-                    ),
+                    errorBuilder:
+                        (context, error, stackTrace) => Container(
+                          height: 180,
+                          color: Colors.grey.shade100,
+                          child: const Icon(Icons.broken_image, size: 48),
+                        ),
                   ),
                   Positioned(
-                    bottom: 0, left: 0, right: 0,
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                     child: Container(
                       height: 60,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
-                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
                           colors: [Colors.transparent, Colors.black54],
                         ),
                       ),
                     ),
                   ),
                   Positioned(
-                    bottom: 8, left: 10, right: 10,
+                    bottom: 8,
+                    left: 10,
+                    right: 10,
                     child: Text(
                       title,
                       style: const TextStyle(
@@ -234,12 +261,16 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
                           color: isLiked ? Colors.red : Colors.grey,
                           size: 20,
                         ),
-                        onPressed: (!canReact || isBusy)
-                            ? null
-                            : () {
-                          HapticFeedback.selectionClick();
-                          _toggleLike(docId: docId, authorUid: authorUid);
-                        },
+                        onPressed:
+                            (!canReact || isBusy)
+                                ? null
+                                : () {
+                                  HapticFeedback.selectionClick();
+                                  _toggleLike(
+                                    docId: docId,
+                                    authorUid: authorUid,
+                                  );
+                                },
                         tooltip: canReact ? 'Like' : 'Sign in to react',
                       ),
                       Text('${likedBy.length}'),
@@ -247,7 +278,8 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
                       IconButton(
                         tooltip: 'Share',
                         icon: const Icon(Icons.share, size: 20),
-                        onPressed: () => _shareGlowUp(docId: docId, title: title),
+                        onPressed:
+                            () => _shareGlowUp(docId: docId, title: title),
                       ),
                     ],
                   ),
@@ -260,13 +292,78 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     );
   }
 
-  Future<void> _toggleLike({required String docId, required String authorUid}) async {
+  Future<void> _handleDeleteGlowUp({
+    required String docId,
+    required String imageUrl,
+    required String authorUid,
+  }) async {
+    final current = FirebaseAuth.instance.currentUser;
+    if (current == null || current.uid != authorUid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("You don't have permission to delete this."),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Delete Glow-Up story?'),
+            content: const Text(
+              'This will permanently remove the story and its comments.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await deleteGlowUpCascade(glowUpId: docId, imageUrl: imageUrl);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Glow-Up story deleted.')));
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _toggleLike({
+    required String docId,
+    required String authorUid,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to react')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please sign in to react')));
       return;
     }
 
@@ -282,8 +379,9 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         if (!snap.exists) return;
 
         final data = (snap.data() ?? {});
-        final Set<String> likes =
-        Set<String>.from((data['likedBy'] ?? const <dynamic>[]) as List);
+        final Set<String> likes = Set<String>.from(
+          (data['likedBy'] ?? const <dynamic>[]) as List,
+        );
 
         final bool hasLike = likes.contains(user.uid);
 
@@ -318,9 +416,9 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     } catch (e) {
       debugPrint('❤️ Like toggle error for $docId: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn’t update reaction: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn’t update reaction: $e')));
     } finally {
       if (mounted) setState(() => _pending.remove(docId));
     }
@@ -336,8 +434,42 @@ class _TopShadow extends StatelessWidget {
     return Column(
       children: [
         child,
-        Container(height: 1, color: Theme.of(context).dividerColor.withOpacity(0.5)),
+        Container(
+          height: 1,
+          color: Theme.of(context).dividerColor.withOpacity(0.5),
+        ),
       ],
+    );
+  }
+}
+
+class _GlowUpOwnerMenu extends StatelessWidget {
+  final VoidCallback onDelete;
+
+  const _GlowUpOwnerMenu({required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'More',
+      icon: const Icon(Icons.more_horiz, size: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (value) {
+        if (value == 'delete') onDelete();
+      },
+      itemBuilder:
+          (_) => const [
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever_outlined, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Delete'),
+                ],
+              ),
+            ),
+          ],
     );
   }
 }
@@ -378,28 +510,34 @@ class _TagFilterBar extends StatelessWidget {
                 avatar: Icon(
                   tag.icon,
                   size: 18,
-                  color: selected
-                      ? Colors.white
-                      : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  color:
+                      selected
+                          ? Colors.white
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
                 ),
                 label: Text(
                   tag.label,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: selected
-                        ? Colors.white
-                        : Theme.of(context).colorScheme.onSurface,
+                    color:
+                        selected
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 selected: selected,
                 showCheckmark: false,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 selectedColor: Colors.deepPurple,
                 shape: StadiumBorder(
                   side: BorderSide(
-                    color: selected
-                        ? Colors.deepPurple
-                        : Theme.of(context).dividerColor,
+                    color:
+                        selected
+                            ? Colors.deepPurple
+                            : Theme.of(context).dividerColor,
                   ),
                 ),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'user_scoped_prefs.dart';
 
 class BookmarkService {
+  static String get _bookmarksKey => UserScopedPrefs.key('bookmarked_items');
+
   static String bookmarkKey(Map<dynamic, dynamic> item) {
     String clean(dynamic value) =>
         (value ?? '').toString().trim().toLowerCase();
@@ -23,7 +26,7 @@ class BookmarkService {
 
   Future<bool> isBookmarked(Map<String, dynamic> item) async {
     final prefs = await SharedPreferences.getInstance();
-    final bookmarks = prefs.getStringList('bookmarked_items') ?? [];
+    final bookmarks = prefs.getStringList(_bookmarksKey) ?? [];
     final key = bookmarkKey(item);
 
     return bookmarks.any((encoded) {
@@ -38,7 +41,7 @@ class BookmarkService {
 
   Future<void> saveBookmark(Map<String, dynamic> item) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> bookmarks = prefs.getStringList('bookmarked_items') ?? [];
+    List<String> bookmarks = prefs.getStringList(_bookmarksKey) ?? [];
     final key = bookmarkKey(item);
 
     final alreadySaved = bookmarks.any((encoded) {
@@ -52,18 +55,18 @@ class BookmarkService {
 
     if (!alreadySaved) {
       bookmarks.add(jsonEncode(item));
-      await prefs.setStringList('bookmarked_items', bookmarks);
+      await prefs.setStringList(_bookmarksKey, bookmarks);
     }
   }
 
   Future<void> clearAllBookmarks() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('bookmarked_items');
+    await prefs.remove(_bookmarksKey);
   }
 
   Future<List<Map<String, dynamic>>> getBookmarks() async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> bookmarks = prefs.getStringList('bookmarked_items') ?? [];
+    List<String> bookmarks = prefs.getStringList(_bookmarksKey) ?? [];
     final seen = <String>{};
     final decoded = <Map<String, dynamic>>[];
     var changed = false;
@@ -87,7 +90,7 @@ class BookmarkService {
 
   Future<void> removeBookmark(Map<String, dynamic> item) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> bookmarks = prefs.getStringList('bookmarked_items') ?? [];
+    List<String> bookmarks = prefs.getStringList(_bookmarksKey) ?? [];
     final key = bookmarkKey(item);
 
     bookmarks.removeWhere((encoded) {
@@ -98,7 +101,7 @@ class BookmarkService {
         return false;
       }
     });
-    await prefs.setStringList('bookmarked_items', bookmarks);
+    await prefs.setStringList(_bookmarksKey, bookmarks);
   }
 
   Future<void> saveBookmarks(List<Map<String, dynamic>> items) async {
@@ -112,6 +115,6 @@ class BookmarkService {
       }
     }
 
-    await prefs.setStringList('bookmarked_items', encoded);
+    await prefs.setStringList(_bookmarksKey, encoded);
   }
 }

@@ -105,6 +105,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       final resolvedLogo = StoreLogoService.resolveFromData(apiData);
 
       final storeData = <String, dynamic>{
+        ...apiData,
         'vendorId': apiData['vendorId'] ?? vendorId,
         'vendorName': apiData['vendorName'] ?? storeName,
         'logoUrl':

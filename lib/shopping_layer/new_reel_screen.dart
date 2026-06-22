@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 
 class NewReelScreen extends StatefulWidget {
   const NewReelScreen({super.key});
@@ -178,7 +179,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
 
   Future<List<Map<String, dynamic>>> _loadSavedLists() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('favorite_lists');
+    final raw = prefs.getString(UserScopedPrefs.key('favorite_lists'));
     if (raw == null || raw.trim().isEmpty) return [];
 
     try {

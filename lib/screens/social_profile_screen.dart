@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/services/store_logo_service.dart';
+import 'package:easespotter/services/profile_visibility.dart';
 import 'package:easespotter/shopping_layer/community_recipes_screen.dart';
 import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
 import 'package:easespotter/shopping_layer/profile_reels_screen.dart';
@@ -490,20 +491,40 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
             .get();
 
     if (precomputed.docs.isNotEmpty) {
-      return precomputed.docs.map((doc) {
+      final suggestions = <_PeopleSuggestion>[];
+      for (final doc in precomputed.docs) {
         final data = doc.data();
-        return _PeopleSuggestion(
-          uid: (data['uid'] ?? doc.id).toString(),
-          displayName: (data['displayName'] ?? 'Suggested profile').toString(),
-          handle: (data['handle'] ?? '').toString(),
-          avatarUrl: (data['avatarUrl'] ?? '').toString(),
-          score: (data['score'] is int) ? data['score'] as int : 0,
-          reasons:
-              (data['reasons'] is List)
-                  ? List<String>.from(data['reasons'])
-                  : const ['Suggested profile'],
+        final suggestedUid = (data['uid'] ?? doc.id).toString();
+        final userDoc =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(suggestedUid)
+                .get();
+        final userData = userDoc.data() ?? data;
+        if (!isSuggestableUserProfile(userData)) continue;
+        suggestions.add(
+          _PeopleSuggestion(
+            uid: suggestedUid,
+            displayName:
+                (userData['displayName'] ?? data['displayName'] ?? '')
+                    .toString(),
+            handle:
+                (userData['handle'] ??
+                        userData['socialHandle'] ??
+                        data['handle'] ??
+                        '')
+                    .toString(),
+            avatarUrl:
+                (userData['avatarUrl'] ?? data['avatarUrl'] ?? '').toString(),
+            score: (data['score'] is int) ? data['score'] as int : 0,
+            reasons:
+                (data['reasons'] is List)
+                    ? List<String>.from(data['reasons'])
+                    : const ['Suggested profile'],
+          ),
         );
-      }).toList();
+      }
+      return suggestions;
     }
 
     final topSnap =
@@ -525,7 +546,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       if (excluded.contains(doc.id)) continue;
 
       final data = doc.data();
-      if (data['publicProfile'] == false) continue;
+      if (!isSuggestableUserProfile(data)) continue;
 
       final displayName = (data['displayName'] ?? '').toString().trim();
       final handle = (data['handle'] ?? data['socialHandle'] ?? '')

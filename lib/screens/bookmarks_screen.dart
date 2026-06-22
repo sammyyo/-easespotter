@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/services/bookmark_service.dart';
 import 'package:easespotter/screens/product_details_screen.dart';
+import 'package:easespotter/services/currency_formatting.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
@@ -582,7 +583,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final name = (item['name'] ?? '').toString();
     final location = (item['location'] ?? '').toString();
     final storeName = (item['storeName'] ?? 'Unknown Store').toString();
-    final price = item['price'];
+    final price = CurrencyFormatting.formatPrice(
+      item['price'] ?? item['unitPrice'],
+      productData: item,
+    );
     final logoUrl = _logoUrlFromItem(item);
     final keyStr = _bookmarkKey(item);
 
@@ -677,7 +681,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     ),
                                   ),
                                 ),
-                              if (price != null)
+                              if (price.isNotEmpty)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 9,
@@ -688,7 +692,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: Text(
-                                    '€$price',
+                                    price,
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w900,

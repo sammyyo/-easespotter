@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>171701293716-hfs2lcsmjd4m71d4osoikidvh9d8ukni.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBfFmKTRcCVI8rs9_sKw_XCnYkNBVzGiA8</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.easespotter</string>
+	<string>com.samuel.easespotter</string>
 	<key>PROJECT_ID</key>
 	<string>easespotter</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:171701293716:ios:3ba0842fdae7a7af731a81</string>
+	<string>1:171701293716:ios:8aa288357ca8dd4b731a81</string>
 </dict>
 </plist>

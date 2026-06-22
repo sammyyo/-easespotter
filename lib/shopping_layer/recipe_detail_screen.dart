@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:easespotter/screens/grocery_list_screen.dart';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 import '../widgets/attribution_tag.dart';
 
 class RecipeDetailScreen extends StatelessWidget {
@@ -144,7 +145,8 @@ class RecipeDetailScreen extends StatelessWidget {
 
           Future<void> addIngredientsToGroceryList() async {
             final prefs = await SharedPreferences.getInstance();
-            final storedJson = prefs.getString('grocery_list') ?? '[]';
+            final storedJson =
+                prefs.getString(UserScopedPrefs.key('grocery_list')) ?? '[]';
             final existingList = List<Map<String, dynamic>>.from(
               jsonDecode(storedJson),
             );
@@ -201,7 +203,10 @@ class RecipeDetailScreen extends StatelessWidget {
               addedCount++;
             }
 
-            await prefs.setString('grocery_list', jsonEncode(existingList));
+            await prefs.setString(
+              UserScopedPrefs.key('grocery_list'),
+              jsonEncode(existingList),
+            );
 
             if (!context.mounted) return;
 

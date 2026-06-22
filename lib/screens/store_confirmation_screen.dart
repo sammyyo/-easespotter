@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easespotter/services/bookmark_service.dart';
 import 'package:easespotter/screens/product_details_screen.dart';
+import 'package:easespotter/services/currency_formatting.dart';
 import 'package:easespotter/services/store_follow_service.dart';
 import 'package:easespotter/services/grocery_list_service.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,7 +48,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
   Future<List<Map<String, dynamic>>> _loadGroceryPrefsList() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('grocery_list');
+    final raw = prefs.getString(UserScopedPrefs.key('grocery_list'));
     if (raw == null || raw.trim().isEmpty) return [];
 
     final decoded = jsonDecode(raw);
@@ -59,7 +61,10 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
 
   Future<void> _saveGroceryPrefsList(List<Map<String, dynamic>> list) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('grocery_list', jsonEncode(list));
+    await prefs.setString(
+      UserScopedPrefs.key('grocery_list'),
+      jsonEncode(list),
+    );
   }
 
   int _findGroceryIndex(List<Map<String, dynamic>> list, String title) {
@@ -103,6 +108,17 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final v = int.tryParse(s.trim());
     if (v == null || v <= 0) return fallback;
     return v > max ? max : v;
+  }
+
+  String? _currentSignedInUid({bool showMessage = false}) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.isAnonymous) return user.uid;
+    if (showMessage && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to use this feature.')),
+      );
+    }
+    return null;
   }
 
   Future<int?> _askIncrementAmount(BuildContext context, String title) async {
@@ -328,6 +344,27 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
       enrichedItem['storeId'] = storeId;
     }
 
+    for (final key in const [
+      'currency',
+      'currencyCode',
+      'currencySymbol',
+      'currency_code',
+      'currency_symbol',
+    ]) {
+      final value = enrichedItem[key] ?? widget.storeData[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        enrichedItem[key] = value;
+      }
+    }
+    final storeCurrencySymbol = CurrencyFormatting.symbolForData(
+      widget.storeData,
+      fallback: '',
+    );
+    enrichedItem['currencySymbol'] =
+        storeCurrencySymbol.isNotEmpty
+            ? storeCurrencySymbol
+            : CurrencyFormatting.symbolForData(enrichedItem);
+
     final imageUrl = _imageUrlFromItem(item);
     if (imageUrl.isNotEmpty) {
       enrichedItem['imageUrl'] = imageUrl;
@@ -425,6 +462,14 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final value = double.tryParse(cleaned);
     if (value == null || value < 0) return null;
     return value;
+  }
+
+  String _formattedPrice(Map<String, dynamic> item) {
+    return CurrencyFormatting.formatPrice(
+      item['price'] ?? item['unitPrice'],
+      productData: item,
+      storeData: widget.storeData,
+    );
   }
 
   String _firstStringValue(Map<dynamic, dynamic> data, List<String> keys) {
@@ -573,7 +618,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
   Widget _searchResultCard(Map<String, dynamic> item) {
     final name = (item['name'] ?? '').toString();
     final location = (item['location'] ?? '').toString();
-    final price = item['price']?.toString().trim() ?? '';
+    final price = _formattedPrice(item);
     final keyStr = _itemKey(item);
     final isBookmarked = _bookmarkedKeys.contains(keyStr);
 
@@ -659,7 +704,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
-                                  '€$price',
+                                  price,
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w900,
@@ -787,6 +832,18 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           return items.whereType<Map>().map((item) {
             final product = Map<String, dynamic>.from(item);
             final imageUrl = _imageUrlFromItem(product);
+            final storeCurrencySymbol = CurrencyFormatting.symbolForData(
+              storeData,
+              fallback: '',
+            );
+            final productCurrencySymbol = CurrencyFormatting.symbolForData(
+              product,
+              fallback: '',
+            );
+            final currencySymbol =
+                storeCurrencySymbol.isNotEmpty
+                    ? storeCurrencySymbol
+                    : productCurrencySymbol;
 
             return {
               ...product,
@@ -795,6 +852,14 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
               'category': category,
               'storeName': storeData['vendorName'] ?? 'Unknown Store',
               'price': product['price'] ?? '',
+              'currency': product['currency'] ?? storeData['currency'],
+              'currencyCode':
+                  product['currencyCode'] ??
+                  product['currency_code'] ??
+                  storeData['currencyCode'] ??
+                  storeData['currency_code'],
+              'currencySymbol': currencySymbol,
+              'currency_symbol': currencySymbol,
               if (imageUrl.isNotEmpty) ...{
                 'imageUrl': imageUrl,
                 'image': imageUrl,
@@ -847,7 +912,12 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     for (var index = 0; index < _selectedItems.length; index++) {
       final selected = _selectedItems[index];
       final refreshed = _findMatchingSearchItem(selected, refreshedItems);
-      if (refreshed != null && _imageUrlFromItem(refreshed).isNotEmpty) {
+      if (refreshed != null &&
+          (_imageUrlFromItem(refreshed).isNotEmpty ||
+              CurrencyFormatting.symbolForData(
+                refreshed,
+                fallback: '',
+              ).isNotEmpty)) {
         _selectedItems[index] = refreshed;
       }
     }
@@ -910,6 +980,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           (storeData['vendorName'] ?? storeData['name'] ?? '')
               .toString()
               .trim();
+      final currencySymbol = CurrencyFormatting.symbolForData(storeData);
 
       await FirebaseFirestore.instance.collection('stores').doc(storeId).set({
         'storeId': storeId,
@@ -917,6 +988,16 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
         if (storeName.isNotEmpty) 'name': storeName,
         if (storeName.isNotEmpty) 'vendorName': storeName,
         if (logoUrl.isNotEmpty) 'logoUrl': logoUrl,
+        if (currencySymbol.isNotEmpty) 'currencySymbol': currencySymbol,
+        if (currencySymbol.isNotEmpty) 'currency_symbol': currencySymbol,
+        for (final key in const [
+          'currency',
+          'currencyCode',
+          'currencySymbol',
+          'currency_code',
+          'currency_symbol',
+        ])
+          if (storeData[key] != null) key: storeData[key],
         if (_safeProductsByCategory(storeData) != null)
           'productsByCategory': _safeProductsByCategory(storeData),
         if (storeData['totalProducts'] != null)
@@ -1119,9 +1200,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final barcode = (item['barcode'] ?? '').toString().trim();
     if (name.isEmpty) return;
 
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
+    if (_currentSignedInUid(showMessage: true) == null) return;
 
     final amount = await _askAddToInventoryQty(context, name);
     if (amount == null) return; // user cancelled
@@ -1182,9 +1261,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     final barcode = (item['barcode'] ?? '').toString().trim();
     if (name.isEmpty) return;
 
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
+    if (_currentSignedInUid(showMessage: true) == null) return;
 
     bool alreadyHave = false;
     try {
@@ -1231,11 +1308,8 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
     required String name,
     required String barcode,
   }) async {
-    if (FirebaseAuth.instance.currentUser == null) {
-      await FirebaseAuth.instance.signInAnonymously();
-    }
-
-    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final uid = _currentSignedInUid();
+    if (uid == null) return false;
 
     if (barcode.trim().isNotEmpty) {
       final doc =

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:easespotter/services/currency_formatting.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
@@ -33,6 +34,10 @@ class ProductDetailsScreen extends StatelessWidget {
     ]);
     final category = _stringValue(const ['category', 'department']);
     final price = _stringValue(const ['price', 'unitPrice']);
+    final formattedPrice = CurrencyFormatting.formatPrice(
+      price,
+      productData: product,
+    );
     final barcode = _stringValue(const ['barcode', 'upc', 'ean', 'sku']);
     final storeName = _stringValue(const [
       'storeName',
@@ -145,9 +150,9 @@ class ProductDetailsScreen extends StatelessWidget {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          if (price.isNotEmpty)
+                          if (formattedPrice.isNotEmpty)
                             _infoPill(
-                              '€$price',
+                              formattedPrice,
                               const Color(0xFFFFF3E0),
                               const Color(0xFFB45F06),
                             ),

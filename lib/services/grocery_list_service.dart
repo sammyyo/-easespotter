@@ -1,19 +1,24 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'user_scoped_prefs.dart';
 
 class GroceryListService {
   static const _key = 'grocery_list';
+  static const _favoriteListsKey = 'favorite_lists';
+
+  String get _groceryListKey => UserScopedPrefs.key(_key);
+  String get _favoritesKey => UserScopedPrefs.key(_favoriteListsKey);
 
   Future<List<Map<String, dynamic>>> getList() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    final raw = prefs.getString(_groceryListKey);
     if (raw == null) return [];
     return List<Map<String, dynamic>>.from(jsonDecode(raw));
   }
 
   Future<void> saveList(List<Map<String, dynamic>> items) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(items));
+    await prefs.setString(_groceryListKey, jsonEncode(items));
   }
 
   Future<void> saveCurrentListAsFavorite({
@@ -24,7 +29,7 @@ class GroceryListService {
 
     final current = await getList();
 
-    final favRaw = prefs.getString('favorite_lists');
+    final favRaw = prefs.getString(_favoritesKey);
     List<Map<String, dynamic>> favorites = [];
     if (favRaw != null) {
       favorites = List<Map<String, dynamic>>.from(jsonDecode(favRaw));
@@ -36,7 +41,7 @@ class GroceryListService {
       'items': List<Map<String, dynamic>>.from(current),
     });
 
-    await prefs.setString('favorite_lists', jsonEncode(favorites));
+    await prefs.setString(_favoritesKey, jsonEncode(favorites));
   }
 
   Future<bool> addMinimalItemToCurrentList({

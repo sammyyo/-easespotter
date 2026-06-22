@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:easespotter/widgets/public_profile_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 import 'package:easespotter/widgets/attribution_tag.dart';
 import 'dart:convert';
 
@@ -11,12 +12,14 @@ class PublicListDetailScreen extends StatelessWidget {
   const PublicListDetailScreen({super.key, required this.listId});
 
   Future<void> _copyListToMyGroceryList(
-      List<Map<String, dynamic>> items, BuildContext context) async {
+    List<Map<String, dynamic>> items,
+    BuildContext context,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
 
     // Convert items to JSON and store in local key
     final jsonList = jsonEncode(items);
-    await prefs.setString('grocery_list', jsonList);
+    await prefs.setString(UserScopedPrefs.key('grocery_list'), jsonList);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -32,14 +35,19 @@ class PublicListDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Shared List',
+        title: const Text(
+          'Shared List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance.collection('public_lists').doc(listId).get(),
+        future:
+            FirebaseFirestore.instance
+                .collection('public_lists')
+                .doc(listId)
+                .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -64,12 +72,19 @@ class PublicListDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title,
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       if (createdAt != null)
-                        Text('Shared on ${createdAt.toLocal().toString().split(' ').first}',
-                            style: const TextStyle(color: Colors.grey)),
+                        Text(
+                          'Shared on ${createdAt.toLocal().toString().split(' ').first}',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                       const SizedBox(height: 20),
                       AttributionTag(uid: uid, showDate: true),
                       const SizedBox(height: 30),
@@ -77,14 +92,19 @@ class PublicListDetailScreen extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Description:',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text(
+                              'Description:',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                             const SizedBox(height: 5),
                             Text(description),
                             const SizedBox(height: 20),
                           ],
                         ),
-                      const Text('Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Items:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 10),
                       ...items.map((item) {
                         final title = item['title'] ?? '';
@@ -95,11 +115,14 @@ class PublicListDetailScreen extends StatelessWidget {
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
                           child: ListTile(
-                            leading: const Icon(Icons.check_circle_outline,
-                                color: Colors.deepPurple),
+                            leading: const Icon(
+                              Icons.check_circle_outline,
+                              color: Colors.deepPurple,
+                            ),
                             title: Text(title),
                             subtitle: Text('Qty: $qty • $cat'),
-                            trailing: price.isNotEmpty ? Text('\$$price') : null,
+                            trailing:
+                                price.isNotEmpty ? Text('\$$price') : null,
                           ),
                         );
                       }),

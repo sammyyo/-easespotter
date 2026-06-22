@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:easespotter/services/user_scoped_prefs.dart';
 
 class FavoritesListScreen extends StatefulWidget {
   final Function(List<Map<String, dynamic>>)? onListSelected;
@@ -28,7 +29,9 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
 
   Future<void> _loadFavorites() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? favJson = prefs.getString('favorite_lists');
+    final String? favJson = prefs.getString(
+      UserScopedPrefs.key('favorite_lists'),
+    );
     if (favJson != null) {
       setState(() {
         _favoriteLists = List<Map<String, dynamic>>.from(jsonDecode(favJson));
@@ -62,7 +65,10 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
 
   Future<void> _saveFavorites() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('favorite_lists', jsonEncode(_favoriteLists));
+    await prefs.setString(
+      UserScopedPrefs.key('favorite_lists'),
+      jsonEncode(_favoriteLists),
+    );
   }
 
   String _favoriteKey(Map<String, dynamic> favorite) {

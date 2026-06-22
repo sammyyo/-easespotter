@@ -1,9 +1,11 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/google_logo.dart';
 import 'main_scaffold.dart';
 import './signup_screen.dart';
 
@@ -26,6 +28,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   bool _obscure = true;
   bool _rememberMe = true;
+
+  bool get _supportsAppleSignIn =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   @override
   void dispose() {
@@ -53,6 +59,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'That email looks invalid.';
       case 'user-disabled':
         return 'This account has been disabled.';
+      case 'account-exists-with-different-credential':
+        return 'An account already exists with this email. Try another sign-in method.';
       default:
         return e.message ?? 'Login failed. Please try again.';
     }
@@ -91,8 +99,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ignore: unused_element
-  // ignore: unused_element
   Future<void> _signInWithGoogle() async {
     setState(() => _loading = true);
     try {
@@ -101,8 +107,23 @@ class _LoginScreenState extends State<LoginScreen> {
       _goToHome();
     } on FirebaseAuthException catch (e) {
       _showSnack(_mapAuthError(e));
+    } catch (e) {
+      _showSnack('Google sign-in failed: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() => _loading = true);
+    try {
+      await AuthService.signInWithApple();
+      if (!mounted) return;
+      _goToHome();
+    } on FirebaseAuthException catch (e) {
+      _showSnack(_mapAuthError(e));
     } catch (_) {
-      _showSnack('Google sign-in failed. Please try again.');
+      _showSnack('Apple sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -124,20 +145,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  // ignore: unused_element
   Widget _googleLogo({double size = 18}) {
-    return Image.network(
-      'https://developers.google.com/identity/images/g-logo.png',
-      height: size,
-      width: size,
-      fit: BoxFit.contain,
-      errorBuilder:
-          (_, __, ___) => const Icon(
-            Icons.g_mobiledata_rounded,
-            size: 20,
-            color: Color(0xFFDB4437),
-          ),
-    );
+    return GoogleLogo(size: size);
   }
 
   void _goToHome() {
@@ -386,65 +395,96 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                       ),
                                     ),
-                                    // const SizedBox(height: 14),
-                                    // Row(
-                                    //   children: [
-                                    //     Expanded(
-                                    //       child: Divider(
-                                    //         color: Colors.grey.shade400,
-                                    //       ),
-                                    //     ),
-                                    //     Padding(
-                                    //       padding: const EdgeInsets.symmetric(
-                                    //         horizontal: 8,
-                                    //       ),
-                                    //       child: Text(
-                                    //         'or',
-                                    //         style: theme.textTheme.labelMedium
-                                    //             ?.copyWith(
-                                    //               color: const Color(
-                                    //                 0xFF4F6074,
-                                    //               ),
-                                    //             ),
-                                    //       ),
-                                    //     ),
-                                    //     Expanded(
-                                    //       child: Divider(
-                                    //         color: Colors.grey.shade400,
-                                    //       ),
-                                    //     ),
-                                    //   ],
-                                    // ),
-                                    // const SizedBox(height: 12),
-                                    // SizedBox(
-                                    //   height: 46,
-                                    //   child: OutlinedButton.icon(
-                                    //     onPressed:
-                                    //         _loading ? null : _signInWithGoogle,
-                                    //     icon: _googleLogo(),
-                                    //     label: const Text(
-                                    //       'Sign in with Google',
-                                    //       style: TextStyle(
-                                    //         fontWeight: FontWeight.w600,
-                                    //       ),
-                                    //     ),
-                                    //     style: OutlinedButton.styleFrom(
-                                    //       foregroundColor: const Color(
-                                    //         0xFF1F3042,
-                                    //       ),
-                                    //       backgroundColor: Colors.white
-                                    //           .withValues(alpha: 0.75),
-                                    //       side: BorderSide(
-                                    //         color: Colors.grey.shade300,
-                                    //       ),
-                                    //       shape: RoundedRectangleBorder(
-                                    //         borderRadius: BorderRadius.circular(
-                                    //           14,
-                                    //         ),
-                                    //       ),
-                                    //     ),
-                                    //   ),
-                                    // ),
+                                    const SizedBox(height: 14),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          child: Text(
+                                            'or',
+                                            style: theme.textTheme.labelMedium
+                                                ?.copyWith(
+                                                  color: const Color(
+                                                    0xFF4F6074,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      height: 46,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            _loading ? null : _signInWithGoogle,
+                                        icon: _googleLogo(),
+                                        label: const Text(
+                                          'Sign in with Google',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF1F3042,
+                                          ),
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.75),
+                                          side: BorderSide(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (_supportsAppleSignIn) ...[
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 46,
+                                        child: ElevatedButton.icon(
+                                          onPressed:
+                                              _loading
+                                                  ? null
+                                                  : _signInWithApple,
+                                          icon: const Icon(Icons.apple),
+                                          label: const Text(
+                                            'Sign in with Apple',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            elevation: 0,
+                                            backgroundColor: Colors.black,
+                                            foregroundColor: Colors.white,
+                                            disabledBackgroundColor: Colors
+                                                .black
+                                                .withValues(alpha: 0.45),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 10),
                                     Row(
                                       mainAxisAlignment:

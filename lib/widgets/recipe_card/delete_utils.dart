@@ -2,8 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // OPTIONAL: storage deletion
 // import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 
-Future<void> deleteRecipeCascade({required String recipeId, String? imageUrl}) async {
-  final recipesRef = FirebaseFirestore.instance.collection('recipes').doc(recipeId);
+Future<void> deleteRecipeCascade({
+  required String recipeId,
+  String? imageUrl,
+}) async {
+  final recipesRef = FirebaseFirestore.instance
+      .collection('recipes')
+      .doc(recipeId);
 
   // 1) Delete comments (and replies) in batches
   const pageSize = 300;
@@ -15,7 +20,11 @@ Future<void> deleteRecipeCascade({required String recipeId, String? imageUrl}) a
     for (final commentDoc in snap.docs) {
       const subPage = 300;
       while (true) {
-        final replies = await commentDoc.reference.collection('replies').limit(subPage).get();
+        final replies =
+            await commentDoc.reference
+                .collection('replies')
+                .limit(subPage)
+                .get();
         if (replies.docs.isEmpty) break;
         final subBatch = FirebaseFirestore.instance.batch();
         for (final r in replies.docs) {
@@ -36,6 +45,53 @@ Future<void> deleteRecipeCascade({required String recipeId, String? imageUrl}) a
   await recipesRef.delete();
 
   // 3) OPTIONAL: delete the image file in Storage
+  // if (imageUrl != null && imageUrl.isNotEmpty) {
+  //   try {
+  //     await fb_storage.FirebaseStorage.instance.refFromURL(imageUrl).delete();
+  //   } catch (_) {}
+  // }
+}
+
+Future<void> deleteGlowUpCascade({
+  required String glowUpId,
+  String? imageUrl,
+}) async {
+  final glowUpRef = FirebaseFirestore.instance
+      .collection('glowups')
+      .doc(glowUpId);
+
+  const pageSize = 300;
+  while (true) {
+    final snap = await glowUpRef.collection('comments').limit(pageSize).get();
+    if (snap.docs.isEmpty) break;
+
+    for (final commentDoc in snap.docs) {
+      const subPage = 300;
+      while (true) {
+        final replies =
+            await commentDoc.reference
+                .collection('replies')
+                .limit(subPage)
+                .get();
+        if (replies.docs.isEmpty) break;
+        final subBatch = FirebaseFirestore.instance.batch();
+        for (final reply in replies.docs) {
+          subBatch.delete(reply.reference);
+        }
+        await subBatch.commit();
+      }
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (final doc in snap.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  await glowUpRef.delete();
+
+  // OPTIONAL: delete the image file in Storage
   // if (imageUrl != null && imageUrl.isNotEmpty) {
   //   try {
   //     await fb_storage.FirebaseStorage.instance.refFromURL(imageUrl).delete();
