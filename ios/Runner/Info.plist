@@ -5,6 +5,9 @@
     <key>NSCameraUsageDescription</key>
     <string>EaseSpotter uses the camera to scan barcodes, QR codes, and support product discovery features.</string>
 
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>EaseSpotter uses your photo library so you can choose receipt images for grocery list scanning.</string>
+
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>EaseSpotter uses your location to help show relevant nearby stores and shopping information.</string>
 

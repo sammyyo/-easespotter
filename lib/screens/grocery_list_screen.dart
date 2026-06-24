@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easespotter/services/share_service.dart';
 import 'package:easespotter/screens/favorites_list_screen.dart';
+import 'package:easespotter/screens/qr_scanner_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easespotter/services/home_inventory_service.dart';
@@ -561,6 +562,22 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     _saveGroceryList();
   }
 
+  Future<void> _openReceiptScanner() async {
+    final added = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder:
+            (_) => const QRScannerScreen(
+              initialMode: ScanMode.receipt,
+              returnAfterReceiptAdd: true,
+            ),
+      ),
+    );
+
+    if (added == true) {
+      await _loadGroceryList();
+    }
+  }
+
   double _calculateTotal() {
     double total = 0.0;
     for (final item in _groceryItems) {
@@ -852,7 +869,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   void _saveAsFavorite() {
     final titleController = TextEditingController();
-    final storeController = TextEditingController();
+    final storeController = TextEditingController(
+      text: _suggestFavoriteStoreName(),
+    );
 
     showDialog(
       context: context,
@@ -926,6 +945,17 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             ],
           ),
     );
+  }
+
+  String _suggestFavoriteStoreName() {
+    final receiptStores =
+        _groceryItems
+            .map((item) => item['storeName']?.toString().trim() ?? '')
+            .where((store) => store.isNotEmpty)
+            .toSet();
+
+    if (receiptStores.length == 1) return receiptStores.first;
+    return '';
   }
 
   void _openFavoritesScreen() async {
@@ -1614,6 +1644,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         leading:
             widget.showBackButton
                 ? IconButton(
@@ -1693,50 +1724,35 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   _buildCategoryDropdown(),
 
                   const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _addItem,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 18,
-                        ),
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        side: const BorderSide(color: Colors.teal),
-                      ),
-                      child: const Text(
-                        'Add',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _GroceryActionButton(
+                          icon: Icons.add,
+                          label: 'Add',
+                          color: Colors.teal,
+                          onPressed: _addItem,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _shareGroceryList,
-                      icon: const Icon(Icons.share),
-                      label: const Text(
-                        'Share List',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.teal,
-                        side: const BorderSide(color: Colors.teal),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _GroceryActionButton(
+                          icon: Icons.receipt_long,
+                          label: 'Receipt',
+                          color: Colors.deepPurple,
+                          onPressed: _openReceiptScanner,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _GroceryActionButton(
+                          icon: Icons.share,
+                          label: 'Share',
+                          color: Colors.teal,
+                          onPressed: _shareGroceryList,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 15),
                 ],
@@ -1859,6 +1875,51 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GroceryActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _GroceryActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: color,
+        side: BorderSide(color: color),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+        minimumSize: const Size(0, 56),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }

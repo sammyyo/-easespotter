@@ -10,6 +10,18 @@ class CurrencyFormatting {
     'GHS': '₵',
     'ZAR': 'R',
     'KES': 'KSh',
+    'INR': '₹',
+    'KRW': '₩',
+    'TRY': '₺',
+    'RUB': '₽',
+    'ILS': '₪',
+    'VND': '₫',
+    'THB': '฿',
+    'PHP': '₱',
+    'MXN': r'$',
+    'BRL': r'R$',
+    'CHF': 'CHF',
+    'CNY': '¥',
     'NAIRA': '₦',
     'NIGERIANNAIRA': '₦',
     'DOLLAR': r'$',
@@ -193,7 +205,7 @@ class CurrencyFormatting {
 
     final upper = raw.toUpperCase();
     final knownCode = RegExp(
-      r'\b(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES)\b',
+      r'\b(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES|INR|KRW|TRY|RUB|ILS|VND|THB|PHP|MXN|BRL|CHF|CNY)\b',
     ).firstMatch(upper);
     if (knownCode != null) {
       return _symbolsByCode[knownCode.group(1)] ?? '';
@@ -206,18 +218,18 @@ class CurrencyFormatting {
   static bool _alreadyHasCurrency(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return false;
-    if (RegExp(r'[€£¥₦₵$]').hasMatch(trimmed)) return true;
+    if (RegExp(r'[€£¥₦₵₹₩₺₽₪₫฿₱$]').hasMatch(trimmed)) return true;
     return RegExp(
-      r'^(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES)\s+',
+      r'^(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES|INR|KRW|TRY|RUB|ILS|VND|THB|PHP|MXN|BRL|CHF|CNY)\s+',
     ).hasMatch(trimmed.toUpperCase());
   }
 
   static String _priceWithoutCurrency(String value) {
     return value
-        .replaceAll(RegExp(r'[€£¥₦₵$]'), '')
+        .replaceAll(RegExp(r'[€£¥₦₵₹₩₺₽₪₫฿₱$]'), '')
         .replaceAll(
           RegExp(
-            r'\b(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES)\b',
+            r'\b(USD|CAD|AUD|EUR|GBP|JPY|NGN|GHS|ZAR|KES|INR|KRW|TRY|RUB|ILS|VND|THB|PHP|MXN|BRL|CHF|CNY)\b',
             caseSensitive: false,
           ),
           '',

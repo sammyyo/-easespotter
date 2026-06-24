@@ -121,6 +121,60 @@ class GroceryListService {
     return true;
   }
 
+  Future<int> addReceiptItems(List<Map<String, dynamic>> receiptItems) async {
+    final items = await getList();
+
+    final existing =
+        items
+            .map(
+              (item) => (item['title'] ?? '').toString().trim().toLowerCase(),
+            )
+            .where((title) => title.isNotEmpty)
+            .toSet();
+
+    int addedCount = 0;
+
+    for (final receiptItem in receiptItems) {
+      final title = (receiptItem['title'] ?? '').toString().trim();
+      if (title.isEmpty) continue;
+
+      final key = title.toLowerCase();
+      if (existing.contains(key)) continue;
+
+      final quantity =
+          int.tryParse(receiptItem['quantity']?.toString() ?? '') ?? 1;
+      final unitPrice =
+          double.tryParse(receiptItem['unitPrice']?.toString() ?? '') ??
+          double.tryParse(receiptItem['price']?.toString() ?? '') ??
+          0.0;
+
+      items.add({
+        'title': title,
+        'checked': false,
+        'category': (receiptItem['category'] ?? 'General').toString(),
+        'quantity': quantity,
+        'unitPrice': unitPrice,
+        'price': unitPrice * quantity,
+        'source': 'receipt',
+        if (receiptItem['storeName'] != null)
+          'storeName': receiptItem['storeName'].toString(),
+        if (receiptItem['receiptTotal'] != null)
+          'receiptTotal': receiptItem['receiptTotal'],
+        if (receiptItem['currency'] != null)
+          'currency': receiptItem['currency'].toString(),
+      });
+
+      existing.add(key);
+      addedCount++;
+    }
+
+    if (addedCount > 0) {
+      await saveList(items);
+    }
+
+    return addedCount;
+  }
+
   /// Adds recipe ingredients while preserving your list structure.
   /// - source: 'recipe' so it appears under the "From Recipes" pill
   /// - no store fields / location
