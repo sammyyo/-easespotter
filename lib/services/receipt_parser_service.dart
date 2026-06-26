@@ -12,12 +12,7 @@ class ReceiptParserService {
   );
 
   static final RegExp _noisePattern = RegExp(
-    r'\b(preis|price|prix|precio|preço|preco|summe|sume|somme|suma|total|totale|subtotal|sub\s*total|zwischensumme|tax|vat|iva|tva|mwst|ust|steuer|impuesto|imposto|brutto|netto|net|gross|euro|eur|cash|change|rückgeld|ruckgeld|wechselgeld|monnaie|cambio|troco|card|karte|visa|mastercard|amex|debit|credit|auth|approval|transaction|trans|receipt|ticket|recibo|bon|order|terminal|cashier|cassier|cajero|caixa|register|kasse|store|filiale|date|datum|fecha|data|time|zeit|hora|thank|thanks|danke|merci|gracias|obrigado|coupon|discount|rabatt|savings|payment|zahlung|pago|pagamento|balance|barcode|qr)\b',
-    caseSensitive: false,
-  );
-
-  static final RegExp _summaryLabelPattern = RegExp(
-    r'^\s*(summe|sume|somme|suma|total|totale|gesamt|grand\s*total|amount\s*due|balance\s*due|zu\s*zahlen|subtotal|sub\s*total|zwischensumme|tax|vat|iva|tva|mwst|ust|steuer|impuesto|imposto|brutto|netto|net|gross|cash|bar|change|rückgeld|ruckgeld|wechselgeld|monnaie|cambio|troco|card|karte|debit|credit|paid|tendered|payment|zahlung|pago|pagamento|prix|precio|preço|preco|price|preis|euro|eur|usd|gbp|jpy|ngn|ghs|inr|krw|try|rub|ils|thb|php|zar|kes|mxn|brl|chf|cny)\b',
+    r'\b(preis|price|prix|precio|preço|preco|summe|somme|suma|total|totale|subtotal|sub\s*total|zwischensumme|tax|vat|iva|tva|mwst|ust|steuer|impuesto|imposto|brutto|netto|net|gross|euro|eur|cash|change|rückgeld|ruckgeld|wechselgeld|monnaie|cambio|troco|card|karte|visa|mastercard|amex|debit|credit|auth|approval|transaction|trans|receipt|ticket|recibo|bon|order|terminal|cashier|cassier|cajero|caixa|register|kasse|store|filiale|date|datum|fecha|data|time|zeit|hora|thank|thanks|danke|merci|gracias|obrigado|coupon|discount|rabatt|savings|payment|zahlung|pago|pagamento|balance|barcode|qr)\b',
     caseSensitive: false,
   );
 
@@ -72,7 +67,6 @@ class ReceiptParserService {
       final currency = _detectCurrency(text);
 
       if (name.length < 2 || price == null || price <= 0) continue;
-      if (_looksLikeSummaryLabel(name)) continue;
       if (_looksLikeReceiptMetadata(name)) continue;
 
       final key = name.toLowerCase();
@@ -174,7 +168,6 @@ class ReceiptParserService {
       final candidate = lines[i];
       if (candidate.bounds.left >= priceLine.bounds.left) continue;
       if (_noisePattern.hasMatch(candidate.text)) continue;
-      if (_looksLikeSummaryLabel(candidate.text)) continue;
       if (_priceFromLine(candidate.text) != null) continue;
 
       final name = _cleanItemName(candidate.text);
@@ -202,7 +195,6 @@ class ReceiptParserService {
   }) {
     if (name.length < 2 || price <= 0) return false;
     if (_noisePattern.hasMatch(name)) return false;
-    if (_looksLikeSummaryLabel(name)) return false;
     if (_looksLikeReceiptMetadata(name)) return false;
 
     final key = name.toLowerCase();
@@ -273,68 +265,6 @@ class ReceiptParserService {
     final digits = RegExp(r'\d').allMatches(name).length;
     final letters = RegExp(r'[A-Za-zÀ-ÿ]').allMatches(name).length;
     return letters == 0 || digits > letters * 2;
-  }
-
-  bool _looksLikeSummaryLabel(String name) {
-    final compact = name.toLowerCase().replaceAll(RegExp(r'[^a-zà-ÿ]'), '');
-    if (compact.isEmpty) return false;
-    if (_summaryLabelPattern.hasMatch(name)) return true;
-
-    const compactLabels = {
-      'summe',
-      'sume',
-      'somme',
-      'suma',
-      'total',
-      'totale',
-      'gesamt',
-      'subtotal',
-      'zwischensumme',
-      'tax',
-      'vat',
-      'iva',
-      'tva',
-      'mwst',
-      'ust',
-      'steuer',
-      'impuesto',
-      'imposto',
-      'brutto',
-      'netto',
-      'gross',
-      'cash',
-      'bar',
-      'change',
-      'ruckgeld',
-      'rückgeld',
-      'wechselgeld',
-      'monnaie',
-      'cambio',
-      'troco',
-      'card',
-      'karte',
-      'debit',
-      'credit',
-      'paid',
-      'tendered',
-      'payment',
-      'zahlung',
-      'pago',
-      'pagamento',
-      'balance',
-      'amountdue',
-      'balancedue',
-      'grandtotal',
-      'zuzahlen',
-      'price',
-      'preis',
-      'prix',
-      'precio',
-      'preco',
-      'preço',
-    };
-
-    return compactLabels.contains(compact);
   }
 
   double? _parseMoney(String rawValue) {
@@ -425,35 +355,22 @@ class ReceiptParserService {
       return a.bounds.left.compareTo(b.bounds.left);
     });
 
-    for (final line in lines.take(8)) {
-      final text = line.text;
-      if (_linePricePattern.hasMatch(text)) continue;
-      if (_standalonePricePattern.hasMatch(text)) continue;
-      if (_looksLikeReceiptMetadata(text)) continue;
-      if (RegExp(r'\b\d{4,}\b').hasMatch(text)) continue;
-      if (RegExp(
-        r'\b(receipt|ticket|recibo|bon|invoice|rechnung|datum|date|time|zeit|tax|vat|ust|mwst)\b',
-        caseSensitive: false,
-      ).hasMatch(text)) {
-        continue;
-      }
+    final candidates =
+        lines
+            .take(12)
+            .map((line) => _StoreNameCandidate.fromLine(line.text))
+            .where((candidate) => candidate.score > 0)
+            .toList();
 
-      return _cleanStoreName(text);
-    }
+    if (candidates.isEmpty) return null;
 
-    return null;
-  }
-
-  String _cleanStoreName(String value) {
-    return value
-        .replaceAll(RegExp(r'\s+[-–—]\s+.*$'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    candidates.sort((a, b) => b.score.compareTo(a.score));
+    return candidates.first.name;
   }
 
   double? _detectReceiptTotal(String text) {
     final totalPattern = RegExp(
-      r'\b(summe|sume|suma|somme|total|totale|grand\s+total|amount\s+due|balance\s+due|gesamt|zu\s+zahlen)\b.*?(-?\d{1,6}(?:[.,]\d{2}))',
+      r'\b(summe|sume|suma|somme|gesamtbetrag|gesamt|betrag|total|totale|grand\s+total|amount\s+due|balance\s+due|zu\s+zahlen)\b.*?(-?\d{1,6}(?:[.,]\d{2}))',
       caseSensitive: false,
     );
 
@@ -487,4 +404,54 @@ class _ReceiptLine {
   const _ReceiptLine({required this.text, required this.bounds});
 
   double get centerY => bounds.top + bounds.height / 2;
+}
+
+class _StoreNameCandidate {
+  final String name;
+  final int score;
+
+  const _StoreNameCandidate({required this.name, required this.score});
+
+  static _StoreNameCandidate fromLine(String rawText) {
+    final cleaned =
+        rawText
+            .replaceAll(RegExp(r'\s+[-–—]\s+.*$'), '')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+
+    if (cleaned.length < 2 || cleaned.length > 40) {
+      return _StoreNameCandidate(name: cleaned, score: 0);
+    }
+
+    final lower = cleaned.toLowerCase();
+
+    if (RegExp(r'\d{4,}|www\.|https?:|@').hasMatch(lower)) {
+      return _StoreNameCandidate(name: cleaned, score: 0);
+    }
+
+    if (RegExp(
+      r'\b(receipt|ticket|recibo|bon|invoice|rechnung|datum|date|time|zeit|tax|vat|ust|mwst|summe|total|subtotal|steuer|cash|card|kasse|filiale|terminal|tse|signature|signatur|barcode|qr|preis|price|eur|euro)\b',
+      caseSensitive: false,
+    ).hasMatch(cleaned)) {
+      return _StoreNameCandidate(name: cleaned, score: 0);
+    }
+
+    var score = 1;
+
+    if (RegExp(
+      r'\b(rewe|kaufland|aldi|lidl|edeka|netto|penny|dm|rossmann|walmart|target|kroger|costco|tesco|asda|sainsbury|morrisons|waitrose|carrefour|auchan|mercadona|dia|continente|aldi|spar|coop|migros)\b',
+      caseSensitive: false,
+    ).hasMatch(cleaned)) {
+      score += 8;
+    }
+
+    final letters = RegExp(r'[A-Za-zÀ-ÿ]').allMatches(cleaned).length;
+    final uppercase = RegExp(r'[A-ZÀ-Ý]').allMatches(cleaned).length;
+    if (letters > 0 && uppercase / letters > 0.65) score += 2;
+
+    final wordCount = cleaned.split(RegExp(r'\s+')).length;
+    if (wordCount <= 3) score += 2;
+
+    return _StoreNameCandidate(name: cleaned, score: score);
+  }
 }
