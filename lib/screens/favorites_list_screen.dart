@@ -204,7 +204,7 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
       ),
       body: Column(
         children: [
@@ -277,7 +277,7 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
                               ),
                               leading: const Icon(
                                 Icons.list_alt,
-                                color: Colors.deepPurple,
+                                color: const Color(0xFF006677),
                               ),
                               title: Text(
                                 title,

@@ -5,8 +5,9 @@ class MotivationService {
   static Map<String, String> _motivations = {};
 
   static Future<void> loadMotivations() async {
-    final String jsonString =
-    await rootBundle.loadString('assets/datafile/product_motivations.json');
+    final String jsonString = await rootBundle.loadString(
+      'assets/datafile/product_motivations.json',
+    );
     final Map<String, dynamic> jsonMap = json.decode(jsonString);
     _motivations = jsonMap.map((key, value) => MapEntry(key, value.toString()));
   }

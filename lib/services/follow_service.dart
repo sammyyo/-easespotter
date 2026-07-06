@@ -11,11 +11,9 @@ class FollowService {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return Stream.value(false);
 
-    return _firestore
-        .collection('users')
-        .doc(currentUser.uid)
-        .snapshots()
-        .map((snap) {
+    return _firestore.collection('users').doc(currentUser.uid).snapshots().map((
+      snap,
+    ) {
       final data = snap.data();
       final list = (data?['following'] as List?) ?? const [];
       return list.map((e) => e.toString()).contains(targetUid);

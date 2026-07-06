@@ -14,7 +14,8 @@ class TopCollaboratorsPreview extends StatefulWidget {
   });
 
   @override
-  State<TopCollaboratorsPreview> createState() => _TopCollaboratorsPreviewState();
+  State<TopCollaboratorsPreview> createState() =>
+      _TopCollaboratorsPreviewState();
 }
 
 class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
@@ -38,16 +39,18 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
     final db = FirebaseFirestore.instance;
 
     // 1) Lists the user created
-    final createdSnap = await db
-        .collection('grocery_shares')
-        .where('creatorUid', isEqualTo: uid)
-        .get();
+    final createdSnap =
+        await db
+            .collection('grocery_shares')
+            .where('creatorUid', isEqualTo: uid)
+            .get();
 
     // 2) Lists the user joined (user is in collaborators)
-    final joinedSnap = await db
-        .collection('grocery_shares')
-        .where('collaborators', arrayContains: uid)
-        .get();
+    final joinedSnap =
+        await db
+            .collection('grocery_shares')
+            .where('collaborators', arrayContains: uid)
+            .get();
 
     // Merge docs (avoid duplicates if any)
     final allDocsMap = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
@@ -85,8 +88,8 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
 
     if (counts.isEmpty) return [];
 
-    final sorted = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sorted =
+        counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     final top = sorted.take(widget.limit).toList();
 
@@ -138,8 +141,10 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-              child: avatarUrl.isEmpty ? const Icon(Icons.person, size: 18) : null,
+              backgroundImage:
+                  avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+              child:
+                  avatarUrl.isEmpty ? const Icon(Icons.person, size: 18) : null,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -150,14 +155,20 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
                   ),
                   if (handle.isNotEmpty)
                     Text(
                       handle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 10),
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 10,
+                      ),
                     ),
                   const SizedBox(height: 2),
                   Text(
@@ -200,7 +211,7 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                 ),
               ),
               const SizedBox(height: 4),

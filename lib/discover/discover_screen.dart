@@ -87,7 +87,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         Theme.of(context).textTheme.titleLarge;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F1FF),
+      backgroundColor: const Color(0xFFE6F4F6),
       appBar: AppBar(
         title: Text(
           'Discover',
@@ -97,7 +97,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
@@ -110,7 +110,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.deepPurple.withOpacity(0.14),
+                      const Color(0xFF006677).withOpacity(0.14),
                       Colors.pinkAccent.withOpacity(0.10),
                       Colors.blueAccent.withOpacity(0.08),
                     ],
@@ -1231,7 +1231,7 @@ class _PersonSuggestionCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE9E4FF)),
+            border: Border.all(color: const Color(0xFFBFE3EA)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -1244,7 +1244,7 @@ class _PersonSuggestionCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 27,
-                backgroundColor: const Color(0xFFF3EDFF),
+                backgroundColor: const Color(0xFFE6F4F6),
                 backgroundImage:
                     hasImage ? NetworkImage(person.avatarUrl) : null,
                 child:
@@ -1253,7 +1253,7 @@ class _PersonSuggestionCard extends StatelessWidget {
                         : Text(
                           initial,
                           style: const TextStyle(
-                            color: Colors.deepPurple,
+                            color: const Color(0xFF006677),
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1284,7 +1284,7 @@ class _PersonSuggestionCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1316,7 +1316,7 @@ class _PersonRowCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: const Color(0xFFEDE7FF),
+            backgroundColor: const Color(0xFFE6F4F6),
             backgroundImage:
                 person.avatarUrl.startsWith('http')
                     ? NetworkImage(person.avatarUrl)
@@ -1327,7 +1327,7 @@ class _PersonRowCard extends StatelessWidget {
                     : Text(
                       initial,
                       style: const TextStyle(
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1363,7 +1363,7 @@ class _PersonRowCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1656,11 +1656,11 @@ class _ColorCard extends StatelessWidget {
       case _CardVariant.purple:
         return _VariantConfig(
           gradient: [
-            const Color(0xFF6D28D9).withOpacity(0.22),
-            const Color(0xFF9333EA).withOpacity(0.16),
+            const Color(0xFF006677).withOpacity(0.22),
+            const Color(0xFF004C5A).withOpacity(0.16),
             const Color(0xFFFFFFFF).withOpacity(0.25),
           ],
-          shadowColor: const Color(0xFF6D28D9),
+          shadowColor: const Color(0xFF006677),
         );
       case _CardVariant.blue:
         return _VariantConfig(

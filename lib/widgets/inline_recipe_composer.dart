@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../shopping_layer/new_recipe_screen.dart';
 
 class InlineRecipeComposer extends StatefulWidget {
-
   final VoidCallback? onSubmitted;
 
   const InlineRecipeComposer({super.key, this.onSubmitted});
@@ -45,9 +44,9 @@ class _InlineRecipeComposerState extends State<InlineRecipeComposer> {
       _descController.clear();
       widget.onSubmitted?.call();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     } finally {
       setState(() => _isLoading = false);
     }
@@ -65,12 +64,16 @@ class _InlineRecipeComposerState extends State<InlineRecipeComposer> {
           children: [
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(labelText: 'Quick Recipe Title'),
+              decoration: const InputDecoration(
+                labelText: 'Quick Recipe Title',
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _descController,
-              decoration: const InputDecoration(labelText: 'What’s the recipe?'),
+              decoration: const InputDecoration(
+                labelText: 'What’s the recipe?',
+              ),
               minLines: 2,
               maxLines: 4,
             ),
@@ -80,9 +83,12 @@ class _InlineRecipeComposerState extends State<InlineRecipeComposer> {
                 ElevatedButton.icon(
                   onPressed: _isLoading ? null : _submitQuickRecipe,
                   icon: const Icon(Icons.send, color: Colors.white),
-                  label: const Text('Post', style: TextStyle(color: Colors.white)),
+                  label: const Text(
+                    'Post',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -93,10 +99,12 @@ class _InlineRecipeComposerState extends State<InlineRecipeComposer> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const NewRecipeScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const NewRecipeScreen(),
+                      ),
                     );
                   },
-                )
+                ),
               ],
             ),
           ],

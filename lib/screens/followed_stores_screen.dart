@@ -31,7 +31,7 @@ class FollowedStoresScreen extends StatelessWidget {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -133,7 +133,7 @@ class _StoreAvatar extends StatelessWidget {
     final imageUrl = StoreLogoService.resolveUrl(url);
 
     return CircleAvatar(
-      backgroundColor: Colors.deepPurple.shade50,
+      backgroundColor: const Color(0xFFE6F4F6),
       child:
           imageUrl.isNotEmpty
               ? ClipOval(
@@ -143,7 +143,10 @@ class _StoreAvatar extends StatelessWidget {
                   height: 40,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.store, color: Colors.deepPurple);
+                    return const Icon(
+                      Icons.store,
+                      color: const Color(0xFF006677),
+                    );
                   },
                 ),
               )
@@ -154,7 +157,7 @@ class _StoreAvatar extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder:
                     (_, __, ___) =>
-                        const Icon(Icons.store, color: Colors.deepPurple),
+                        const Icon(Icons.store, color: const Color(0xFF006677)),
               ),
     );
   }

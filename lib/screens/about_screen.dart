@@ -20,7 +20,7 @@ class AboutScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),

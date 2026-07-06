@@ -26,7 +26,10 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     super.initState();
     _loadMoreComments();
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 100 && !_isLoading && _hasMore) {
+      if (_scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 100 &&
+          !_isLoading &&
+          _hasMore) {
         _loadMoreComments();
       }
     });
@@ -57,14 +60,21 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     });
   }
 
-  Future<void> _toggleEmojiReaction(DocumentReference ref, String emoji, bool alreadyReacted) async {
+  Future<void> _toggleEmojiReaction(
+    DocumentReference ref,
+    String emoji,
+    bool alreadyReacted,
+  ) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
     final field = 'reactions.$emoji';
 
     await ref.update({
-      field: alreadyReacted ? FieldValue.arrayRemove([uid]) : FieldValue.arrayUnion([uid])
+      field:
+          alreadyReacted
+              ? FieldValue.arrayRemove([uid])
+              : FieldValue.arrayUnion([uid]),
     });
 
     if (!alreadyReacted) {
@@ -78,14 +88,14 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
             .doc(commentOwnerId)
             .collection('notifications')
             .add({
-          'type': 'reaction',
-          'emoji': emoji,
-          'message': 'reacted to your comment with $emoji',
-          'sourceUid': uid,
-          'relatedId': widget.postId,
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-        });
+              'type': 'reaction',
+              'emoji': emoji,
+              'message': 'reacted to your comment with $emoji',
+              'sourceUid': uid,
+              'relatedId': widget.postId,
+              'createdAt': FieldValue.serverTimestamp(),
+              'isRead': false,
+            });
       }
     }
   }
@@ -94,26 +104,32 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     final editController = TextEditingController(text: currentText);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Comment'),
-        content: TextField(
-          controller: editController,
-          decoration: const InputDecoration(labelText: 'Update your comment'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final newText = editController.text.trim();
-              if (newText.isNotEmpty) {
-                await commentRef.update({'text': newText});
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Edit Comment'),
+            content: TextField(
+              controller: editController,
+              decoration: const InputDecoration(
+                labelText: 'Update your comment',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final newText = editController.text.trim();
+                  if (newText.isNotEmpty) {
+                    await commentRef.update({'text': newText});
+                  }
+                  Navigator.pop(context);
+                },
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -125,16 +141,18 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
       appBar: AppBar(
         title: const Text(
           'Post Details',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance.collection('shopping_wall').doc(widget.postId).get(),
+        future:
+            FirebaseFirestore.instance
+                .collection('shopping_wall')
+                .doc(widget.postId)
+                .get(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
           final data = snapshot.data!.data() as Map<String, dynamic>;
           final title = data['title'] ?? '';
           final desc = data['description'] ?? '';
@@ -154,13 +172,22 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                     child: Image.network(imageUrl),
                   ),
                 const SizedBox(height: 20),
-                Text('$emoji $title', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  '$emoji $title',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Text(desc),
                 const SizedBox(height: 16),
                 Text('Tags: $tags', style: const TextStyle(color: Colors.grey)),
                 const Divider(height: 40),
-                const Text('Comments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text(
+                  'Comments',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 const SizedBox(height: 10),
 
                 ListView.separated(
@@ -181,16 +208,26 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                     final comment = doc.data() as Map<String, dynamic>;
                     final commentText = comment['text'] ?? '';
                     final userId = comment['uid'] ?? '';
-                    final createdAt = (comment['createdAt'] as Timestamp?)?.toDate();
-                    final reactions = Map<String, dynamic>.from(comment['reactions'] ?? {});
-                    final flaggedBy = List<String>.from(comment['flaggedBy'] ?? []);
+                    final createdAt =
+                        (comment['createdAt'] as Timestamp?)?.toDate();
+                    final reactions = Map<String, dynamic>.from(
+                      comment['reactions'] ?? {},
+                    );
+                    final flaggedBy = List<String>.from(
+                      comment['flaggedBy'] ?? [],
+                    );
                     final isAuthor = userId == currentUser?.uid;
-                    final isFlagged = currentUser != null && flaggedBy.contains(currentUser.uid);
+                    final isFlagged =
+                        currentUser != null &&
+                        flaggedBy.contains(currentUser.uid);
 
                     return ListTile(
                       dense: true,
                       isThreeLine: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 4.0,
+                      ),
                       title: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -198,66 +235,122 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                           const SizedBox(height: 6),
                           Text(
                             'User: $userId${createdAt != null ? ' • ${createdAt.toLocal().toString().split(' ').first}' : ''}',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 8,
                             runSpacing: 4,
-                            children: reactionEmojis.map((emoji) {
-                              final users = List<String>.from(reactions[emoji] ?? []);
-                              final hasReacted = currentUser != null && users.contains(currentUser.uid);
-                              return GestureDetector(
-                                onTap: () => _toggleEmojiReaction(doc.reference, emoji, hasReacted),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: hasReacted ? Colors.deepPurple.shade100 : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text('$emoji ${users.length}', style: const TextStyle(fontSize: 14)),
-                                ),
-                              );
-                            }).toList(),
+                            children:
+                                reactionEmojis.map((emoji) {
+                                  final users = List<String>.from(
+                                    reactions[emoji] ?? [],
+                                  );
+                                  final hasReacted =
+                                      currentUser != null &&
+                                      users.contains(currentUser.uid);
+                                  return GestureDetector(
+                                    onTap:
+                                        () => _toggleEmojiReaction(
+                                          doc.reference,
+                                          emoji,
+                                          hasReacted,
+                                        ),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            hasReacted
+                                                ? const Color(0xFFBFE3EA)
+                                                : Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Text(
+                                        '$emoji ${users.length}',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                           ),
                           const SizedBox(height: 6),
                           Row(
                             children: [
                               IconButton(
-                                icon: Icon(Icons.flag, color: isFlagged ? Colors.orange : Colors.grey),
+                                icon: Icon(
+                                  Icons.flag,
+                                  color:
+                                      isFlagged ? Colors.orange : Colors.grey,
+                                ),
                                 onPressed: () {
                                   doc.reference.update({
-                                    'flaggedBy': isFlagged
-                                        ? FieldValue.arrayRemove([currentUser.uid])
-                                        : FieldValue.arrayUnion([currentUser!.uid]),
+                                    'flaggedBy':
+                                        isFlagged
+                                            ? FieldValue.arrayRemove([
+                                              currentUser.uid,
+                                            ])
+                                            : FieldValue.arrayUnion([
+                                              currentUser!.uid,
+                                            ]),
                                   });
                                 },
                               ),
                               if (isAuthor) ...[
                                 IconButton(
-                                  icon: const Icon(Icons.edit, color: Colors.blue),
-                                  onPressed: () => _showEditDialog(doc.reference, commentText),
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: Colors.blue,
+                                  ),
+                                  onPressed:
+                                      () => _showEditDialog(
+                                        doc.reference,
+                                        commentText,
+                                      ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
                                   onPressed: () async {
                                     final confirm = await showDialog<bool>(
                                       context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Delete Comment'),
-                                        content: const Text('Are you sure you want to delete this comment?'),
-                                        actions: [
-                                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                                          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
-                                        ],
-                                      ),
+                                      builder:
+                                          (context) => AlertDialog(
+                                            title: const Text('Delete Comment'),
+                                            content: const Text(
+                                              'Are you sure you want to delete this comment?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () =>
+                                                        Navigator.pop(context),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                onPressed:
+                                                    () => Navigator.pop(
+                                                      context,
+                                                      true,
+                                                    ),
+                                                child: const Text('Delete'),
+                                              ),
+                                            ],
+                                          ),
                                     );
                                     if (confirm == true) {
                                       await doc.reference.delete();
                                     }
                                   },
                                 ),
-                              ]
+                              ],
                             ],
                           ),
                         ],
@@ -272,7 +365,10 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                     Expanded(
                       child: TextField(
                         controller: _commentController,
-                        decoration: const InputDecoration(hintText: 'Write a comment...', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(
+                          hintText: 'Write a comment...',
+                          border: OutlineInputBorder(),
+                        ),
                         minLines: 1,
                         maxLines: 3,
                       ),
@@ -289,16 +385,17 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                               .doc(widget.postId)
                               .collection('comments')
                               .add({
-                            'uid': user.uid,
-                            'text': text,
-                            'createdAt': FieldValue.serverTimestamp(),
-                          });
+                                'uid': user.uid,
+                                'text': text,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              });
 
                           _commentController.clear();
 
                           // Send notification if not the post owner
                           if (postOwnerId != null && postOwnerId != user.uid) {
-                            final myHandleOrName = user.displayName ?? "Someone";
+                            final myHandleOrName =
+                                user.displayName ?? "Someone";
                             await NotificationService().notifyUser(
                               toUid: postOwnerId,
                               type: "comment",
@@ -313,14 +410,17 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
+                        backgroundColor: const Color(0xFF006677),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                       child: const Text('Send'),
                     ),
                   ],
-                )
+                ),
               ],
             ),
           );

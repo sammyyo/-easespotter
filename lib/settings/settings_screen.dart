@@ -55,26 +55,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select Currency',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Select Currency',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const Divider(),
+                ..._currencies.map((code) {
+                  return ListTile(
+                    leading: Text(
+                      _currencyFlags[code] ?? '',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    title: Text('$code  (${_currencySymbols[code]})'),
+                    onTap: () => Navigator.pop(context, code),
+                  );
+                }),
+              ],
             ),
-            const Divider(),
-            ..._currencies.map((code) {
-              return ListTile(
-                leading: Text(_currencyFlags[code] ?? '', style: const TextStyle(fontSize: 24)),
-                title: Text('$code  (${_currencySymbols[code]})'),
-                onTap: () => Navigator.pop(context, code),
-              );
-            }),
-          ],
-        ),
-      ),
+          ),
     );
 
     if (selected != null && selected != _selectedCurrency) {
@@ -95,21 +99,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _confirmLogout() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('You will need to sign in again to continue.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Log out?'),
+            content: const Text('You will need to sign in again to continue.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Log out',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
 
     if (ok == true) {
@@ -128,7 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       {
         'icon': Icons.currency_exchange,
         'title': 'Currency',
-        'subtitle': '$_selectedCurrency (${_currencySymbols[_selectedCurrency]})',
+        'subtitle':
+            '$_selectedCurrency (${_currencySymbols[_selectedCurrency]})',
         'onTap': _selectCurrency,
       },
       {
@@ -157,12 +166,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         centerTitle: true,
         title: const Text(
           'Settings',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: ListView.separated(
@@ -172,13 +178,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         itemBuilder: (context, index) {
           final setting = settings[index];
           final isDanger = setting['isDanger'] == true;
-          final iconColor = isDanger ? Colors.red : Colors.deepPurple;
+          final iconColor = isDanger ? Colors.red : const Color(0xFF006677);
           final titleColor = isDanger ? Colors.red : Colors.black87;
 
           return ListTile(
             onTap: setting['onTap'] as void Function(),
             tileColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             leading: CircleAvatar(
               backgroundColor: iconColor.withValues(alpha: 0.12),
               child: Icon(setting['icon'] as IconData, color: iconColor),
@@ -189,7 +197,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             subtitle: Text(
               setting['subtitle'] as String,
-              style: TextStyle(color: isDanger ? Colors.redAccent : Colors.grey),
+              style: TextStyle(
+                color: isDanger ? Colors.redAccent : Colors.grey,
+              ),
             ),
             trailing: Icon(
               Icons.chevron_right,

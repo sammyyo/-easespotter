@@ -12,10 +12,11 @@ class PublicProfileScreen extends StatelessWidget {
 
   // --- Keep your collaborators fetch as-is (reads public aggregate data)
   Future<List<Map<String, dynamic>>> _fetchTopCollaborators(String uid) async {
-    final query = await FirebaseFirestore.instance
-        .collection('grocery_shares')
-        .where('creatorUid', isEqualTo: uid)
-        .get();
+    final query =
+        await FirebaseFirestore.instance
+            .collection('grocery_shares')
+            .where('creatorUid', isEqualTo: uid)
+            .get();
 
     final Map<String, int> countMap = {};
     for (var doc in query.docs) {
@@ -26,14 +27,17 @@ class PublicProfileScreen extends StatelessWidget {
       }
     }
 
-    final sorted = countMap.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sorted =
+        countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final top = sorted.take(6).toList();
 
     final List<Map<String, dynamic>> result = [];
     for (final entry in top) {
       final userDoc =
-      await FirebaseFirestore.instance.collection('users').doc(entry.key).get();
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(entry.key)
+              .get();
       if (userDoc.exists && userDoc.data() != null) {
         final data = userDoc.data()!;
         result.add({
@@ -48,7 +52,10 @@ class PublicProfileScreen extends StatelessWidget {
   }
 
   // Smaller, cleaner collaborator card (better grid look)
-  Widget _buildCollaboratorCard(BuildContext context, Map<String, dynamic> user) {
+  Widget _buildCollaboratorCard(
+    BuildContext context,
+    Map<String, dynamic> user,
+  ) {
     final avatarUrl = (user['avatarUrl'] ?? '').toString();
     final name = (user['displayName'] ?? 'Anonymous').toString();
     final count = (user['count'] ?? 0);
@@ -73,10 +80,16 @@ class PublicProfileScreen extends StatelessWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: Colors.white.withOpacity(0.85),
-            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-            child: avatarUrl.isEmpty
-                ? Icon(Icons.person, size: 18, color: Colors.indigo.shade400)
-                : null,
+            backgroundImage:
+                avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+            child:
+                avatarUrl.isEmpty
+                    ? Icon(
+                      Icons.person,
+                      size: 18,
+                      color: const Color(0xFF006677),
+                    )
+                    : null,
           ),
           const SizedBox(height: 8),
           Text(
@@ -108,9 +121,7 @@ class PublicProfileScreen extends StatelessWidget {
   }
 
   // Reusable "section card" look
-  Widget _sectionCard({
-    required Widget child,
-  }) {
+  Widget _sectionCard({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -145,26 +156,26 @@ class PublicProfileScreen extends StatelessWidget {
   }
 
   Future<void> _toggleFollow(
-      BuildContext context,
-      bool isFollowing,
-      String targetUid,
-      String currentUid,
-      ) async {
+    BuildContext context,
+    bool isFollowing,
+    String targetUid,
+    String currentUid,
+  ) async {
     final userRef = FirebaseFirestore.instance.collection('users');
     try {
       if (isFollowing) {
         await userRef.doc(currentUid).update({
-          'following': FieldValue.arrayRemove([targetUid])
+          'following': FieldValue.arrayRemove([targetUid]),
         });
         await userRef.doc(targetUid).update({
-          'followers': FieldValue.arrayRemove([currentUid])
+          'followers': FieldValue.arrayRemove([currentUid]),
         });
       } else {
         await userRef.doc(currentUid).set({
-          'following': FieldValue.arrayUnion([targetUid])
+          'following': FieldValue.arrayUnion([targetUid]),
         }, SetOptions(merge: true));
         await userRef.doc(targetUid).set({
-          'followers': FieldValue.arrayUnion([currentUid])
+          'followers': FieldValue.arrayUnion([currentUid]),
         }, SetOptions(merge: true));
       }
     } catch (e) {
@@ -227,7 +238,7 @@ class PublicProfileScreen extends StatelessWidget {
           appBar: AppBar(
             title: Text(title?.isNotEmpty == true ? title! : 'Profile'),
             centerTitle: true,
-            backgroundColor: Colors.deepPurple,
+            backgroundColor: const Color(0xFF006677),
             titleTextStyle: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -244,9 +255,7 @@ class PublicProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 2),
-                    ],
+                    children: [SizedBox(height: 2)],
                   ),
                 );
               }
@@ -262,45 +271,44 @@ class PublicProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PublicProfileWidget(uid: resolvedUid),
-                  ],
+                  children: [PublicProfileWidget(uid: resolvedUid)],
                 ),
               );
             },
           ),
-          bottomNavigationBar: currentUser == null
-              ? AppBottomNav(
-                  currentIndex: 3,
-                  avatarUrl: null,
-                  onTap: (index) {
-                    if (index == 3) return;
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => MainScaffold(initialIndex: index),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                )
-              : StreamBuilder<UserProfile?>(
-                  stream: profileService.watch(currentUser.uid),
-                  builder: (context, meSnapshot) {
-                    return AppBottomNav(
-                      currentIndex: 3,
-                      avatarUrl: meSnapshot.data?.avatarUrl,
-                      onTap: (index) {
-                        if (index == 3) return;
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(
-                            builder: (_) => MainScaffold(initialIndex: index),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                    );
-                  },
-                ),
+          bottomNavigationBar:
+              currentUser == null
+                  ? AppBottomNav(
+                    currentIndex: 3,
+                    avatarUrl: null,
+                    onTap: (index) {
+                      if (index == 3) return;
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => MainScaffold(initialIndex: index),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                  )
+                  : StreamBuilder<UserProfile?>(
+                    stream: profileService.watch(currentUser.uid),
+                    builder: (context, meSnapshot) {
+                      return AppBottomNav(
+                        currentIndex: 3,
+                        avatarUrl: meSnapshot.data?.avatarUrl,
+                        onTap: (index) {
+                          if (index == 3) return;
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) => MainScaffold(initialIndex: index),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                      );
+                    },
+                  ),
         );
       },
     );

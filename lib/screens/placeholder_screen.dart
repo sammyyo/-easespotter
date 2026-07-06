@@ -10,7 +10,7 @@ class PlaceholderScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
       ),
       body: Center(
         child: Text(

@@ -8,20 +8,26 @@ class AllRecipesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Top Recipes',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          'Top Recipes',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('recipes')
-            .where('isPublic', isEqualTo: true)
-            .orderBy('upvotesCount', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('recipes')
+                .where('isPublic', isEqualTo: true)
+                .orderBy('upvotesCount', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No recipes found.'));
+          if (docs.isEmpty)
+            return const Center(child: Text('No recipes found.'));
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -35,13 +41,18 @@ class AllRecipesScreen extends StatelessWidget {
               final upvotes = data['upvotedBy']?.length ?? 0;
 
               return ListTile(
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text('$category • $upvotes upvotes'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipeId: id)),
+                    MaterialPageRoute(
+                      builder: (_) => RecipeDetailScreen(recipeId: id),
+                    ),
                   );
                 },
               );

@@ -255,7 +255,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -306,7 +306,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -727,7 +727,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () {
                     final amount = _parsePositiveInt(
@@ -1114,7 +1114,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('Start New Collaboration'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
@@ -1202,7 +1202,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1245,7 +1245,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -1382,7 +1382,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                 ),
                 decoration: BoxDecoration(
                   color:
-                      isSelected ? const Color(0xFFF3EDFF) : Colors.transparent,
+                      isSelected ? const Color(0xFFE6F4F6) : Colors.transparent,
                   border:
                       isLast
                           ? null
@@ -1398,7 +1398,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.deepPurple : Colors.black87,
+                    color:
+                        isSelected ? const Color(0xFF006677) : Colors.black87,
                   ),
                 ),
               ),
@@ -1420,7 +1421,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: 'Select Category',
-            labelStyle: const TextStyle(color: Colors.deepPurple),
+            labelStyle: const TextStyle(color: const Color(0xFF006677)),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -1430,7 +1431,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             ),
             suffixIcon: const Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: Colors.deepPurple,
+              color: const Color(0xFF006677),
               size: 28,
             ),
           ),
@@ -1456,7 +1457,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: Colors.deepPurple,
+            color: const Color(0xFF006677),
           ),
         ),
         const Divider(thickness: 1.2),
@@ -1557,7 +1558,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       value: 'brought',
                       child: Row(
                         children: [
-                          Icon(Icons.kitchen, color: Colors.deepPurple),
+                          Icon(Icons.kitchen, color: const Color(0xFF006677)),
                           SizedBox(width: 10),
                           Text('Brought home'),
                         ],
@@ -1567,7 +1568,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       value: 'move',
                       child: Row(
                         children: [
-                          Icon(Icons.swap_horiz, color: Colors.deepPurple),
+                          Icon(
+                            Icons.swap_horiz,
+                            color: const Color(0xFF006677),
+                          ),
                           SizedBox(width: 10),
                           Text('Change Category'),
                         ],
@@ -1656,7 +1660,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
           'Grocery List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
@@ -1739,7 +1743,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                         child: _GroceryActionButton(
                           icon: Icons.receipt_long,
                           label: 'Receipt',
-                          color: Colors.deepPurple,
+                          color: const Color(0xFF006677),
                           onPressed: _openReceiptScanner,
                         ),
                       ),
@@ -1765,7 +1769,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   children: [
                     const Icon(
                       Icons.shopping_cart_outlined,
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1773,7 +1777,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                       ),
                     ),
                   ],
@@ -1790,7 +1794,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                     ),
                   ),
                 ),
@@ -1834,17 +1838,19 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                                   vertical: 10,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF3EDFF),
+                                  color: const Color(0xFFE6F4F6),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: Colors.deepPurple.withOpacity(0.12),
+                                    color: const Color(
+                                      0xFF006677,
+                                    ).withOpacity(0.12),
                                   ),
                                 ),
                                 child: Row(
                                   children: [
                                     const Icon(
                                       Icons.restaurant_menu,
-                                      color: Colors.deepPurple,
+                                      color: const Color(0xFF006677),
                                       size: 18,
                                     ),
                                     const SizedBox(width: 8),
@@ -1854,7 +1860,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w800,
-                                          color: Colors.deepPurple,
+                                          color: const Color(0xFF006677),
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -1954,7 +1960,7 @@ class _HeaderIconButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: border),
           ),
-          child: Icon(icon, color: Colors.deepPurple),
+          child: Icon(icon, color: const Color(0xFF006677)),
         ),
       ),
     );
@@ -1983,8 +1989,10 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final selectedBg = Colors.deepPurple.withOpacity(isDark ? 0.35 : 0.12);
-    final selectedText = isDark ? Colors.white : Colors.deepPurple;
+    final selectedBg = const Color(
+      0xFF006677,
+    ).withOpacity(isDark ? 0.35 : 0.12);
+    final selectedText = isDark ? Colors.white : const Color(0xFF006677);
     final unselectedText = isDark ? Colors.white70 : Colors.grey.shade700;
 
     return GestureDetector(
@@ -2039,18 +2047,20 @@ class _QtyChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color:
-                selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
+                selected
+                    ? const Color(0xFF006677)
+                    : Colors.black.withOpacity(0.12),
           ),
           color:
               selected
-                  ? Colors.deepPurple.withOpacity(0.12)
+                  ? const Color(0xFF006677).withOpacity(0.12)
                   : Colors.transparent,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontWeight: FontWeight.w700,
-            color: selected ? Colors.deepPurple : Colors.black87,
+            color: selected ? const Color(0xFF006677) : Colors.black87,
           ),
         ),
       ),

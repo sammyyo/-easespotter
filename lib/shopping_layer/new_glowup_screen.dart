@@ -51,7 +51,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Crop Image',
-          toolbarColor: Colors.deepPurple,
+          toolbarColor: const Color(0xFF006677),
           toolbarWidgetColor: Colors.white,
           initAspectRatio: CropAspectRatioPreset.original,
           lockAspectRatio: true,
@@ -162,12 +162,12 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
                 showCheckmark: false,
                 backgroundColor:
                     Theme.of(context).colorScheme.surfaceContainerHighest,
-                selectedColor: Colors.deepPurple,
+                selectedColor: const Color(0xFF006677),
                 shape: StadiumBorder(
                   side: BorderSide(
                     color:
                         selected
-                            ? Colors.deepPurple
+                            ? const Color(0xFF006677)
                             : Theme.of(context).dividerColor,
                   ),
                 ),
@@ -208,7 +208,10 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+          borderSide: const BorderSide(
+            color: const Color(0xFF006677),
+            width: 2,
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -240,7 +243,10 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+          borderSide: const BorderSide(
+            color: const Color(0xFF006677),
+            width: 2,
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -263,7 +269,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
@@ -351,7 +357,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
                         label: const Text('Submit'),
                         onPressed: _submitGlowUp,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
+                          backgroundColor: const Color(0xFF006677),
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(50),
                           textStyle: const TextStyle(

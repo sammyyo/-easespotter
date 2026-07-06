@@ -25,7 +25,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
     'Lunch',
     'Dinner',
     'Snack',
-    'Dessert'
+    'Dessert',
   ];
   String _selectedCategory = 'Dinner';
 
@@ -55,21 +55,20 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
 
     final normalized = raw.toLowerCase().trim();
 
-    final exists = _ingredients.any((i) =>
-        (i['normalized'] ?? '').toString().trim().toLowerCase() == normalized);
+    final exists = _ingredients.any(
+      (i) =>
+          (i['normalized'] ?? '').toString().trim().toLowerCase() == normalized,
+    );
 
     if (exists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ingredient already added')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ingredient already added')));
       return;
     }
 
     setState(() {
-      _ingredients.add({
-        'name': raw,
-        'normalized': normalized,
-      });
+      _ingredients.add({'name': raw, 'normalized': normalized});
       _ingredientController.clear();
     });
   }
@@ -79,8 +78,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picked =
-    await ImagePicker().pickImage(source: ImageSource.gallery);
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) {
       setState(() => _imageFile = File(picked.path));
     }
@@ -89,8 +87,9 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
   Future<String?> _uploadImage(String recipeId) async {
     if (_imageFile == null) return null;
 
-    final ref =
-    FirebaseStorage.instance.ref().child('recipe_images/$recipeId.jpg');
+    final ref = FirebaseStorage.instance.ref().child(
+      'recipe_images/$recipeId.jpg',
+    );
     await ref.putFile(_imageFile!);
     return await ref.getDownloadURL();
   }
@@ -117,17 +116,16 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
     }
 
     if (_imageFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add an image')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please add an image')));
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final docRef =
-      FirebaseFirestore.instance.collection('recipes').doc();
+      final docRef = FirebaseFirestore.instance.collection('recipes').doc();
       final imageUrl = await _uploadImage(docRef.id);
 
       await docRef.set({
@@ -142,22 +140,25 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         'imageUrl': imageUrl,
 
         //  Updated to save the normalized name for matching
-        'ingredients': _ingredients
-            .map((i) => {
-                  'name': (i['name'] ?? '').toString(),
-                  'normalized': (i['normalized'] ?? '').toString(),
-                })
-            .where((i) => (i['name'] ?? '').toString().isNotEmpty)
-            .toList(),
+        'ingredients':
+            _ingredients
+                .map(
+                  (i) => {
+                    'name': (i['name'] ?? '').toString(),
+                    'normalized': (i['normalized'] ?? '').toString(),
+                  },
+                )
+                .where((i) => (i['name'] ?? '').toString().isNotEmpty)
+                .toList(),
       });
 
       if (!mounted) return;
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error submitting recipe: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error submitting recipe: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -165,9 +166,9 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
 
   Future<void> _openCategoryMenu() async {
     final RenderBox box =
-    _categoryFieldKey.currentContext!.findRenderObject() as RenderBox;
+        _categoryFieldKey.currentContext!.findRenderObject() as RenderBox;
     final RenderBox overlay =
-    Overlay.of(context).context.findRenderObject() as RenderBox;
+        Overlay.of(context).context.findRenderObject() as RenderBox;
 
     final Offset offset = box.localToGlobal(Offset.zero);
     final Size overlaySize = overlay.size;
@@ -189,40 +190,47 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         right,
         overlaySize.height - top,
       ),
-      items: _categories.asMap().entries.map((entry) {
-        final i = entry.key;
-        final cat = entry.value;
-        final isLast = i == _categories.length - 1;
-        final isSelected = cat == _selectedCategory;
+      items:
+          _categories.asMap().entries.map((entry) {
+            final i = entry.key;
+            final cat = entry.value;
+            final isLast = i == _categories.length - 1;
+            final isSelected = cat == _selectedCategory;
 
-        return PopupMenuItem<String>(
-          value: cat,
-          padding: EdgeInsets.zero,
-          child: Container(
-            width: popupWidth,
-            padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color:
-              isSelected ? const Color(0xFFF3EDFF) : Colors.transparent,
-              border: isLast
-                  ? null
-                  : const Border(
-                bottom:
-                BorderSide(color: Color(0xFFE6E6E6), width: 1),
+            return PopupMenuItem<String>(
+              value: cat,
+              padding: EdgeInsets.zero,
+              child: Container(
+                width: popupWidth,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      isSelected ? const Color(0xFFE6F4F6) : Colors.transparent,
+                  border:
+                      isLast
+                          ? null
+                          : const Border(
+                            bottom: BorderSide(
+                              color: Color(0xFFE6E6E6),
+                              width: 1,
+                            ),
+                          ),
+                ),
+                child: Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isSelected ? const Color(0xFF006677) : Colors.black87,
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              cat,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.deepPurple : Colors.black87,
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
     );
 
     if (selected != null && selected != _selectedCategory) {
@@ -239,25 +247,23 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: 'Category',
-            labelStyle: const TextStyle(color: Colors.deepPurple),
+            labelStyle: const TextStyle(color: const Color(0xFF006677)),
             filled: true,
             fillColor: Colors.white,
-            border:
-            OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 14,
+            ),
             suffixIcon: const Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: Colors.deepPurple,
+              color: const Color(0xFF006677),
               size: 28,
             ),
           ),
           child: Text(
             _selectedCategory,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -269,10 +275,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
       controller: _titleController,
       textCapitalization: TextCapitalization.words,
       maxLength: 60,
-      style: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-      ),
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: 'Recipe title',
         hintText: 'e.g. Creamy Garlic Pasta',
@@ -280,25 +283,22 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         fillColor: Colors.white,
         counterText: '',
         prefixIcon: const Icon(Icons.edit_outlined),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFE0E0E0),
-            width: 1.2,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: Colors.deepPurple,
+            color: const Color(0xFF006677),
             width: 2,
           ),
         ),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -313,33 +313,27 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         labelText: 'Description / steps',
         alignLabelWithHint: true,
         hintText:
-        'Share what makes this recipe special and add the key steps or tips…',
+            'Share what makes this recipe special and add the key steps or tips…',
         helperText: 'Tip: 3–6 short sentences work best.',
-        helperStyle: const TextStyle(
-          fontSize: 12,
-          color: Colors.black54,
-        ),
+        helperStyle: const TextStyle(fontSize: 12, color: Colors.black54),
         filled: true,
         fillColor: const Color(0xFFF8F7FF),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0xFFE0E0E0),
-            width: 1.2,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 1.2),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: Colors.deepPurple,
+            color: const Color(0xFF006677),
             width: 2,
           ),
         ),
-        contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
@@ -386,7 +380,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                       width: 2,
                     ),
                   ),
@@ -403,7 +397,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
               child: ElevatedButton(
                 onPressed: _addIngredient,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color(0xFF006677),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -450,15 +444,12 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
           'New Recipe',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: Stack(
@@ -524,7 +515,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
                     icon: const Icon(Icons.send),
                     label: const Text('Submit'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                         vertical: 14,

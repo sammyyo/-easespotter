@@ -42,7 +42,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
@@ -531,12 +531,12 @@ class _TagFilterBar extends StatelessWidget {
                 showCheckmark: false,
                 backgroundColor:
                     Theme.of(context).colorScheme.surfaceContainerHighest,
-                selectedColor: Colors.deepPurple,
+                selectedColor: const Color(0xFF006677),
                 shape: StadiumBorder(
                   side: BorderSide(
                     color:
                         selected
-                            ? Colors.deepPurple
+                            ? const Color(0xFF006677)
                             : Theme.of(context).dividerColor,
                   ),
                 ),

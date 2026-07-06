@@ -8,18 +8,19 @@ class MissionListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Explore Missions',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+      appBar: AppBar(
+        title: const Text(
+          'Explore Missions',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      )),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('missions')
-            .where('isPublic', isEqualTo: true)
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('missions')
+                .where('isPublic', isEqualTo: true)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -43,22 +44,39 @@ class MissionListScreen extends StatelessWidget {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
-                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 4),
                       Text(goal),
-                      if (store.isNotEmpty) Text('Store: $store', style: const TextStyle(color: Colors.deepPurple)),
+                      if (store.isNotEmpty)
+                        Text(
+                          'Store: $store',
+                          style: const TextStyle(
+                            color: const Color(0xFF006677),
+                          ),
+                        ),
                       if (createdAt != null)
-                        Text('Created on: ${createdAt.toLocal().toString().split(' ').first}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(
+                          'Created on: ${createdAt.toLocal().toString().split(' ').first}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
                     ],
                   ),
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => MissionDetailScreen(missionId: docs[index].id),
+                        builder:
+                            (_) =>
+                                MissionDetailScreen(missionId: docs[index].id),
                       ),
                     );
                   },

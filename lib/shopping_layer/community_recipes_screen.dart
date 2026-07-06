@@ -172,7 +172,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
     return Material(
       elevation: 6,
       borderRadius: BorderRadius.circular(14),
-      color: Colors.deepPurple,
+      color: const Color(0xFF006677),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
@@ -297,7 +297,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
             right: 0,
             bottom: 0,
             child: FloatingActionButton(
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: const Color(0xFF006677),
               foregroundColor: Colors.white,
               onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
               child: AnimatedRotation(
@@ -319,7 +319,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
@@ -373,7 +373,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
       child: Align(
         alignment: Alignment.centerLeft,
         child: Material(
-          color: isActive ? Colors.deepPurple : const Color(0xFFF3EDFF),
+          color: isActive ? const Color(0xFF006677) : const Color(0xFFE6F4F6),
           borderRadius: BorderRadius.circular(999),
           child: InkWell(
             onTap: () {
@@ -388,7 +388,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
                   Icon(
                     isActive ? Icons.inventory_2 : Icons.inventory_2_outlined,
                     size: 18,
-                    color: isActive ? Colors.white : Colors.deepPurple,
+                    color: isActive ? Colors.white : const Color(0xFF006677),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -396,7 +396,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: isActive ? Colors.white : Colors.deepPurple,
+                      color: isActive ? Colors.white : const Color(0xFF006677),
                     ),
                   ),
                 ],

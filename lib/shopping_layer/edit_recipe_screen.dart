@@ -27,14 +27,22 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
   File? _imageFile;
   String? _existingImageUrl;
 
-  final List<String> _categories = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Dessert'];
+  final List<String> _categories = [
+    'Breakfast',
+    'Lunch',
+    'Dinner',
+    'Snack',
+    'Dessert',
+  ];
   String? _selectedCategory;
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.initialData['title']);
-    _descriptionController = TextEditingController(text: widget.initialData['description']);
+    _descriptionController = TextEditingController(
+      text: widget.initialData['description'],
+    );
     _isPublic = widget.initialData['isPublic'] ?? true;
     _existingImageUrl = widget.initialData['imageUrl'];
     _selectedCategory = widget.initialData['category'] ?? 'Dinner';
@@ -50,7 +58,9 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
   Future<String?> _uploadImage(String recipeId) async {
     if (_imageFile == null) return _existingImageUrl;
 
-    final ref = FirebaseStorage.instance.ref().child('recipe_images/$recipeId.jpg');
+    final ref = FirebaseStorage.instance.ref().child(
+      'recipe_images/$recipeId.jpg',
+    );
     await ref.putFile(_imageFile!);
     return await ref.getDownloadURL();
   }
@@ -60,14 +70,17 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
 
     final imageUrl = await _uploadImage(widget.recipeId);
 
-    await FirebaseFirestore.instance.collection('recipes').doc(widget.recipeId).update({
-      'title': _titleController.text.trim(),
-      'description': _descriptionController.text.trim(),
-      'isPublic': _isPublic,
-      'imageUrl': imageUrl,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'category': _selectedCategory,
-    });
+    await FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(widget.recipeId)
+        .update({
+          'title': _titleController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'isPublic': _isPublic,
+          'imageUrl': imageUrl,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'category': _selectedCategory,
+        });
 
     setState(() => _isSaving = false);
     Navigator.pop(context);
@@ -76,12 +89,12 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Recipe',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
+      appBar: AppBar(
+        title: const Text(
+          'Edit Recipe',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-      )),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -117,8 +130,16 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
               value: _selectedCategory,
-              decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-              items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+              decoration: const InputDecoration(
+                labelText: 'Category',
+                border: OutlineInputBorder(),
+              ),
+              items:
+                  _categories
+                      .map(
+                        (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
+                      )
+                      .toList(),
               onChanged: (val) => setState(() => _selectedCategory = val),
             ),
             const SizedBox(height: 20),
@@ -133,7 +154,7 @@ class _EditRecipeScreenState extends State<EditRecipeScreen> {
               icon: const Icon(Icons.save),
               label: const Text('Save'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
+                backgroundColor: const Color(0xFF006677),
                 foregroundColor: Colors.white,
               ),
             ),

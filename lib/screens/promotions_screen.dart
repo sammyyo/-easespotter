@@ -28,14 +28,14 @@ class PromotionsScreen extends StatelessWidget {
             .snapshots();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F1FF),
+      backgroundColor: const Color(0xFFE6F4F6),
       appBar: AppBar(
         title: const Text(
           'Promotions',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -254,7 +254,7 @@ class _PromoCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.deepPurple.withOpacity(0.16),
+            const Color(0xFF006677).withOpacity(0.16),
             Colors.pinkAccent.withOpacity(0.10),
             Colors.white.withOpacity(0.55),
           ],
@@ -291,12 +291,12 @@ class _PromoCard extends StatelessWidget {
                         errorBuilder:
                             (_, __, ___) => const Icon(
                               Icons.local_offer_outlined,
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                             ),
                       )
                       : const Icon(
                         Icons.local_offer_outlined,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                       ),
             ),
           ),
@@ -348,7 +348,7 @@ class _PromoCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: Colors.deepPurple,
+                            color: const Color(0xFF006677),
                           ),
                         ),
                       ),

@@ -8,20 +8,26 @@ class AllGlowUpsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Glow-Up Stories',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          'All Glow-Up Stories',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('glowups')
-            .where('isPublic', isEqualTo: true)
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('glowups')
+                .where('isPublic', isEqualTo: true)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
           final docs = snapshot.data!.docs;
 
-          if (docs.isEmpty) return const Center(child: Text('No glow-up stories found.'));
+          if (docs.isEmpty)
+            return const Center(child: Text('No glow-up stories found.'));
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -37,7 +43,9 @@ class AllGlowUpsScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => GlowUpDetailScreen(glowUpId: id)),
+                    MaterialPageRoute(
+                      builder: (_) => GlowUpDetailScreen(glowUpId: id),
+                    ),
                   );
                 },
                 child: Card(
@@ -48,19 +56,35 @@ class AllGlowUpsScreen extends StatelessWidget {
                     children: [
                       if (imageUrl != null && imageUrl.isNotEmpty)
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                          child: Image.network(imageUrl, height: 160, width: double.infinity, fit: BoxFit.cover),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(8),
+                          ),
+                          child: Image.network(
+                            imageUrl,
+                            height: 160,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                             if (tags.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 6),
-                                child: Text(tags, style: const TextStyle(color: Colors.black54)),
+                                child: Text(
+                                  tags,
+                                  style: const TextStyle(color: Colors.black54),
+                                ),
                               ),
                           ],
                         ),

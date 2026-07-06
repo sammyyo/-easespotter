@@ -47,13 +47,19 @@ class AttributionTag extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-                      ? NetworkImage(avatarUrl)
-                      : null,
-                  backgroundColor: Colors.deepPurple,
-                  child: (avatarUrl == null || avatarUrl.isEmpty)
-                      ? const Icon(Icons.person, size: 16, color: Colors.white)
-                      : null,
+                  backgroundImage:
+                      (avatarUrl != null && avatarUrl.isNotEmpty)
+                          ? NetworkImage(avatarUrl)
+                          : null,
+                  backgroundColor: const Color(0xFF006677),
+                  child:
+                      (avatarUrl == null || avatarUrl.isEmpty)
+                          ? const Icon(
+                            Icons.person,
+                            size: 16,
+                            color: Colors.white,
+                          )
+                          : null,
                 ),
                 const SizedBox(width: 8),
                 Column(
@@ -69,7 +75,10 @@ class AttributionTag extends StatelessWidget {
                     if (showDate && createdAt != null)
                       Text(
                         'Joined ${createdAt.toLocal().toString().split(' ').first}',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
                       ),
                   ],
                 ),

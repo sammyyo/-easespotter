@@ -207,9 +207,9 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.withOpacity(0.10),
+        color: const Color(0xFF006677).withOpacity(0.10),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.deepPurple.withOpacity(0.25)),
+        border: Border.all(color: const Color(0xFF006677).withOpacity(0.25)),
       ),
       child: CircleAvatar(
         radius: 12,
@@ -654,14 +654,16 @@ class _ChatScreenState extends State<ChatScreen> {
                             shape: BoxShape.circle,
                             color:
                                 current == e
-                                    ? Colors.deepPurple.withValues(alpha: 0.12)
+                                    ? const Color(
+                                      0xFF006677,
+                                    ).withValues(alpha: 0.12)
                                     : Colors.transparent,
                             border:
                                 current == e
                                     ? Border.all(
-                                      color: Colors.deepPurple.withValues(
-                                        alpha: 0.35,
-                                      ),
+                                      color: const Color(
+                                        0xFF006677,
+                                      ).withValues(alpha: 0.35),
                                     )
                                     : null,
                           ),
@@ -1029,7 +1031,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
@@ -1428,7 +1430,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: 4,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),

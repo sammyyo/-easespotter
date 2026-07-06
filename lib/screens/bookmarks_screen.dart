@@ -247,7 +247,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final resolvedLogo = StoreLogoService.resolveUrl(logoUrl);
     return CircleAvatar(
       radius: size / 2,
-      backgroundColor: Colors.deepPurple.shade50,
+      backgroundColor: const Color(0xFFE6F4F6),
       child:
           resolvedLogo.isNotEmpty
               ? ClipOval(
@@ -259,7 +259,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                   errorBuilder:
                       (_, __, ___) => Icon(
                         Icons.store,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                         size: size * 0.9,
                       ),
                 ),
@@ -272,7 +272,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                 errorBuilder:
                     (_, __, ___) => Icon(
                       Icons.store,
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                       size: size * 0.9,
                     ),
               ),
@@ -366,7 +366,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       child: Container(
         width: width,
         height: height,
-        color: Colors.deepPurple.shade50,
+        color: const Color(0xFFE6F4F6),
         child: ProductImageView(image: imageUrl),
       ),
     );
@@ -667,7 +667,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFF3F0FF),
+                                    color: const Color(0xFFE6F4F6),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: Text(
@@ -675,7 +675,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      color: Colors.deepPurple,
+                                      color: const Color(0xFF006677),
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                     ),
@@ -845,7 +845,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),

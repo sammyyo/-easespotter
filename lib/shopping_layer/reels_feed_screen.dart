@@ -176,7 +176,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                       ),
                     );
                   }
@@ -200,7 +200,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Colors.deepPurple),
+            child: CircularProgressIndicator(color: const Color(0xFF006677)),
           );
         }
 
@@ -327,12 +327,12 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                   width: 76,
                   height: 76,
                   decoration: const BoxDecoration(
-                    color: Color(0xFFEDE7FF),
+                    color: Color(0xFFE6F4F6),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.video_collection_outlined,
-                    color: Colors.deepPurple,
+                    color: const Color(0xFF006677),
                     size: 34,
                   ),
                 ),
@@ -1477,7 +1477,10 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                          : const Icon(Icons.send, color: Colors.deepPurple),
+                          : const Icon(
+                            Icons.send,
+                            color: const Color(0xFF006677),
+                          ),
                 ),
               ],
             ),
@@ -1583,7 +1586,7 @@ class _GroceryListOverlay extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.shopping_bag_outlined,
-                color: Colors.deepPurple,
+                color: const Color(0xFF006677),
               ),
             ),
             const SizedBox(width: 10),
@@ -1609,7 +1612,7 @@ class _GroceryListOverlay extends StatelessWidget {
               child: const Text(
                 'View & Save',
                 style: TextStyle(
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1630,7 +1633,10 @@ class _GroceryListOverlay extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 8),
           child: Row(
             children: [
-              const Icon(Icons.checklist_rounded, color: Colors.deepPurple),
+              const Icon(
+                Icons.checklist_rounded,
+                color: const Color(0xFF006677),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1638,7 +1644,7 @@ class _GroceryListOverlay extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.deepPurple,
+                    color: const Color(0xFF006677),
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
                   ),
@@ -1673,7 +1679,7 @@ class _GroceryListOverlay extends StatelessWidget {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor:
-                    saved ? const Color(0xFF1B8A4B) : Colors.deepPurple,
+                    saved ? const Color(0xFF1B8A4B) : const Color(0xFF006677),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(42),
                 shape: RoundedRectangleBorder(
@@ -1704,7 +1710,7 @@ class _GroceryListOverlay extends StatelessWidget {
                 onChanged: (_) => onToggleItem(index),
                 dense: true,
                 controlAffinity: ListTileControlAffinity.leading,
-                activeColor: Colors.deepPurple,
+                activeColor: const Color(0xFF006677),
                 title: Text(
                   name.isEmpty ? 'Item' : name,
                   maxLines: 1,
@@ -1731,7 +1737,7 @@ class _GroceryListOverlay extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: Colors.deepPurple,
+                                color: const Color(0xFF006677),
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
                               ),

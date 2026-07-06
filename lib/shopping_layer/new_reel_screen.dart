@@ -230,7 +230,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                       children: [
                         Icon(
                           Icons.shopping_bag_outlined,
-                          color: Colors.deepPurple,
+                          color: const Color(0xFF006677),
                         ),
                         SizedBox(width: 10),
                         Text(
@@ -285,7 +285,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                               backgroundColor: Color(0xFFF1ECFF),
                               child: Icon(
                                 Icons.checklist_rounded,
-                                color: Colors.deepPurple,
+                                color: const Color(0xFF006677),
                               ),
                             ),
                             title: Text(
@@ -334,7 +334,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
@@ -366,7 +366,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
-                            color: Colors.deepPurple,
+                            color: const Color(0xFF006677),
                             width: 2,
                           ),
                         ),
@@ -390,7 +390,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
-                            color: Colors.deepPurple,
+                            color: const Color(0xFF006677),
                             width: 2,
                           ),
                         ),
@@ -423,7 +423,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                         label: const Text('Post Reel'),
                         onPressed: saving ? null : _submitReel,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
+                          backgroundColor: const Color(0xFF006677),
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(50),
                           shape: RoundedRectangleBorder(
@@ -468,18 +468,21 @@ class _NewReelScreenState extends State<NewReelScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.add_circle_outline, color: Colors.deepPurple),
+                  Icon(
+                    Icons.add_circle_outline,
+                    color: const Color(0xFF006677),
+                  ),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Link a Saved List (Optional)',
                       style: TextStyle(
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  Icon(Icons.keyboard_arrow_up, color: Colors.deepPurple),
+                  Icon(Icons.keyboard_arrow_up, color: const Color(0xFF006677)),
                 ],
               ),
             ),
@@ -489,7 +492,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFFEDE7FF),
+              color: const Color(0xFFE6F4F6),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFD8CCFF)),
             ),
@@ -497,7 +500,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
               children: [
                 const Icon(
                   Icons.shopping_bag_outlined,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -506,7 +509,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.deepPurple,
+                      color: const Color(0xFF006677),
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -517,7 +520,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                       saving
                           ? null
                           : () => setState(() => _linkedGroceryList = null),
-                  icon: const Icon(Icons.close, color: Colors.deepPurple),
+                  icon: const Icon(Icons.close, color: const Color(0xFF006677)),
                 ),
               ],
             ),

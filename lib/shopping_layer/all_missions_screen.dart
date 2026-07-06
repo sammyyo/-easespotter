@@ -8,19 +8,25 @@ class AllMissionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Shopping Missions',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          'All Shopping Missions',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('missions')
-            .orderBy('joinedCount', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('missions')
+                .orderBy('joinedCount', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No shopping missions found.'));
+          if (docs.isEmpty)
+            return const Center(child: Text('No shopping missions found.'));
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -34,13 +40,18 @@ class AllMissionsScreen extends StatelessWidget {
               final joined = data['joinedCount'] ?? 0;
 
               return ListTile(
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text('$goal • $joined joined'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => MissionDetailScreen(missionId: id)),
+                    MaterialPageRoute(
+                      builder: (_) => MissionDetailScreen(missionId: id),
+                    ),
                   );
                 },
               );

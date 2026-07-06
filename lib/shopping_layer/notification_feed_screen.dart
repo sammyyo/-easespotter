@@ -74,7 +74,7 @@ class NotificationCenterScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
@@ -124,7 +124,7 @@ class NotificationCenterScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color:
                             unreadCount > 0
-                                ? Colors.deepPurple
+                                ? const Color(0xFF006677)
                                 : Colors.grey.shade400,
                         shape: BoxShape.circle,
                       ),
@@ -204,8 +204,7 @@ class NotificationCenterScreen extends StatelessWidget {
                         }
                       },
                       child: Container(
-                        color:
-                            isRead ? Colors.white : Colors.deepPurple.shade50,
+                        color: isRead ? Colors.white : const Color(0xFFE6F4F6),
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: ListTile(
                           onTap: () async {
@@ -240,9 +239,9 @@ class NotificationCenterScreen extends StatelessWidget {
                             children: [
                               CircleAvatar(
                                 radius: 22,
-                                backgroundColor: Colors.deepPurple.withOpacity(
-                                  0.12,
-                                ),
+                                backgroundColor: const Color(
+                                  0xFF006677,
+                                ).withOpacity(0.12),
                                 backgroundImage:
                                     actorAvatarUrl != null
                                         ? NetworkImage(actorAvatarUrl)
@@ -251,7 +250,7 @@ class NotificationCenterScreen extends StatelessWidget {
                                     actorAvatarUrl == null
                                         ? Icon(
                                           leadingIcon,
-                                          color: Colors.deepPurple,
+                                          color: const Color(0xFF006677),
                                         )
                                         : null,
                               ),
@@ -264,7 +263,7 @@ class NotificationCenterScreen extends StatelessWidget {
                                     height: 10,
                                     width: 10,
                                     decoration: BoxDecoration(
-                                      color: Colors.deepPurple,
+                                      color: const Color(0xFF006677),
                                       shape: BoxShape.circle,
                                       border: Border.all(
                                         color: Colors.white,

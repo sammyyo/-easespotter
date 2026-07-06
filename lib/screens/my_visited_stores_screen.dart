@@ -48,7 +48,7 @@ class _MyVisitedStoresScreenState extends State<MyVisitedStoresScreen> {
         appBar: AppBar(
           title: const Text('My Stores'),
           centerTitle: true,
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: const Color(0xFF006677),
           foregroundColor: Colors.white,
         ),
         body: const Center(child: Text('Sign in to see your visited stores.')),
@@ -62,15 +62,12 @@ class _MyVisitedStoresScreenState extends State<MyVisitedStoresScreen> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          _PillSwitchRow(
-            selectedIndex: _selectedIndex,
-            onSelect: _setIndex,
-          ),
+          _PillSwitchRow(selectedIndex: _selectedIndex, onSelect: _setIndex),
 
           Expanded(
             child: PageView(
@@ -104,10 +101,7 @@ class _PillSwitchRow extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
 
-  const _PillSwitchRow({
-    required this.selectedIndex,
-    required this.onSelect,
-  });
+  const _PillSwitchRow({required this.selectedIndex, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -176,8 +170,10 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final selectedBg = Colors.deepPurple.withOpacity(isDark ? 0.35 : 0.12);
-    final selectedText = isDark ? Colors.white : Colors.deepPurple;
+    final selectedBg = const Color(
+      0xFF006677,
+    ).withOpacity(isDark ? 0.35 : 0.12);
+    final selectedText = isDark ? Colors.white : const Color(0xFF006677);
 
     final unselectedText = isDark ? Colors.white70 : Colors.grey.shade700;
 
@@ -256,23 +252,25 @@ class _VisitedStoresMapState extends State<_VisitedStoresMap> {
 
   Future<void> _loadMapData() async {
     try {
-      final visitSnap = await FirebaseFirestore.instance
-          .collection('store_visits')
-          .where('userId', isEqualTo: widget.userId)
-          .orderBy('visitedAt', descending: true)
-          .limit(50)
-          .get();
+      final visitSnap =
+          await FirebaseFirestore.instance
+              .collection('store_visits')
+              .where('userId', isEqualTo: widget.userId)
+              .orderBy('visitedAt', descending: true)
+              .limit(50)
+              .get();
 
       if (visitSnap.docs.isEmpty) {
         if (mounted) setState(() => _loading = false);
         return;
       }
 
-      final storeIds = visitSnap.docs
-          .map((d) => (d.data()['storeId'] ?? '').toString())
-          .where((id) => id.trim().isNotEmpty)
-          .toSet()
-          .toList();
+      final storeIds =
+          visitSnap.docs
+              .map((d) => (d.data()['storeId'] ?? '').toString())
+              .where((id) => id.trim().isNotEmpty)
+              .toSet()
+              .toList();
 
       if (storeIds.isEmpty) {
         if (mounted) setState(() => _loading = false);
@@ -284,7 +282,10 @@ class _VisitedStoresMapState extends State<_VisitedStoresMap> {
 
       for (final storeId in storeIds) {
         final doc =
-        await FirebaseFirestore.instance.collection('stores').doc(storeId).get();
+            await FirebaseFirestore.instance
+                .collection('stores')
+                .doc(storeId)
+                .get();
         if (!doc.exists) continue;
 
         final data = doc.data()!;
@@ -315,7 +316,10 @@ class _VisitedStoresMapState extends State<_VisitedStoresMap> {
         });
 
         if (points.isNotEmpty && _mapController != null) {
-          Future.delayed(const Duration(milliseconds: 300), () => _fitBounds(points));
+          Future.delayed(
+            const Duration(milliseconds: 300),
+            () => _fitBounds(points),
+          );
         }
       }
     } catch (e) {
@@ -359,7 +363,9 @@ class _VisitedStoresMapState extends State<_VisitedStoresMap> {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
-      return Center(child: Text(_error!, style: const TextStyle(color: Colors.red)));
+      return Center(
+        child: Text(_error!, style: const TextStyle(color: Colors.red)),
+      );
     }
 
     if (_markers.isEmpty) {

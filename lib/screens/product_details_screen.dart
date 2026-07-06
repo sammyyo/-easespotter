@@ -51,14 +51,14 @@ class ProductDetailsScreen extends StatelessWidget {
     final location = _locationText();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5FF),
+      backgroundColor: const Color(0xFFE6F4F6),
       appBar: AppBar(
         title: const Text(
           'Product Details',
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: ListView(
@@ -86,7 +86,7 @@ class ProductDetailsScreen extends StatelessWidget {
                       top: Radius.circular(16),
                     ),
                     child: Container(
-                      color: Colors.deepPurple.shade50,
+                      color: const Color(0xFFE6F4F6),
                       child: ProductImageView(image: imageUrl),
                     ),
                   ),
@@ -140,7 +140,7 @@ class ProductDetailsScreen extends StatelessWidget {
                           brand,
                           style: const TextStyle(
                             fontSize: 14,
-                            color: Colors.deepPurple,
+                            color: const Color(0xFF006677),
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -159,8 +159,8 @@ class ProductDetailsScreen extends StatelessWidget {
                           if (location.isNotEmpty)
                             _infoPill(
                               location,
-                              const Color(0xFFF3F0FF),
-                              Colors.deepPurple,
+                              const Color(0xFFE6F4F6),
+                              const Color(0xFF006677),
                             ),
                           if (category.isNotEmpty)
                             _infoPill(
@@ -212,7 +212,7 @@ class ProductDetailsScreen extends StatelessWidget {
 
     return CircleAvatar(
       radius: 16,
-      backgroundColor: Colors.deepPurple.shade50,
+      backgroundColor: const Color(0xFFE6F4F6),
       child:
           resolvedLogo.isNotEmpty
               ? ClipOval(
@@ -266,7 +266,7 @@ class ProductDetailsScreen extends StatelessWidget {
     return Text(
       storeName.trim().isEmpty ? '?' : storeName.trim()[0].toUpperCase(),
       style: const TextStyle(
-        color: Colors.deepPurple,
+        color: const Color(0xFF006677),
         fontWeight: FontWeight.w900,
       ),
     );

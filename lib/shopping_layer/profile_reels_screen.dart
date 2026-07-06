@@ -61,7 +61,7 @@ class _ProfileReelsScreenState extends State<ProfileReelsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
@@ -287,10 +287,10 @@ class _ProfileReelsPillButtonState extends State<_ProfileReelsPillButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final selectedBg = Colors.deepPurple.withValues(
-      alpha: isDark ? 0.35 : 0.12,
-    );
-    final selectedText = isDark ? Colors.white : Colors.deepPurple;
+    final selectedBg = const Color(
+      0xFF006677,
+    ).withValues(alpha: isDark ? 0.35 : 0.12);
+    final selectedText = isDark ? Colors.white : const Color(0xFF006677);
     final unselectedText = isDark ? Colors.white70 : Colors.grey.shade700;
 
     return GestureDetector(

@@ -136,9 +136,7 @@ class StoreReviewService {
 
   /// Checks if the CURRENT user already reviewed a store.
   /// Query used by VisitedStoresSection to show "Reviewed" badge / disable button.
-  static Future<bool> hasUserReviewedStore({
-    required String storeId,
-  }) async {
+  static Future<bool> hasUserReviewedStore({required String storeId}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
@@ -147,13 +145,14 @@ class StoreReviewService {
     if (uid.isEmpty || cleanStoreId.isEmpty) return false;
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('store_reviews')
-          .where('storeId', isEqualTo: cleanStoreId)
-          .limit(1)
-          .get();
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('store_reviews')
+              .where('storeId', isEqualTo: cleanStoreId)
+              .limit(1)
+              .get();
 
       return snap.docs.isNotEmpty;
     } catch (e) {
@@ -163,10 +162,8 @@ class StoreReviewService {
   }
 
   /// Stream for "My Store Reviews" section (public, published) in SocialProfileScreen.
-  static Stream<QuerySnapshot<Map<String, dynamic>>> streamPublicReviewsForUser({
-    required String resolvedUid,
-    int limit = 20,
-  }) {
+  static Stream<QuerySnapshot<Map<String, dynamic>>>
+  streamPublicReviewsForUser({required String resolvedUid, int limit = 20}) {
     final cleanUid = resolvedUid.trim();
     if (cleanUid.isEmpty) {
       return const Stream.empty();

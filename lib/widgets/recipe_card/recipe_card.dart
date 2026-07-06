@@ -67,8 +67,9 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
     }
 
     final uid = currentUser.uid;
-    final docRef =
-    FirebaseFirestore.instance.collection('recipes').doc(widget.recipeId);
+    final docRef = FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(widget.recipeId);
     final isUpvoted = _upvotedBy.contains(uid);
 
     // Optimistic UI
@@ -95,7 +96,8 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
           await NotificationService().notifyUser(
             toUid: widget.uid,
             type: "reaction",
-            message: " $myHandleOrName liked your recipe", // Adjusted message for recipe
+            message:
+                " $myHandleOrName liked your recipe", // Adjusted message for recipe
             itemType: "recipe",
             itemId: widget.recipeId,
             actorUid: uid, // Added actorUid to match service
@@ -177,23 +179,24 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete recipe?'),
-        content: const Text(
-          'This will permanently remove the recipe and its comments.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Delete recipe?'),
+            content: const Text(
+              'This will permanently remove the recipe and its comments.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
@@ -211,9 +214,9 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
       );
       if (mounted) {
         Navigator.of(context).pop(); // close progress
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recipe deleted.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Recipe deleted.')));
       }
     } catch (e) {
       if (mounted) {
@@ -264,9 +267,7 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AuthorHeader(uid: widget.uid),
-                      ],
+                      children: [AuthorHeader(uid: widget.uid)],
                     ),
                   ),
 
@@ -294,14 +295,17 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
                       return Shimmer.fromColors(
                         baseColor: Colors.grey.shade300,
                         highlightColor: Colors.grey.shade100,
-                        child: Container(
-                          color: Colors.white,
-                        ),
+                        child: Container(color: Colors.white),
                       );
                     },
-                    errorBuilder: (_, __, ___) => const Center(
-                      child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                    ),
+                    errorBuilder:
+                        (_, __, ___) => const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -342,11 +346,13 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
                             horizontal: 6,
                             vertical: 0,
                           ),
-                          side: BorderSide(color: Colors.deepPurple.shade100),
-                          backgroundColor:
-                          Colors.deepPurple.withOpacity(0.06),
-                          labelStyle:
-                          const TextStyle(color: Colors.deepPurple),
+                          side: BorderSide(color: const Color(0xFFBFE3EA)),
+                          backgroundColor: const Color(
+                            0xFF006677,
+                          ).withOpacity(0.06),
+                          labelStyle: const TextStyle(
+                            color: const Color(0xFF006677),
+                          ),
                         ),
                       ],
                     ],
@@ -374,23 +380,20 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
                               splashRadius: 20,
                               icon: AnimatedScale(
                                 scale: isUpvoted ? 1.15 : 1.0,
-                                duration:
-                                const Duration(milliseconds: 150),
+                                duration: const Duration(milliseconds: 150),
                                 child: Icon(
                                   isUpvoted
                                       ? Icons.favorite
                                       : Icons.favorite_border,
-                                  color:
-                                  isUpvoted ? Colors.red : Colors.grey,
+                                  color: isUpvoted ? Colors.red : Colors.grey,
                                 ),
                               ),
                               onPressed: _toggleUpvote,
                             ),
                             AnimatedSwitcher(
-                              duration:
-                              const Duration(milliseconds: 180),
-                              transitionBuilder: (child, anim) =>
-                                  ScaleTransition(
+                              duration: const Duration(milliseconds: 180),
+                              transitionBuilder:
+                                  (child, anim) => ScaleTransition(
                                     scale: anim,
                                     child: child,
                                   ),
@@ -437,10 +440,7 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
                       IconButton(
                         tooltip: 'Share',
                         splashRadius: 20,
-                        icon: const FaIcon(
-                          FontAwesomeIcons.share,
-                          size: 20,
-                        ),
+                        icon: const FaIcon(FontAwesomeIcons.share, size: 20),
                         onPressed: _shareRecipe,
                       ),
 

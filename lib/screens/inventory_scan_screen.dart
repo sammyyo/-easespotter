@@ -112,7 +112,7 @@ class _InventoryScanScreenState extends State<InventoryScanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           'Scan to Home Inventory',

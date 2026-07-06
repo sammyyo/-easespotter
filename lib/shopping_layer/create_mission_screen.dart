@@ -43,20 +43,20 @@ class _CreateMissionScreenState extends State<CreateMissionScreen> {
 
     setState(() => _isSubmitting = false);
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Shopping Mission Created!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Shopping Mission Created!')));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Shopping Mission',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w800,
+      appBar: AppBar(
+        title: const Text(
+          'Create Shopping Mission',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-      )),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -74,7 +74,9 @@ class _CreateMissionScreenState extends State<CreateMissionScreen> {
             const SizedBox(height: 15),
             TextField(
               controller: _storeController,
-              decoration: const InputDecoration(labelText: 'Store / Aisle (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Store / Aisle (optional)',
+              ),
             ),
             const SizedBox(height: 15),
             SwitchListTile(
@@ -88,7 +90,9 @@ class _CreateMissionScreenState extends State<CreateMissionScreen> {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.send),
                 label: const Text('Create Mission'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF006677),
+                ),
                 onPressed: _isSubmitting ? null : _submitMission,
               ),
             ),

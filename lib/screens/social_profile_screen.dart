@@ -397,7 +397,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       builder: (ctx) {
         Widget item(int rank) {
           return ListTile(
-            leading: const Icon(Icons.star_rounded, color: Colors.deepPurple),
+            leading: const Icon(
+              Icons.star_rounded,
+              color: const Color(0xFF006677),
+            ),
             title: Text(
               'Add to Shopping Circle (#$rank)',
               style: const TextStyle(fontWeight: FontWeight.w800),
@@ -645,7 +648,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                   height: 1.0,
                 ),
               ),
@@ -689,7 +692,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE9E4FF)),
+            border: Border.all(color: const Color(0xFFBFE3EA)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -705,8 +708,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 url: person.avatarUrl,
                 fallback: const CircleAvatar(
                   radius: 27,
-                  backgroundColor: Color(0xFFF3EDFF),
-                  child: Icon(Icons.person, color: Colors.deepPurple),
+                  backgroundColor: Color(0xFFE6F4F6),
+                  child: Icon(Icons.person, color: const Color(0xFF006677)),
                 ),
               ),
               const SizedBox(height: 9),
@@ -735,7 +738,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -923,7 +926,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       pinned: false,
       floating: true,
       snap: true,
-      backgroundColor: Colors.deepPurple,
+      backgroundColor: const Color(0xFF006677),
       automaticallyImplyLeading: false,
       titleSpacing: 0,
       title:
@@ -1086,7 +1089,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w900,
-          color: Colors.deepPurple,
+          color: const Color(0xFF006677),
         ),
       ),
     );
@@ -1385,12 +1388,15 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               'Move to position $rank',
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                color: isSelected ? Colors.deepPurple : Colors.black87,
+                color: isSelected ? const Color(0xFF006677) : Colors.black87,
               ),
             ),
             trailing:
                 isSelected
-                    ? const Icon(Icons.check_circle, color: Colors.deepPurple)
+                    ? const Icon(
+                      Icons.check_circle,
+                      color: const Color(0xFF006677),
+                    )
                     : const Icon(Icons.swap_vert, color: Colors.black38),
             onTap: () => Navigator.pop(ctx, rank),
           );
@@ -1436,8 +1442,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     );
   }
 
-  static const Color _cardBg = Color(0xFFF4F2FF);
-  static const Color _cardBorder = Color(0x1A5E35B1);
+  static const Color _cardBg = Color(0xFFE6F4F6);
+  static const Color _cardBorder = Color(0x1A006677);
 
   Widget _topCollaboratorCard({
     required String profileUid,
@@ -1514,7 +1520,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                       child: Icon(
                         Icons.person,
                         size: 34,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                       ),
                     ),
                   ),
@@ -1563,9 +1569,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 child: ElevatedButton(
                   onPressed: null,
                   style: ElevatedButton.styleFrom(
-                    disabledBackgroundColor: Colors.deepPurple.withOpacity(
-                      0.35,
-                    ),
+                    disabledBackgroundColor: const Color(
+                      0xFF006677,
+                    ).withOpacity(0.35),
                     disabledForegroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -1589,7 +1595,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 child: ElevatedButton(
                   onPressed: () => _toggleFollowUser(otherUid),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -1693,7 +1699,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Colors.deepPurple,
+                    color: const Color(0xFF006677),
                     height: 1.0,
                   ),
                 ),
@@ -1954,7 +1960,7 @@ class _ProfileContentAction extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: const BoxDecoration(
-              color: Colors.deepPurple,
+              color: const Color(0xFF006677),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white, size: 22),
@@ -1974,7 +1980,7 @@ class _ProfileReviewsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(

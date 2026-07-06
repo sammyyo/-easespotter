@@ -189,7 +189,15 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       title: 'EaseSpotter',
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF006677),
+          primary: const Color(0xFF006677),
+          secondary: const Color(0xFFF88400),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF006677),
+          foregroundColor: Colors.white,
+        ),
         scaffoldBackgroundColor: Colors.grey[100],
       ),
       home: const AuthGate(),

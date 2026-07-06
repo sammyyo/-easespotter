@@ -125,7 +125,7 @@ class _DiscoverPeopleScreenState extends State<DiscoverPeopleScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor:
-                  isFollowing ? Colors.grey.shade300 : Colors.deepPurple,
+                  isFollowing ? Colors.grey.shade300 : const Color(0xFF006677),
               foregroundColor: isFollowing ? Colors.black : Colors.white,
             ),
             child: Text(isFollowing ? 'Unfollow' : 'Follow'),

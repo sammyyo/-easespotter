@@ -37,27 +37,32 @@ class _NewWallPostScreenState extends State<NewWallPostScreen> {
     String? imageUrl;
 
     if (_imageFile != null) {
-      final ref = FirebaseStorage.instance.ref().child('wall_images/$postId.jpg');
+      final ref = FirebaseStorage.instance.ref().child(
+        'wall_images/$postId.jpg',
+      );
       await ref.putFile(_imageFile!);
       imageUrl = await ref.getDownloadURL();
     }
 
-    await FirebaseFirestore.instance.collection('shopping_wall').doc(postId).set({
-      'title': _titleController.text.trim(),
-      'description': _descController.text.trim(),
-      'tags': _tags,
-      'type': _selectedType,
-      'emoji': _selectedEmoji,
-      'imageUrl': imageUrl ?? '',
-      'uid': uid,
-      'createdAt': FieldValue.serverTimestamp(),
-      'likedBy': [],
-    });
+    await FirebaseFirestore.instance
+        .collection('shopping_wall')
+        .doc(postId)
+        .set({
+          'title': _titleController.text.trim(),
+          'description': _descController.text.trim(),
+          'tags': _tags,
+          'type': _selectedType,
+          'emoji': _selectedEmoji,
+          'imageUrl': imageUrl ?? '',
+          'uid': uid,
+          'createdAt': FieldValue.serverTimestamp(),
+          'likedBy': [],
+        });
 
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Post submitted!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Post submitted!')));
   }
 
   void _addTag() {
@@ -73,17 +78,27 @@ class _NewWallPostScreenState extends State<NewWallPostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New ShoppingWall Post',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          'New ShoppingWall Post',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
           child: Column(
             children: [
-              TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Title')),
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
               const SizedBox(height: 10),
-              TextField(controller: _descController, decoration: const InputDecoration(labelText: 'Description'), maxLines: 3),
+              TextField(
+                controller: _descController,
+                decoration: const InputDecoration(labelText: 'Description'),
+                maxLines: 3,
+              ),
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -98,9 +113,17 @@ class _NewWallPostScreenState extends State<NewWallPostScreen> {
               ),
               Wrap(
                 spacing: 8,
-                children: _tags.map((tag) => Chip(label: Text(tag), onDeleted: () {
-                  setState(() => _tags.remove(tag));
-                })).toList(),
+                children:
+                    _tags
+                        .map(
+                          (tag) => Chip(
+                            label: Text(tag),
+                            onDeleted: () {
+                              setState(() => _tags.remove(tag));
+                            },
+                          ),
+                        )
+                        .toList(),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
@@ -130,16 +153,18 @@ class _NewWallPostScreenState extends State<NewWallPostScreen> {
               _imageFile != null
                   ? Image.file(_imageFile!, height: 120)
                   : TextButton.icon(
-                icon: const Icon(Icons.image),
-                label: const Text('Upload Image'),
-                onPressed: _pickImage,
-              ),
+                    icon: const Icon(Icons.image),
+                    label: const Text('Upload Image'),
+                    onPressed: _pickImage,
+                  ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _submitPost,
                 icon: const Icon(Icons.send),
                 label: const Text('Post'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF006677),
+                ),
               ),
             ],
           ),

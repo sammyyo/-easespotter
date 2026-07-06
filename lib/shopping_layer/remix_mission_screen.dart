@@ -174,7 +174,7 @@ class _RemixMissionScreenState extends State<RemixMissionScreen> {
                 icon: const Icon(Icons.save),
                 label: const Text('Save to My Grocery List'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color(0xFF006677),
                 ),
               ),
             ),

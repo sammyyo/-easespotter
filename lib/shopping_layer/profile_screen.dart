@@ -405,7 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color(0xFF006677),
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('Discard'),
@@ -599,7 +599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(
-          color: Colors.deepPurple.withOpacity(0.6),
+          color: const Color(0xFF006677).withOpacity(0.6),
           width: 1.4,
         ),
       ),
@@ -620,7 +620,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.deepPurple),
+          Icon(icon, size: 16, color: const Color(0xFF006677)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -660,9 +660,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.deepPurple.withOpacity(0.08),
+            color: const Color(0xFF006677).withOpacity(0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.deepPurple.withOpacity(0.18)),
+            border: Border.all(
+              color: const Color(0xFF006677).withOpacity(0.18),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -670,7 +672,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Icon(
                 _isPublic ? Icons.public : Icons.lock,
                 size: 16,
-                color: Colors.deepPurple,
+                color: const Color(0xFF006677),
               ),
               const SizedBox(width: 8),
               Text(
@@ -678,7 +680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
-                  color: Colors.deepPurple,
+                  color: const Color(0xFF006677),
                 ),
               ),
             ],
@@ -801,11 +803,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : const Icon(Icons.save),
                   label: Text(_saving ? 'Saving...' : 'Save'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.deepPurple.withOpacity(
-                      0.35,
-                    ),
+                    disabledBackgroundColor: const Color(
+                      0xFF006677,
+                    ).withOpacity(0.35),
                     disabledForegroundColor: Colors.white70,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -847,7 +849,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Scaffold(
         backgroundColor: _pageBg,
         appBar: AppBar(
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: const Color(0xFF006677),
           centerTitle: true,
           elevation: 0,
           iconTheme: const IconThemeData(color: Colors.white),
@@ -893,7 +895,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 _imageUrl!.isNotEmpty)
                                             ? NetworkImage(_imageUrl!)
                                             : null,
-                                    backgroundColor: Colors.deepPurple,
+                                    backgroundColor: const Color(0xFF006677),
                                     child:
                                         (_imageUrl == null ||
                                                 _imageUrl!.isEmpty)
@@ -915,13 +917,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       color: _tint,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.indigo.shade400,
+                                        color: const Color(0xFF006677),
                                       ),
                                     ),
                                     child: Icon(
                                       Icons.edit,
                                       size: 16,
-                                      color: Colors.indigo.shade400,
+                                      color: const Color(0xFF006677),
                                     ),
                                   ),
                                 ),
@@ -1139,10 +1141,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   decoration: BoxDecoration(
                                     color:
                                         active
-                                            ? Colors.deepPurple
-                                            : Colors.deepPurple.withOpacity(
-                                              0.2,
-                                            ),
+                                            ? const Color(0xFF006677)
+                                            : const Color(
+                                              0xFF006677,
+                                            ).withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 );
@@ -1232,7 +1234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   minHeight: 2,
                   backgroundColor: Colors.transparent,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.deepPurple.withOpacity(0.45),
+                    const Color(0xFF006677).withOpacity(0.45),
                   ),
                 ),
               ),

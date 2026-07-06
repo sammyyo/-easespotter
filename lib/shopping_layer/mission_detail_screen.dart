@@ -23,20 +23,24 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
         .collection('missions')
         .doc(widget.missionId)
         .update({
-      'items': FieldValue.arrayUnion([
-        {
-          'title': title.trim(),
-          'submittedBy': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'upvotes': [],
-        }
-      ])
-    });
+          'items': FieldValue.arrayUnion([
+            {
+              'title': title.trim(),
+              'submittedBy': user.uid,
+              'createdAt': FieldValue.serverTimestamp(),
+              'upvotes': [],
+            },
+          ]),
+        });
 
     _itemController.clear();
   }
 
-  Future<void> _toggleUpvote(int index, String uid, List<dynamic> currentItems) async {
+  Future<void> _toggleUpvote(
+    int index,
+    String uid,
+    List<dynamic> currentItems,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -63,11 +67,12 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RemixMissionScreen(
-          missionId: widget.missionId,
-          missionTitle: title,
-          originalItems: _items,
-        ),
+        builder:
+            (_) => RemixMissionScreen(
+              missionId: widget.missionId,
+              missionTitle: title,
+              originalItems: _items,
+            ),
       ),
     );
   }
@@ -75,14 +80,18 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mission Details',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
+      appBar: AppBar(
+        title: const Text(
+          'Mission Details',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      )),
+      ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('missions').doc(widget.missionId).snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('missions')
+                .doc(widget.missionId)
+                .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -98,7 +107,13 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(goal),
                 const SizedBox(height: 20),
@@ -106,7 +121,9 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                   onPressed: () => _navigateToRemixScreen(title),
                   icon: const Icon(Icons.copy),
                   label: const Text("Remix This List"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF006677),
+                  ),
                 ),
                 const Divider(height: 30),
                 TextField(
@@ -120,7 +137,10 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                const Text('Submitted Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'Submitted Items:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 10),
                 Expanded(
                   child: ListView.builder(
@@ -129,7 +149,11 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                       final item = _items[index];
                       final itemTitle = item['title'] ?? '';
                       final upvotes = List<String>.from(item['upvotes'] ?? []);
-                      final isUpvoted = FirebaseAuth.instance.currentUser != null && upvotes.contains(FirebaseAuth.instance.currentUser!.uid);
+                      final isUpvoted =
+                          FirebaseAuth.instance.currentUser != null &&
+                          upvotes.contains(
+                            FirebaseAuth.instance.currentUser!.uid,
+                          );
 
                       return Card(
                         child: ListTile(
@@ -140,10 +164,17 @@ class _MissionDetailScreenState extends State<MissionDetailScreen> {
                               Text('${upvotes.length}'),
                               IconButton(
                                 icon: Icon(
-                                  isUpvoted ? Icons.favorite : Icons.favorite_border,
+                                  isUpvoted
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
                                   color: isUpvoted ? Colors.red : Colors.grey,
                                 ),
-                                onPressed: () => _toggleUpvote(index, item['submittedBy'], _items),
+                                onPressed:
+                                    () => _toggleUpvote(
+                                      index,
+                                      item['submittedBy'],
+                                      _items,
+                                    ),
                               ),
                             ],
                           ),

@@ -14,13 +14,15 @@ class MyGlowUpsGrid extends StatelessWidget {
     if (uid == null) return const SizedBox();
 
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('glowups')
-          .where('authorUid', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('glowups')
+              .where('authorUid', isEqualTo: uid)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
         final docs = snapshot.data!.docs;
 
         if (docs.isEmpty) {
@@ -35,7 +37,10 @@ class MyGlowUpsGrid extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('My Glow-Ups', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const Text(
+                'My Glow-Ups',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 12),
               MasonryGridView.count(
                 shrinkWrap: true,
@@ -47,14 +52,20 @@ class MyGlowUpsGrid extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
                   return GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => GlowUpDetailScreen(glowUpId: docs[index].id),
-                      ),
-                    ),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => GlowUpDetailScreen(
+                                  glowUpId: docs[index].id,
+                                ),
+                          ),
+                        ),
                     child: Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,26 +76,35 @@ class MyGlowUpsGrid extends StatelessWidget {
                               child: Image.network(
                                 data['imageUrl'],
                                 fit: BoxFit.cover,
-                                loadingBuilder: (context, child, loadingProgress) {
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
                                   if (loadingProgress == null) return child;
                                   return Shimmer.fromColors(
                                     baseColor: Colors.grey.shade300,
                                     highlightColor: Colors.grey.shade100,
-                                    child: Container(
-                                      color: Colors.white,
-                                    ),
+                                    child: Container(color: Colors.white),
                                   );
                                 },
-                                errorBuilder: (_, __, ___) => const Center(
-                                  child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                                ),
+                                errorBuilder:
+                                    (_, __, ___) => const Center(
+                                      child: Icon(
+                                        Icons.broken_image,
+                                        size: 48,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
                               ),
                             ),
                           Padding(
                             padding: const EdgeInsets.all(10),
                             child: Text(
                               data['title'] ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),

@@ -28,7 +28,8 @@ class _UserListItemState extends State<UserListItem> {
   @override
   Widget build(BuildContext context) {
     final avatarUrl = (widget.userData['avatarUrl'] ?? '').toString();
-    final displayName = (widget.userData['displayName'] ?? 'Anonymous').toString();
+    final displayName =
+        (widget.userData['displayName'] ?? 'Anonymous').toString();
 
     return ListTile(
       leading: CircleAvatar(
@@ -49,37 +50,41 @@ class _UserListItemState extends State<UserListItem> {
               final isFollowing = snapshot.data ?? false;
 
               return ElevatedButton(
-                onPressed: _busy
-                    ? null
-                    : () async {
-                  setState(() => _busy = true);
-                  try {
-                    if (isFollowing) {
-                      await _followService.unfollowUser(widget.uid);
-                    } else {
-                      await _followService.followUser(widget.uid);
-                    }
-                  } on FirebaseException catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Follow failed: ${e.code}")),
-                    );
-                  } catch (e) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("Follow failed: $e")),
-                    );
-                  } finally {
-                    if (mounted) setState(() => _busy = false);
-                  }
-                },
-                child: _busy
-                    ? const SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-                    : Text(isFollowing ? 'Following' : 'Follow'),
+                onPressed:
+                    _busy
+                        ? null
+                        : () async {
+                          setState(() => _busy = true);
+                          try {
+                            if (isFollowing) {
+                              await _followService.unfollowUser(widget.uid);
+                            } else {
+                              await _followService.followUser(widget.uid);
+                            }
+                          } on FirebaseException catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Follow failed: ${e.code}"),
+                              ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Follow failed: $e")),
+                            );
+                          } finally {
+                            if (mounted) setState(() => _busy = false);
+                          }
+                        },
+                child:
+                    _busy
+                        ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : Text(isFollowing ? 'Following' : 'Follow'),
               );
             },
           ),

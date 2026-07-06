@@ -24,8 +24,10 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
   DocumentReference<Map<String, dynamic>> _convoRef(String convoId) =>
       _db.collection('conversations').doc(convoId);
 
-  DocumentReference<Map<String, dynamic>> _inboxRef(String uid, String convoId) =>
-      _db.collection('users').doc(uid).collection('inbox').doc(convoId);
+  DocumentReference<Map<String, dynamic>> _inboxRef(
+    String uid,
+    String convoId,
+  ) => _db.collection('users').doc(uid).collection('inbox').doc(convoId);
 
   Future<Map<String, dynamic>?> _fetchUserCached(String uid) async {
     if (_userCache.containsKey(uid)) return _userCache[uid];
@@ -61,7 +63,8 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
     final dt = ts.toDate();
     final now = DateTime.now();
 
-    final sameDay = dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    final sameDay =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
 
     if (sameDay) {
       final h = dt.hour.toString().padLeft(2, '0');
@@ -104,7 +107,7 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
     if (uid == null) {
       return Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.deepPurple,
+          backgroundColor: const Color(0xFF006677),
           centerTitle: true,
           iconTheme: const IconThemeData(color: Colors.white),
           title: const Text(
@@ -118,15 +121,12 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Archived",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -142,15 +142,16 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
           final docs = snapshot.data!.docs;
 
           // ✅ archived == true, deleted != true
-          final archivedDocs = docs.where((d) {
-            final data = d.data();
-            final convoId = (data['conversationId'] as String?) ?? d.id;
+          final archivedDocs =
+              docs.where((d) {
+                final data = d.data();
+                final convoId = (data['conversationId'] as String?) ?? d.id;
 
-            final archived = _isTrue(data, 'archived');
-            final deleted = _isTrue(data, 'deleted');
+                final archived = _isTrue(data, 'archived');
+                final deleted = _isTrue(data, 'deleted');
 
-            return archived && !deleted && convoId.isNotEmpty;
-          }).toList();
+                return archived && !deleted && convoId.isNotEmpty;
+              }).toList();
 
           if (archivedDocs.isEmpty) {
             return const Center(child: Text("No archived conversations."));
@@ -209,7 +210,9 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
                         final snack = ScaffoldMessenger.of(context);
                         snack.hideCurrentSnackBar();
                         snack.showSnackBar(
-                          const SnackBar(content: Text("Conversation unarchived")),
+                          const SnackBar(
+                            content: Text("Conversation unarchived"),
+                          ),
                         );
                         return true;
                       } catch (e) {
@@ -227,18 +230,23 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ChatScreen(
-                                  conversationId: convoId,
-                                  otherUid: otherUid,
-                                  otherDisplayName: title,
-                                ),
+                                builder:
+                                    (_) => ChatScreen(
+                                      conversationId: convoId,
+                                      otherUid: otherUid,
+                                      otherDisplayName: title,
+                                    ),
                               ),
                             );
                           },
                           leading: CircleAvatar(
                             radius: 22,
-                            backgroundImage: avatar != null ? NetworkImage(avatar) : null,
-                            child: avatar == null ? const Icon(Icons.person) : null,
+                            backgroundImage:
+                                avatar != null ? NetworkImage(avatar) : null,
+                            child:
+                                avatar == null
+                                    ? const Icon(Icons.person)
+                                    : null,
                           ),
                           title: Row(
                             children: [
@@ -247,13 +255,18 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
                                   title,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w700),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                               if (time.isNotEmpty)
                                 Text(
                                   time,
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
                                 ),
                             ],
                           ),
@@ -266,14 +279,20 @@ class _ArchivedInboxScreenState extends State<ArchivedInboxScreen> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Colors.grey.shade700,
-                                    fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.w400,
+                                    fontWeight:
+                                        unread > 0
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
                                   ),
                                 ),
                               ),
                               if (unread > 0)
                                 Container(
                                   margin: const EdgeInsets.only(left: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.redAccent,
                                     borderRadius: BorderRadius.circular(999),

@@ -58,17 +58,21 @@ class ProfileCache {
     final existing = _inFlight[uid];
     if (existing != null) return existing;
 
-    final future =
-    FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
-      final value = UserProfile.fromDoc(uid, doc.data());
-      _cache[uid] = _Cached(value, now);
-      _inFlight.remove(uid);
-      return value;
-    }).catchError((_) {
-      _inFlight.remove(uid);
-      if (cached != null) return cached.value;
-      return UserProfile(uid: uid, displayName: '', avatarUrl: '');
-    });
+    final future = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get()
+        .then((doc) {
+          final value = UserProfile.fromDoc(uid, doc.data());
+          _cache[uid] = _Cached(value, now);
+          _inFlight.remove(uid);
+          return value;
+        })
+        .catchError((_) {
+          _inFlight.remove(uid);
+          if (cached != null) return cached.value;
+          return UserProfile(uid: uid, displayName: '', avatarUrl: '');
+        });
 
     _inFlight[uid] = future;
     return future;

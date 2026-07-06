@@ -15,26 +15,22 @@ class MainScaffold extends StatefulWidget {
   State<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver {
+class _MainScaffoldState extends State<MainScaffold>
+    with WidgetsBindingObserver {
   late int _currentIndex;
   int _profileResetNonce = 0;
   String? _avatarUrl;
   final bool _isPublicView = false;
   final PresenceService _presence = PresenceService();
 
-  final List<String?> _titles = [
-    null,
-    'Scan Store QR Code',
-    'Menu',
-    'Profile',
-  ];
+  final List<String?> _titles = [null, 'Scan Store QR Code', 'Menu', 'Profile'];
 
   final List<Color> _tileColors = [
     Color(0xFFDBF0F7), // Followed
     Color(0xFFFFE0B2), // My Stores
     Color(0xFFFAF1BE), // Bookmarks (New color slot or reused)
     Color(0xFFDBF1D8), // Promotions
-    Color(0xFFEEE2F4), // Grocery List
+    Color(0xFFE6F4F6), // Grocery List
     Color(0xFFD8D0C3), // Motivation
     Color(0xFFF0EFEB), // Settings
     Color(0xFFFFE0E0), // About
@@ -75,7 +71,11 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
     if (doc.exists && doc.data()?['avatarUrl'] != null) {
       setState(() {
         _avatarUrl = doc['avatarUrl'];
@@ -83,14 +83,21 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
   }
 
-
   Widget _buildMenuScreen() {
     final List<Map<String, dynamic>> items = [
-      {'icon': Icons.store, 'label': 'Followed Stores', 'route': '/followed-stores'},
+      {
+        'icon': Icons.store,
+        'label': 'Followed Stores',
+        'route': '/followed-stores',
+      },
       {'icon': Icons.history, 'label': 'My Stores', 'route': '/my-stores'},
       {'icon': Icons.bookmark, 'label': 'Bookmarks', 'route': '/bookmarks'},
       {'icon': Icons.campaign, 'label': 'Promotions', 'route': '/promotions'},
-      {'icon': Icons.list_alt, 'label': 'Grocery List', 'route': '/grocery-list'},
+      {
+        'icon': Icons.list_alt,
+        'label': 'Grocery List',
+        'route': '/grocery-list',
+      },
       {'icon': Icons.settings, 'label': 'Settings', 'route': '/settings'},
       {'icon': Icons.info, 'label': 'About', 'route': '/about'},
     ];
@@ -133,7 +140,10 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
                 const SizedBox(height: 10),
                 Text(
                   item['label'],
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -159,23 +169,26 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     ];
 
     return Scaffold(
-      appBar: isProfileTab
-          ? null // Remove AppBar entirely when on SocialProfileScreen
-          : AppBar(
-        title: _titles[_currentIndex] != null
-            ? Text(
-                _titles[_currentIndex]!,
-                style: (appBarTitleStyle ?? const TextStyle()).copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              )
-            : null,
-        centerTitle: true,
-        backgroundColor: Colors.deepPurple,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: const [],
-      ),
+      appBar:
+          isProfileTab
+              ? null // Remove AppBar entirely when on SocialProfileScreen
+              : AppBar(
+                title:
+                    _titles[_currentIndex] != null
+                        ? Text(
+                          _titles[_currentIndex]!,
+                          style: (appBarTitleStyle ?? const TextStyle())
+                              .copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        )
+                        : null,
+                centerTitle: true,
+                backgroundColor: const Color(0xFF006677),
+                iconTheme: const IconThemeData(color: Colors.white),
+                actions: const [],
+              ),
       body: screens[_currentIndex],
       bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,

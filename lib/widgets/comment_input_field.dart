@@ -35,7 +35,11 @@ class _CommentInputFieldState extends State<CommentInputField> {
     String authorAvatar = user.photoURL ?? '';
 
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
       final udata = userDoc.data();
       if (udata != null) {
         authorName = (udata['displayName'] ?? authorName).toString();
@@ -50,21 +54,22 @@ class _CommentInputFieldState extends State<CommentInputField> {
           .doc(widget.parentPath) // e.g. 'glowups/{glowUpId}'
           .collection('comments')
           .add({
-        'uid': user.uid,
-        'text': text,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+            'uid': user.uid,
+            'text': text,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
 
-        // denormalized fields so CommentList doesn’t need to read /users/*
-        'authorDisplayName': authorName,
-        'authorAvatarUrl': authorAvatar,
-      });
+            // denormalized fields so CommentList doesn’t need to read /users/*
+            'authorDisplayName': authorName,
+            'authorAvatarUrl': authorAvatar,
+          });
 
       if (widget.itemOwnerUid != user.uid) {
         await ActivityService.add(
           toUid: widget.itemOwnerUid,
           type: 'comment',
-          message: '${authorName.isEmpty ? 'Someone' : authorName} commented on your post',
+          message:
+              '${authorName.isEmpty ? 'Someone' : authorName} commented on your post',
           actorUid: user.uid,
           actorName: authorName,
           actorAvatarUrl: authorAvatar.isEmpty ? null : authorAvatar,
@@ -100,19 +105,23 @@ class _CommentInputFieldState extends State<CommentInputField> {
                 borderRadius: BorderRadius.circular(8),
               ),
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
             ),
           ),
         ),
         const SizedBox(width: 8),
         IconButton(
-          icon: _isSending
-              ? const SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-              : const Icon(Icons.send, color: Colors.deepPurple),
+          icon:
+              _isSending
+                  ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Icon(Icons.send, color: const Color(0xFF006677)),
           onPressed: _isSending ? null : _submitComment,
         ),
       ],

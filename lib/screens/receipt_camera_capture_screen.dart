@@ -162,7 +162,7 @@ class _ReceiptCameraCaptureScreenState
                       onPressed: _capturing ? null : _takePhoto,
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Colors.deepPurple,
+                        foregroundColor: const Color(0xFF006677),
                         fixedSize: const Size(76, 76),
                         shape: const CircleBorder(),
                       ),

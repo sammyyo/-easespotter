@@ -5,11 +5,7 @@ class UserHandle extends StatelessWidget {
   final String handle;
   final String uid;
 
-  const UserHandle({
-    super.key,
-    required this.handle,
-    required this.uid,
-  });
+  const UserHandle({super.key, required this.handle, required this.uid});
 
   @override
   Widget build(BuildContext context) {
@@ -20,9 +16,7 @@ class UserHandle extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => PublicProfileScreen(uid: uid),
-          ),
+          MaterialPageRoute(builder: (_) => PublicProfileScreen(uid: uid)),
         );
       },
       child: Text(

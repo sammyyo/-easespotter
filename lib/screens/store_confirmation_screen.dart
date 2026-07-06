@@ -200,7 +200,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () {
                     final amount = _parsePositiveInt(
@@ -296,7 +296,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () {
                     final amount = _parsePositiveInt(
@@ -550,7 +550,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
       child: Container(
         width: width,
         height: height,
-        color: Colors.deepPurple.shade50,
+        color: const Color(0xFFE6F4F6),
         child: ProductImageView(image: imageUrl),
       ),
     );
@@ -679,7 +679,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                   vertical: 5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF3F0FF),
+                                  color: const Color(0xFFE6F4F6),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -687,7 +687,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: Colors.deepPurple,
+                                    color: const Color(0xFF006677),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -719,7 +719,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                           children: [
                             _itemActionButton(
                               icon: Icons.kitchen,
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                               tooltip: 'Brought home (add to inventory)',
                               onPressed: () => _guardedAddToHomeInventory(item),
                             ),
@@ -1286,7 +1286,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text(
@@ -1381,7 +1381,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text(
@@ -1514,7 +1514,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                             decoration: BoxDecoration(
                               color:
                                   isSelected
-                                      ? const Color(0xFFF3EDFF)
+                                      ? const Color(0xFFE6F4F6)
                                       : Colors.transparent,
                               border:
                                   isLast
@@ -1533,7 +1533,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                 fontWeight: FontWeight.w600,
                                 color:
                                     isSelected
-                                        ? Colors.deepPurple
+                                        ? const Color(0xFF006677)
                                         : Colors.black87,
                               ),
                             ),
@@ -1608,7 +1608,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                           decoration: InputDecoration(
                             labelText: 'Select Category',
                             labelStyle: const TextStyle(
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                             ),
                             filled: true,
                             fillColor: Colors.white,
@@ -1621,7 +1621,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                             ),
                             suffixIcon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                               size: 28,
                             ),
                           ),
@@ -1687,7 +1687,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: const Color(0xFF006677),
                   ),
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text(
@@ -1766,7 +1766,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
           'Store',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
@@ -1785,7 +1785,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                     width: double.infinity,
                     height: 120,
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple.shade50,
+                      color: const Color(0xFFE6F4F6),
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(20),
                       ),
@@ -1804,7 +1804,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                           const Icon(
                                             Icons.store_mall_directory,
                                             size: 50,
-                                            color: Colors.deepPurple,
+                                            color: const Color(0xFF006677),
                                           ),
                                 ),
                               )
@@ -1816,7 +1816,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                     (_, __, ___) => const Icon(
                                       Icons.store_mall_directory,
                                       size: 50,
-                                      color: Colors.deepPurple,
+                                      color: const Color(0xFF006677),
                                     ),
                               ),
                     ),
@@ -1884,7 +1884,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                 backgroundColor:
                     _isFollowingStore
                         ? Colors.grey.shade300
-                        : Colors.deepPurple,
+                        : const Color(0xFF006677),
                 foregroundColor:
                     _isFollowingStore ? Colors.black : Colors.white,
               ),
@@ -1958,18 +1958,20 @@ class _QtyChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color:
-                selected ? Colors.deepPurple : Colors.black.withOpacity(0.12),
+                selected
+                    ? const Color(0xFF006677)
+                    : Colors.black.withOpacity(0.12),
           ),
           color:
               selected
-                  ? Colors.deepPurple.withOpacity(0.12)
+                  ? const Color(0xFF006677).withOpacity(0.12)
                   : Colors.transparent,
         ),
         child: Text(
           label,
           style: TextStyle(
             fontWeight: FontWeight.w700,
-            color: selected ? Colors.deepPurple : Colors.black87,
+            color: selected ? const Color(0xFF006677) : Colors.black87,
           ),
         ),
       ),

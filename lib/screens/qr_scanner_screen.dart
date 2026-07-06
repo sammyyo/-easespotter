@@ -655,7 +655,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                     label: const Text('Take Receipt Photo'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      foregroundColor: Colors.deepPurple,
+                      foregroundColor: const Color(0xFF006677),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -759,13 +759,13 @@ class _ScanModeButton extends StatelessWidget {
               Icon(
                 icon,
                 size: 18,
-                color: selected ? Colors.deepPurple : Colors.white,
+                color: selected ? const Color(0xFF006677) : Colors.white,
               ),
               const SizedBox(width: 7),
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Colors.deepPurple : Colors.white,
+                  color: selected ? const Color(0xFF006677) : Colors.white,
                   fontWeight: FontWeight.w800,
                 ),
               ),

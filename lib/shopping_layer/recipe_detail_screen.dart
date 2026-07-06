@@ -57,7 +57,7 @@ class RecipeDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
@@ -290,7 +290,7 @@ class RecipeDetailScreen extends StatelessWidget {
                           Text(
                             category,
                             style: const TextStyle(
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -337,7 +337,7 @@ class RecipeDetailScreen extends StatelessWidget {
                               style: TextStyle(color: Colors.white),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.deepPurple,
+                              backgroundColor: const Color(0xFF006677),
                               minimumSize: const Size(double.infinity, 54),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),

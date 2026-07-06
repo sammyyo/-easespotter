@@ -24,20 +24,23 @@ class AvatarStack extends StatelessWidget {
 
     return FirebaseFirestore.instance
         .collection('users')
-        .where(FieldPath.documentId, whereIn: distinct) // Firestore limit applies; uids <= 10
+        .where(
+          FieldPath.documentId,
+          whereIn: distinct,
+        ) // Firestore limit applies; uids <= 10
         .snapshots()
         .map((snap) {
-      final byId = <String, UserProfile>{};
-      for (final doc in snap.docs) {
-        byId[doc.id] = UserProfile.fromDoc(doc.id, doc.data());
-      }
-      final ordered = <UserProfile>[];
-      for (final id in distinct) {
-        final p = byId[id];
-        if (p != null) ordered.add(p);
-      }
-      return ordered;
-    });
+          final byId = <String, UserProfile>{};
+          for (final doc in snap.docs) {
+            byId[doc.id] = UserProfile.fromDoc(doc.id, doc.data());
+          }
+          final ordered = <UserProfile>[];
+          for (final id in distinct) {
+            final p = byId[id];
+            if (p != null) ordered.add(p);
+          }
+          return ordered;
+        });
   }
 
   void _openProfile(BuildContext context, String uid) {
@@ -105,8 +108,10 @@ class _UserAvatarBubble extends StatelessWidget {
     final bg = Theme.of(context).colorScheme.secondary.withOpacity(0.12);
     final hasImage = profile.avatarUrl.isNotEmpty;
     final initial =
-    (profile.displayName.isNotEmpty ? profile.displayName.trim().characters.first : 'U')
-        .toUpperCase();
+        (profile.displayName.isNotEmpty
+                ? profile.displayName.trim().characters.first
+                : 'U')
+            .toUpperCase();
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -121,12 +126,16 @@ class _UserAvatarBubble extends StatelessWidget {
         child: CircleAvatar(
           backgroundColor: bg,
           backgroundImage: hasImage ? NetworkImage(profile.avatarUrl) : null,
-          child: hasImage
-              ? null
-              : Text(
-            initial,
-            style: TextStyle(fontSize: size * 0.55, fontWeight: FontWeight.w700),
-          ),
+          child:
+              hasImage
+                  ? null
+                  : Text(
+                    initial,
+                    style: TextStyle(
+                      fontSize: size * 0.55,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
         ),
       ),
     );

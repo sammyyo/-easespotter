@@ -40,7 +40,10 @@ class _UpgradeAccountScreenState extends State<UpgradeAccountScreen> {
       // Ensure Firestore profile exists/updated
       await UserProfileService(FirebaseFirestore.instance).getOrCreate(
         uid: user.uid,
-        displayName: _name.text.trim().isEmpty ? (user.displayName ?? 'User') : _name.text.trim(),
+        displayName:
+            _name.text.trim().isEmpty
+                ? (user.displayName ?? 'User')
+                : _name.text.trim(),
         avatarUrl: user.photoURL,
         publicProfile: true,
       );
@@ -71,10 +74,11 @@ class _UpgradeAccountScreenState extends State<UpgradeAccountScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Complete Your Account',
+        title: const Text(
+          'Complete Your Account',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
@@ -86,16 +90,33 @@ class _UpgradeAccountScreenState extends State<UpgradeAccountScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full Name')),
-            TextField(controller: _email, decoration: const InputDecoration(labelText: 'Email')),
-            TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(labelText: 'Full Name'),
+            ),
+            TextField(
+              controller: _email,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
             const SizedBox(height: 16),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _loading ? null : _linkEmailPassword,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, minimumSize: const Size(double.infinity, 48)),
-              child: _loading ? const CircularProgressIndicator(color: Colors.white) : const Text('Create Account & Keep My Data'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF006677),
+                minimumSize: const Size(double.infinity, 48),
+              ),
+              child:
+                  _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Create Account & Keep My Data'),
             ),
             TextButton(
               onPressed: _signOut,

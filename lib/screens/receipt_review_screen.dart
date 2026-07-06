@@ -138,7 +138,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
           'Review Receipt',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body:
@@ -151,7 +151,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                     children: [
                       const Icon(
                         Icons.receipt_long,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                         size: 44,
                       ),
                       const SizedBox(height: 14),
@@ -217,7 +217,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
-                                color: Colors.deepPurple,
+                                color: const Color(0xFF006677),
                               ),
                             ),
                           ),
@@ -250,12 +250,12 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    color: Colors.deepPurple.withValues(alpha: 0.08),
+                    color: const Color(0xFF006677).withValues(alpha: 0.08),
                     child: Text(
                       '${_selectedIndexes.length} of ${_items.length} selected',
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: Colors.deepPurple,
+                        color: const Color(0xFF006677),
                       ),
                     ),
                   ),
@@ -304,7 +304,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                             : const Icon(Icons.playlist_add_check),
                     label: const Text('Add to Grocery List'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(

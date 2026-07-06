@@ -21,15 +21,16 @@ class StoreVisitService {
 
     try {
       // 1) Write the history visit
-      final visitRef =
-          await FirebaseFirestore.instance.collection('store_visits').add({
-        'userId': uid,
-        'storeId': cleanStoreId,
-        if (cleanStoreName.isNotEmpty) 'storeName': cleanStoreName,
-        if (cleanLogo.isNotEmpty) 'logoUrl': cleanLogo,
-        'visitedAt': FieldValue.serverTimestamp(),
-        'source': source,
-      });
+      final visitRef = await FirebaseFirestore.instance
+          .collection('store_visits')
+          .add({
+            'userId': uid,
+            'storeId': cleanStoreId,
+            if (cleanStoreName.isNotEmpty) 'storeName': cleanStoreName,
+            if (cleanLogo.isNotEmpty) 'logoUrl': cleanLogo,
+            'visitedAt': FieldValue.serverTimestamp(),
+            'source': source,
+          });
 
       // 2) Write proof-of-visit (1 doc per store per user)
       await FirebaseFirestore.instance
@@ -38,13 +39,13 @@ class StoreVisitService {
           .collection('visitedStores')
           .doc(cleanStoreId)
           .set({
-        'storeId': cleanStoreId,
-        if (cleanStoreName.isNotEmpty) 'storeName': cleanStoreName,
-        if (cleanLogo.isNotEmpty) 'logoUrl': cleanLogo,
-        'lastVisitedAt': FieldValue.serverTimestamp(),
-        'visits': FieldValue.increment(1),
-        'source': source,
-      }, SetOptions(merge: true));
+            'storeId': cleanStoreId,
+            if (cleanStoreName.isNotEmpty) 'storeName': cleanStoreName,
+            if (cleanLogo.isNotEmpty) 'logoUrl': cleanLogo,
+            'lastVisitedAt': FieldValue.serverTimestamp(),
+            'visits': FieldValue.increment(1),
+            'source': source,
+          }, SetOptions(merge: true));
 
       return visitRef.id;
     } catch (e) {

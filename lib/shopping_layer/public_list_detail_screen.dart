@@ -39,7 +39,7 @@ class PublicListDetailScreen extends StatelessWidget {
           'Shared List',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         foregroundColor: Colors.white,
       ),
       body: FutureBuilder<DocumentSnapshot>(
@@ -117,7 +117,7 @@ class PublicListDetailScreen extends StatelessWidget {
                           child: ListTile(
                             leading: const Icon(
                               Icons.check_circle_outline,
-                              color: Colors.deepPurple,
+                              color: const Color(0xFF006677),
                             ),
                             title: Text(title),
                             subtitle: Text('Qty: $qty • $cat'),
@@ -139,7 +139,7 @@ class PublicListDetailScreen extends StatelessWidget {
                     icon: const Icon(Icons.copy),
                     label: const Text('Copy to My Grocery List'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: const Color(0xFF006677),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),

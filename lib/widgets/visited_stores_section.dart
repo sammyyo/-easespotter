@@ -395,7 +395,7 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
             store.storeName.isNotEmpty ? store.storeName[0].toUpperCase() : '?',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.indigo.shade400,
+              color: const Color(0xFF006677),
             ),
           ),
     );
@@ -496,7 +496,7 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
                     ),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color(0xFF006677),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -542,8 +542,8 @@ class _VisitedStoreChipState extends State<_VisitedStoreChip> {
         onTapDown: (_) => setState(() => _pressed = true),
         onTapCancel: () => setState(() => _pressed = false),
         onTapUp: (_) => setState(() => _pressed = false),
-        splashColor: Colors.indigo.withOpacity(0.10),
-        highlightColor: Colors.indigo.withOpacity(0.06),
+        splashColor: const Color(0xFF006677).withOpacity(0.10),
+        highlightColor: const Color(0xFF006677).withOpacity(0.06),
         onTap:
             () => Navigator.push(
               context,
@@ -746,7 +746,7 @@ class _StoreReviewSheetState extends State<_StoreReviewSheet> {
               child: ElevatedButton(
                 onPressed: _saving ? null : _submit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: const Color(0xFF006677),
                   foregroundColor: Colors.white,
                 ),
                 child: Text(_saving ? 'Posting...' : 'Post review'),

@@ -343,7 +343,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: TextButton.icon(
-        icon: const Icon(Icons.library_music, color: Colors.deepPurple),
+        icon: const Icon(Icons.library_music, color: const Color(0xFF006677)),
         label: const Text('Listen on Spotify'),
         onPressed: () async {
           final uri = Uri.parse(cleaned);
@@ -455,7 +455,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     if (!hasAvatar || _avatarProvider == null) {
       return CircleAvatar(
         radius: radius,
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         child: Icon(Icons.person, size: radius, color: Colors.white),
       );
     }
@@ -496,7 +496,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
               ups.UserProfile(uid: widget.uid, displayName: 'User');
 
           final hasAvatar = (profile.avatarUrl ?? '').trim().isNotEmpty;
-          final accentColor = Colors.deepPurple;
+          final accentColor = const Color(0xFF006677);
 
           final firstLink =
               (() {
@@ -551,14 +551,14 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
-                                          color: Colors.deepPurple,
+                                          color: const Color(0xFF006677),
                                           width: 1.2,
                                         ),
                                       ),
                                       child: const Icon(
                                         Icons.edit_outlined,
                                         size: 18,
-                                        color: Colors.deepPurple,
+                                        color: const Color(0xFF006677),
                                       ),
                                     ),
                                     onPressed:

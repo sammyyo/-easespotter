@@ -34,8 +34,10 @@ class _InboxScreenState extends State<InboxScreen> {
   DocumentReference<Map<String, dynamic>> _convoRef(String convoId) =>
       _db.collection('conversations').doc(convoId);
 
-  DocumentReference<Map<String, dynamic>> _inboxRef(String uid, String convoId) =>
-      _db.collection('users').doc(uid).collection('inbox').doc(convoId);
+  DocumentReference<Map<String, dynamic>> _inboxRef(
+    String uid,
+    String convoId,
+  ) => _db.collection('users').doc(uid).collection('inbox').doc(convoId);
 
   // NEW: heuristic to detect UID-like strings so we never show them as a “name”
   bool _looksLikeUid(String s) {
@@ -45,7 +47,10 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   // NEW: safe immediate title from inbox doc (never UID)
-  String _safeImmediateNameFromInboxDoc(Map<String, dynamic> inboxDoc, String otherUid) {
+  String _safeImmediateNameFromInboxDoc(
+    Map<String, dynamic> inboxDoc,
+    String otherUid,
+  ) {
     final raw = (inboxDoc['otherDisplayName'] ?? '').toString().trim();
     if (raw.isEmpty) return "Loading…";
     if (raw == otherUid) return "Loading…";
@@ -142,7 +147,6 @@ class _InboxScreenState extends State<InboxScreen> {
     return "$d/$mo";
   }
 
-
   void _toggleSearch() {
     setState(() {
       _showSearch = !_showSearch;
@@ -164,10 +168,7 @@ class _InboxScreenState extends State<InboxScreen> {
     });
   }
 
-  bool _matchesQuery({
-    required String title,
-    required String lastMessage,
-  }) {
+  bool _matchesQuery({required String title, required String lastMessage}) {
     if (_query.isEmpty) return true;
     return title.toLowerCase().contains(_query) ||
         lastMessage.toLowerCase().contains(_query);
@@ -179,106 +180,86 @@ class _InboxScreenState extends State<InboxScreen> {
     final uid = _myUid;
     if (uid == null) return;
 
-    await _inboxRef(uid, convoId).set(
-      {
-        'archived': true,
-        'archivedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _inboxRef(uid, convoId).set({
+      'archived': true,
+      'archivedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-    await _convoRef(convoId).set(
-      {
-        'archivedBy': {uid: true},
-        'archivedAt': {uid: FieldValue.serverTimestamp()},
-      },
-      SetOptions(merge: true),
-    );
+    await _convoRef(convoId).set({
+      'archivedBy': {uid: true},
+      'archivedAt': {uid: FieldValue.serverTimestamp()},
+    }, SetOptions(merge: true));
   }
 
   Future<void> _unarchiveConversation(String convoId) async {
     final uid = _myUid;
     if (uid == null) return;
 
-    await _inboxRef(uid, convoId).set(
-      {
-        'archived': false,
-        'archivedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _inboxRef(uid, convoId).set({
+      'archived': false,
+      'archivedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-    await _convoRef(convoId).set(
-      {
-        'archivedBy': {uid: false},
-        'archivedAt': {uid: FieldValue.serverTimestamp()},
-      },
-      SetOptions(merge: true),
-    );
+    await _convoRef(convoId).set({
+      'archivedBy': {uid: false},
+      'archivedAt': {uid: FieldValue.serverTimestamp()},
+    }, SetOptions(merge: true));
   }
 
   Future<void> _deleteConversation(String convoId) async {
     final uid = _myUid;
     if (uid == null) return;
 
-    await _inboxRef(uid, convoId).set(
-      {
-        'deleted': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _inboxRef(uid, convoId).set({
+      'deleted': true,
+      'deletedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-    await _convoRef(convoId).set(
-      {
-        'deletedBy': {uid: true},
-        'deletedAt': {uid: FieldValue.serverTimestamp()},
-      },
-      SetOptions(merge: true),
-    );
+    await _convoRef(convoId).set({
+      'deletedBy': {uid: true},
+      'deletedAt': {uid: FieldValue.serverTimestamp()},
+    }, SetOptions(merge: true));
   }
 
   Future<void> _undeleteConversation(String convoId) async {
     final uid = _myUid;
     if (uid == null) return;
 
-    await _inboxRef(uid, convoId).set(
-      {
-        'deleted': false,
-        'deletedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _inboxRef(uid, convoId).set({
+      'deleted': false,
+      'deletedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-    await _convoRef(convoId).set(
-      {
-        'deletedBy': {uid: false},
-        'deletedAt': {uid: FieldValue.serverTimestamp()},
-      },
-      SetOptions(merge: true),
-    );
+    await _convoRef(convoId).set({
+      'deletedBy': {uid: false},
+      'deletedAt': {uid: FieldValue.serverTimestamp()},
+    }, SetOptions(merge: true));
   }
 
   Future<bool?> _confirmDeleteDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Delete conversation?"),
-        content: const Text("This will remove it from your inbox."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+      builder:
+          (_) => AlertDialog(
+            title: const Text("Delete conversation?"),
+            content: const Text("This will remove it from your inbox."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  "Delete",
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              "Delete",
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -299,7 +280,10 @@ class _InboxScreenState extends State<InboxScreen> {
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -347,14 +331,15 @@ class _InboxScreenState extends State<InboxScreen> {
             label: Text(label),
             selected: _unreadOnly,
             onSelected: (v) => setState(() => _unreadOnly = v),
-            selectedColor: Colors.deepPurple.withOpacity(0.18),
-            checkmarkColor: Colors.deepPurple,
+            selectedColor: const Color(0xFF006677).withOpacity(0.18),
+            checkmarkColor: const Color(0xFF006677),
             labelStyle: TextStyle(
               fontWeight: FontWeight.w700,
-              color: _unreadOnly ? Colors.deepPurple : Colors.black87,
+              color: _unreadOnly ? const Color(0xFF006677) : Colors.black87,
             ),
             side: BorderSide(
-              color: _unreadOnly ? Colors.deepPurple : Colors.grey.shade300,
+              color:
+                  _unreadOnly ? const Color(0xFF006677) : Colors.grey.shade300,
             ),
           ),
           const SizedBox(width: 10),
@@ -383,7 +368,7 @@ class _InboxScreenState extends State<InboxScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: !_showSearch,
         iconTheme: const IconThemeData(color: Colors.white),
         leading: IconButton(
@@ -394,31 +379,35 @@ class _InboxScreenState extends State<InboxScreen> {
           splashRadius: 22,
           tooltip: "Back",
         ),
-        title: _showSearch
-            ? TextField(
-          controller: _searchController,
-          autofocus: true,
-          onChanged: _onSearchChanged,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-          cursorColor: Colors.white,
-          decoration: InputDecoration(
-            hintText: "Search…",
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.75),
-              fontWeight: FontWeight.w500,
-            ),
-            border: InputBorder.none,
-            isDense: true,
-          ),
-        )
-            : const Text(
-          "Inbox",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
+        title:
+            _showSearch
+                ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  cursorColor: Colors.white,
+                  decoration: InputDecoration(
+                    hintText: "Search…",
+                    hintStyle: TextStyle(
+                      color: Colors.white.withOpacity(0.75),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                )
+                : const Text(
+                  "Inbox",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         actions: [
           IconButton(
             onPressed: () {
@@ -438,7 +427,10 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
           IconButton(
             onPressed: _toggleSearch,
-            icon: Icon(_showSearch ? Icons.search_off : Icons.search, color: Colors.white),
+            icon: Icon(
+              _showSearch ? Icons.search_off : Icons.search,
+              color: Colors.white,
+            ),
             tooltip: _showSearch ? "Close search" : "Search",
           ),
         ],
@@ -486,100 +478,75 @@ class _InboxScreenState extends State<InboxScreen> {
                 ),
               ),
               SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                    final data = docs[index].data();
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final data = docs[index].data();
 
-                    final convoId = (data['conversationId'] as String?) ?? docs[index].id;
-                    final otherUid = (data['otherUid'] as String?) ?? '';
-                    final lastMessage = (data['lastMessage'] as String?) ?? '';
-                    final unread = (data['unreadCount'] as int?) ?? 0;
-                    final lastAt = data['lastMessageAt'] as Timestamp?;
+                  final convoId =
+                      (data['conversationId'] as String?) ?? docs[index].id;
+                  final otherUid = (data['otherUid'] as String?) ?? '';
+                  final lastMessage = (data['lastMessage'] as String?) ?? '';
+                  final unread = (data['unreadCount'] as int?) ?? 0;
+                  final lastAt = data['lastMessageAt'] as Timestamp?;
 
-                    if (otherUid.isEmpty) return const SizedBox.shrink();
-                    if (_locallyHiddenConvos.contains(convoId)) return const SizedBox.shrink();
+                  if (otherUid.isEmpty) return const SizedBox.shrink();
+                  if (_locallyHiddenConvos.contains(convoId))
+                    return const SizedBox.shrink();
 
-                    final isArchived = _isTrue(data, 'archived');
-                    final isDeleted = _isTrue(data, 'deleted');
-                    if (isArchived || isDeleted) return const SizedBox.shrink();
+                  final isArchived = _isTrue(data, 'archived');
+                  final isDeleted = _isTrue(data, 'deleted');
+                  if (isArchived || isDeleted) return const SizedBox.shrink();
 
-                    if (_unreadOnly && unread <= 0) return const SizedBox.shrink();
+                  if (_unreadOnly && unread <= 0)
+                    return const SizedBox.shrink();
 
-                    // FIX: never use UID as the visible fallback
-                    final cachedTitle = _safeImmediateNameFromInboxDoc(data, otherUid);
+                  // FIX: never use UID as the visible fallback
+                  final cachedTitle = _safeImmediateNameFromInboxDoc(
+                    data,
+                    otherUid,
+                  );
 
-                    return FutureBuilder<Map<String, dynamic>?>(
-                      future: _fetchUserCached(otherUid),
-                      builder: (context, userSnap) {
-                        if (_query.isNotEmpty &&
-                            userSnap.connectionState != ConnectionState.done) {
-                          return const SizedBox.shrink();
-                        }
+                  return FutureBuilder<Map<String, dynamic>?>(
+                    future: _fetchUserCached(otherUid),
+                    builder: (context, userSnap) {
+                      if (_query.isNotEmpty &&
+                          userSnap.connectionState != ConnectionState.done) {
+                        return const SizedBox.shrink();
+                      }
 
-                        final userData = userSnap.data;
-                        final title = _displayName(userData, cachedTitle);
-                        final avatar = _avatarUrl(userData);
-                        final time = _formatTime(lastAt);
-                        final online = _isOnline(userData);
+                      final userData = userSnap.data;
+                      final title = _displayName(userData, cachedTitle);
+                      final avatar = _avatarUrl(userData);
+                      final time = _formatTime(lastAt);
+                      final online = _isOnline(userData);
 
-                        if (!_matchesQuery(title: title, lastMessage: lastMessage)) {
-                          return const SizedBox.shrink();
-                        }
+                      if (!_matchesQuery(
+                        title: title,
+                        lastMessage: lastMessage,
+                      )) {
+                        return const SizedBox.shrink();
+                      }
 
-                        return Dismissible(
-                          key: ValueKey("convo_$convoId"),
-                          direction: DismissDirection.horizontal,
-                          background: _swipeBackground(
-                            alignment: Alignment.centerLeft,
-                            icon: Icons.archive,
-                            label: "Archive",
-                            color: Colors.blueGrey,
-                          ),
-                          secondaryBackground: _swipeBackground(
-                            alignment: Alignment.centerRight,
-                            icon: Icons.delete,
-                            label: "Delete",
-                            color: Colors.redAccent,
-                          ),
-                          confirmDismiss: (direction) async {
-                            if (uid == null) return false;
+                      return Dismissible(
+                        key: ValueKey("convo_$convoId"),
+                        direction: DismissDirection.horizontal,
+                        background: _swipeBackground(
+                          alignment: Alignment.centerLeft,
+                          icon: Icons.archive,
+                          label: "Archive",
+                          color: Colors.blueGrey,
+                        ),
+                        secondaryBackground: _swipeBackground(
+                          alignment: Alignment.centerRight,
+                          icon: Icons.delete,
+                          label: "Delete",
+                          color: Colors.redAccent,
+                        ),
+                        confirmDismiss: (direction) async {
+                          if (uid == null) return false;
 
-                            if (direction == DismissDirection.startToEnd) {
-                              try {
-                                await _archiveConversation(convoId);
-                                if (!mounted) return false;
-
-                                setState(() => _locallyHiddenConvos.add(convoId));
-
-                                final snack = ScaffoldMessenger.of(context);
-                                snack.hideCurrentSnackBar();
-                                snack.showSnackBar(
-                                  SnackBar(
-                                    content: const Text("Conversation archived"),
-                                    action: SnackBarAction(
-                                      label: "Undo",
-                                      onPressed: () async {
-                                        await _unarchiveConversation(convoId);
-                                        if (!mounted) return;
-                                        setState(() => _locallyHiddenConvos.remove(convoId));
-                                      },
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                if (!mounted) return false;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Archive failed: $e")),
-                                );
-                              }
-                              return false;
-                            }
-
-                            final ok = await _confirmDeleteDialog(context);
-                            if (ok != true) return false;
-
+                          if (direction == DismissDirection.startToEnd) {
                             try {
-                              await _deleteConversation(convoId);
+                              await _archiveConversation(convoId);
                               if (!mounted) return false;
 
                               setState(() => _locallyHiddenConvos.add(convoId));
@@ -588,13 +555,17 @@ class _InboxScreenState extends State<InboxScreen> {
                               snack.hideCurrentSnackBar();
                               snack.showSnackBar(
                                 SnackBar(
-                                  content: const Text("Conversation deleted"),
+                                  content: const Text("Conversation archived"),
                                   action: SnackBarAction(
                                     label: "Undo",
                                     onPressed: () async {
-                                      await _undeleteConversation(convoId);
+                                      await _unarchiveConversation(convoId);
                                       if (!mounted) return;
-                                      setState(() => _locallyHiddenConvos.remove(convoId));
+                                      setState(
+                                        () => _locallyHiddenConvos.remove(
+                                          convoId,
+                                        ),
+                                      );
                                     },
                                   ),
                                 ),
@@ -602,96 +573,137 @@ class _InboxScreenState extends State<InboxScreen> {
                             } catch (e) {
                               if (!mounted) return false;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Delete failed: $e")),
+                                SnackBar(content: Text("Archive failed: $e")),
                               );
                             }
                             return false;
-                          },
-                          child: Column(
-                            children: [
-                              ListTile(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ChatScreen(
-                                        conversationId: convoId,
-                                        otherUid: otherUid,
-                                        otherDisplayName: title,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                leading: _avatarWithOnlineDot(
-                                  avatarUrl: avatar,
-                                  isOnline: online,
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontWeight: FontWeight.w700),
-                                      ),
-                                    ),
-                                    if (time.isNotEmpty)
-                                      Text(
-                                        time,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        lastMessage,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.grey.shade700,
-                                          fontWeight:
-                                          unread > 0 ? FontWeight.w600 : FontWeight.w400,
-                                        ),
-                                      ),
-                                    ),
-                                    if (unread > 0)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 8),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.redAccent,
-                                          borderRadius: BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          unread.toString(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                          }
+
+                          final ok = await _confirmDeleteDialog(context);
+                          if (ok != true) return false;
+
+                          try {
+                            await _deleteConversation(convoId);
+                            if (!mounted) return false;
+
+                            setState(() => _locallyHiddenConvos.add(convoId));
+
+                            final snack = ScaffoldMessenger.of(context);
+                            snack.hideCurrentSnackBar();
+                            snack.showSnackBar(
+                              SnackBar(
+                                content: const Text("Conversation deleted"),
+                                action: SnackBarAction(
+                                  label: "Undo",
+                                  onPressed: () async {
+                                    await _undeleteConversation(convoId);
+                                    if (!mounted) return;
+                                    setState(
+                                      () =>
+                                          _locallyHiddenConvos.remove(convoId),
+                                    );
+                                  },
                                 ),
                               ),
-                              const Divider(height: 1),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                  childCount: docs.length,
-                ),
+                            );
+                          } catch (e) {
+                            if (!mounted) return false;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Delete failed: $e")),
+                            );
+                          }
+                          return false;
+                        },
+                        child: Column(
+                          children: [
+                            ListTile(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => ChatScreen(
+                                          conversationId: convoId,
+                                          otherUid: otherUid,
+                                          otherDisplayName: title,
+                                        ),
+                                  ),
+                                );
+                              },
+                              leading: _avatarWithOnlineDot(
+                                avatarUrl: avatar,
+                                isOnline: online,
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (time.isNotEmpty)
+                                    Text(
+                                      time,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              subtitle: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      lastMessage,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontWeight:
+                                            unread > 0
+                                                ? FontWeight.w600
+                                                : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ),
+                                  if (unread > 0)
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.redAccent,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        unread.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }, childCount: docs.length),
               ),
             ],
           );
@@ -705,10 +717,7 @@ class _SimplePinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
   final double height;
 
-  _SimplePinnedHeaderDelegate({
-    required this.child,
-    required this.height,
-  });
+  _SimplePinnedHeaderDelegate({required this.child, required this.height});
 
   @override
   double get minExtent => height;
@@ -717,11 +726,12 @@ class _SimplePinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Material(
-      elevation: overlapsContent ? 1 : 0,
-      child: child,
-    );
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Material(elevation: overlapsContent ? 1 : 0, child: child);
   }
 
   @override

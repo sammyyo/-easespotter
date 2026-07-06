@@ -322,7 +322,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
               centerTitle: true,
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: const Color(0xFF006677),
               foregroundColor: Colors.white,
             ),
             body: Center(child: Text('Store load error: ${storeSnap.error}')),
@@ -337,7 +337,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
               centerTitle: true,
-              backgroundColor: Colors.deepPurple,
+              backgroundColor: const Color(0xFF006677),
               foregroundColor: Colors.white,
             ),
             body: const Center(child: CircularProgressIndicator()),
@@ -379,7 +379,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
               style: const TextStyle(fontWeight: FontWeight.w800),
             ),
             centerTitle: true,
-            backgroundColor: Colors.deepPurple,
+            backgroundColor: const Color(0xFF006677),
             foregroundColor: Colors.white,
           ),
           body: Padding(
@@ -388,7 +388,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
               children: [
                 CircleAvatar(
                   radius: 42,
-                  backgroundColor: Colors.deepPurple.shade50,
+                  backgroundColor: const Color(0xFFE6F4F6),
                   child:
                       (resolvedLogo.isNotEmpty)
                           ? ClipOval(
@@ -401,7 +401,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                                   (_, __, ___) => const Icon(
                                     Icons.store,
                                     size: 42,
-                                    color: Colors.deepPurple,
+                                    color: const Color(0xFF006677),
                                   ),
                             ),
                           )
@@ -414,7 +414,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                                 (_, __, ___) => const Icon(
                                   Icons.store,
                                   size: 42,
-                                  color: Colors.deepPurple,
+                                  color: const Color(0xFF006677),
                                 ),
                           ),
                 ),
@@ -468,7 +468,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                             ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          _isFollowing ? Colors.red : Colors.deepPurple,
+                          _isFollowing ? Colors.red : const Color(0xFF006677),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -621,7 +621,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                             child: ListTile(
                               leading: const Icon(
                                 Icons.local_offer,
-                                color: Colors.deepPurple,
+                                color: const Color(0xFF006677),
                               ),
                               title: Text(p['title'] ?? 'Promotion'),
                               subtitle: Text(p['description'] ?? ''),
@@ -659,17 +659,20 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
+        color: const Color(0xFFE6F4F6),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.deepPurple, size: 20),
+          Icon(icon, color: const Color(0xFF006677), size: 20),
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(fontSize: 12, color: Colors.deepPurple),
+            style: const TextStyle(
+              fontSize: 12,
+              color: const Color(0xFF006677),
+            ),
           ),
           const SizedBox(height: 4),
           Text(

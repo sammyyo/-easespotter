@@ -8,17 +8,22 @@ class AllPublicListsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('All Trending Lists',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          'All Trending Lists',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('public_lists')
-            .where('isPublic', isEqualTo: true)
-            .orderBy('views', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('public_lists')
+                .where('isPublic', isEqualTo: true)
+                .orderBy('views', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
 
           final docs = snapshot.data!.docs;
 
@@ -38,7 +43,10 @@ class AllPublicListsScreen extends StatelessWidget {
               final views = data['views'] ?? 0;
 
               return ListTile(
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                title: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 subtitle: Text('by $owner • $views views'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {

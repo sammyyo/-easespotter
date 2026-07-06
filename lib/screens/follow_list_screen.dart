@@ -46,7 +46,7 @@ class _FollowListScreenState extends State<FollowListScreen>
           'Connections',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -54,13 +54,10 @@ class _FollowListScreenState extends State<FollowListScreen>
         children: [
           TabBar(
             controller: _tabController,
-            labelColor: Colors.deepPurple,
+            labelColor: const Color(0xFF006677),
             unselectedLabelColor: Colors.grey,
-            indicatorColor: Colors.deepPurple,
-            tabs: const [
-              Tab(text: 'Followers'),
-              Tab(text: 'Following'),
-            ],
+            indicatorColor: const Color(0xFF006677),
+            tabs: const [Tab(text: 'Followers'), Tab(text: 'Following')],
           ),
           Expanded(
             child: TabBarView(
@@ -70,7 +67,7 @@ class _FollowListScreenState extends State<FollowListScreen>
                   myUid: myUid,
                   query: FirebaseFirestore.instance
                       .collection('users')
-                  // People who follow me: their "following" contains my uid
+                      // People who follow me: their "following" contains my uid
                       .where('following', arrayContains: myUid),
                 ),
                 _FollowingListView(userId: myUid),
@@ -87,10 +84,7 @@ class _UserListView extends StatelessWidget {
   final Query query;
   final String myUid;
 
-  const _UserListView({
-    required this.query,
-    required this.myUid,
-  });
+  const _UserListView({required this.query, required this.myUid});
 
   DocumentReference<Map<String, dynamic>> _topRef(String otherUid) {
     // Doc id MUST be the other user's UID
@@ -104,15 +98,14 @@ class _UserListView extends StatelessWidget {
   Future<void> _addToTop(BuildContext context, String otherUid) async {
     try {
       // Matches your rules: keys only [createdAt, addedBy]
-      await _topRef(otherUid).set({
-        'createdAt': FieldValue.serverTimestamp(),
-        'addedBy': myUid,
-      });
+      await _topRef(
+        otherUid,
+      ).set({'createdAt': FieldValue.serverTimestamp(), 'addedBy': myUid});
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
@@ -122,18 +115,18 @@ class _UserListView extends StatelessWidget {
       await _topRef(otherUid).delete();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
 
   Future<void> _toggleTop(
-      BuildContext context, {
-        required String otherUid,
-        required bool isTop,
-      }) async {
+    BuildContext context, {
+    required String otherUid,
+    required bool isTop,
+  }) async {
     if (isTop) {
       await _removeFromTop(context, otherUid);
       if (context.mounted) {
@@ -184,17 +177,19 @@ class _UserListView extends StatelessWidget {
                 return UserListItem(
                   userData: userData,
                   uid: otherUid,
-                  extraAction: isMe
-                      ? null
-                      : TextButton.icon(
-                    icon: Icon(isTop ? Icons.star : Icons.star_border),
-                    label: Text(isTop ? 'Top' : 'Add'),
-                    onPressed: () => _toggleTop(
-                      context,
-                      otherUid: otherUid,
-                      isTop: isTop,
-                    ),
-                  ),
+                  extraAction:
+                      isMe
+                          ? null
+                          : TextButton.icon(
+                            icon: Icon(isTop ? Icons.star : Icons.star_border),
+                            label: Text(isTop ? 'Top' : 'Add'),
+                            onPressed:
+                                () => _toggleTop(
+                                  context,
+                                  otherUid: otherUid,
+                                  isTop: isTop,
+                                ),
+                          ),
                 );
               },
             );
@@ -213,7 +208,11 @@ class _FollowingListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(userId).snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

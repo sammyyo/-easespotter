@@ -8,25 +8,31 @@ class ActivityFeedScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return const Center(child: Text("Not logged in",));
+    if (uid == null) return const Center(child: Text("Not logged in"));
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Activity Feed",
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-      )),
+      appBar: AppBar(
+        title: const Text(
+          "Activity Feed",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('activity_feed')
-            .orderBy('createdAt', descending: true)
-            .limit(50)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('activity_feed')
+                .orderBy('createdAt', descending: true)
+                .limit(50)
+                .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
           final docs = snapshot.data!.docs;
 
-          if (docs.isEmpty) return const Center(child: Text("No recent activity."));
+          if (docs.isEmpty)
+            return const Center(child: Text("No recent activity."));
 
           return ListView.separated(
             itemCount: docs.length,
@@ -35,12 +41,18 @@ class ActivityFeedScreen extends StatelessWidget {
               final data = docs[i].data() as Map<String, dynamic>;
               final msg = data['message'] ?? '';
               final time = (data['createdAt'] as Timestamp?)?.toDate();
-              final displayTime = time != null ? time.toLocal().toString().split('.').first : 'Just now';
+              final displayTime =
+                  time != null
+                      ? time.toLocal().toString().split('.').first
+                      : 'Just now';
 
               return ListTile(
-                leading: data['actorAvatarUrl'] != null
-                    ? CircleAvatar(backgroundImage: NetworkImage(data['actorAvatarUrl']))
-                    : const CircleAvatar(child: Icon(Icons.person)),
+                leading:
+                    data['actorAvatarUrl'] != null
+                        ? CircleAvatar(
+                          backgroundImage: NetworkImage(data['actorAvatarUrl']),
+                        )
+                        : const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(msg),
                 subtitle: Text(displayTime),
                 onTap: () {

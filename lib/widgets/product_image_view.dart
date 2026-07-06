@@ -13,7 +13,10 @@ class ProductImageView extends StatelessWidget {
     super.key,
     required this.image,
     this.fit = BoxFit.contain,
-    this.fallback = const Icon(Icons.shopping_bag, color: Colors.deepPurple),
+    this.fallback = const Icon(
+      Icons.shopping_bag,
+      color: const Color(0xFF006677),
+    ),
   });
 
   @override

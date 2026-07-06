@@ -93,10 +93,7 @@ class HomeScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 40),
-          Image.asset(
-            'assets/images/easespotter.png',
-            height: 90,
-          ),
+          Image.asset('assets/images/easespotter.png', height: 90),
         ],
       ),
     );
