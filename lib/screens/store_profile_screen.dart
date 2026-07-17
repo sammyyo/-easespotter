@@ -34,11 +34,21 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
   bool _isFollowing = false;
   bool _loadingFollow = true;
   bool _openingStorefront = false;
+  late Future<List<_StoreProfilePromotion>> _promotionsFuture;
 
   @override
   void initState() {
     super.initState();
+    _promotionsFuture = _fetchStoreProfilePromotions();
     _loadFollowState();
+  }
+
+  @override
+  void didUpdateWidget(covariant StoreProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.storeId != widget.storeId) {
+      _promotionsFuture = _fetchStoreProfilePromotions();
+    }
   }
 
   Future<void> _loadFollowState() async {
@@ -184,6 +194,97 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     );
   }
 
+  Future<List<_StoreProfilePromotion>> _fetchStoreProfilePromotions() async {
+    final vendorId = int.tryParse(widget.storeId);
+    final backendPromotions = <_StoreProfilePromotion>[];
+
+    if (vendorId != null) {
+      try {
+        final storeData = _extractStoreData(
+          await StoreApiService.fetchStoreById(vendorId),
+        );
+        backendPromotions.addAll(_promotionsFromStoreData(storeData));
+      } catch (e) {
+        debugPrint('StoreProfile backend promotions failed: $e');
+      }
+    }
+
+    if (backendPromotions.isNotEmpty) return backendPromotions;
+
+    try {
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('store_promotions')
+              .where('storeId', isEqualTo: widget.storeId)
+              .orderBy('startsAt', descending: true)
+              .limit(20)
+              .get();
+
+      return snap.docs
+          .map((doc) => _StoreProfilePromotion.fromMap(doc.data()))
+          .where((promo) => promo.isActive)
+          .toList();
+    } catch (e) {
+      debugPrint('StoreProfile Firestore promotions failed: $e');
+      return backendPromotions;
+    }
+  }
+
+  List<_StoreProfilePromotion> _promotionsFromStoreData(
+    Map<String, dynamic> storeData,
+  ) {
+    final promos = <_StoreProfilePromotion>[];
+    final seen = <String>{};
+    final productsById = _productsById(storeData);
+
+    for (final promoMap in _promotionMaps(storeData)) {
+      final promoId = _stringValue(promoMap, const [
+        'id',
+        'promotionId',
+        'promoId',
+        'campaignId',
+      ], fallback: promoMap.hashCode.toString());
+
+      final directProducts = _promotionProductMaps(promoMap);
+      if (directProducts.isNotEmpty) {
+        for (final product in directProducts) {
+          final productId = _stringValue(product, const [
+            'id',
+            'productId',
+            'productID',
+            'itemId',
+            'itemID',
+          ], fallback: product.hashCode.toString());
+          final key = '$promoId:$productId';
+          if (!seen.add(key)) continue;
+          promos.add(
+            _StoreProfilePromotion.fromPromotionAndProduct(promoMap, product),
+          );
+        }
+        continue;
+      }
+
+      var addedProduct = false;
+      for (final productId in _appliedProductIds(promoMap)) {
+        final product = productsById[productId];
+        if (product == null) continue;
+        final key = '$promoId:$productId';
+        if (!seen.add(key)) continue;
+        promos.add(
+          _StoreProfilePromotion.fromPromotionAndProduct(promoMap, product),
+        );
+        addedProduct = true;
+      }
+
+      if (!addedProduct && seen.add('$promoId:general')) {
+        promos.add(_StoreProfilePromotion.fromMap(promoMap));
+      }
+    }
+
+    final now = DateTime.now();
+    return promos.where((promo) => promo.isActiveAt(now)).toList();
+  }
+
   Future<Map<String, dynamic>?> _cachedStorefrontData(int vendorId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -303,6 +404,134 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
     return '';
   }
 
+  List<Map<String, dynamic>> _promotionMaps(Map<String, dynamic> storeData) {
+    final maps = <Map<String, dynamic>>[];
+    for (final key in const [
+      'activePromotions',
+      'promotions',
+      'deals',
+      'offers',
+      'discounts',
+    ]) {
+      final value = storeData[key];
+      if (value is List) {
+        maps.addAll(value.whereType<Map>().map(Map<String, dynamic>.from));
+      } else if (value is Map) {
+        maps.add(Map<String, dynamic>.from(value));
+      }
+    }
+    return maps;
+  }
+
+  Map<String, Map<String, dynamic>> _productsById(
+    Map<String, dynamic> storeData,
+  ) {
+    final products = <String, Map<String, dynamic>>{};
+
+    void addProduct(dynamic rawProduct) {
+      if (rawProduct is! Map) return;
+      final product = Map<String, dynamic>.from(rawProduct);
+      final id = _stringValue(product, const [
+        'id',
+        'productId',
+        'productID',
+        'itemId',
+        'itemID',
+      ], fallback: '');
+      if (id.isNotEmpty) products[id] = product;
+    }
+
+    void addList(dynamic rawProducts) {
+      if (rawProducts is! List) return;
+      for (final product in rawProducts) {
+        addProduct(product);
+      }
+    }
+
+    void addGrouped(dynamic grouped) {
+      if (grouped is! Map) return;
+      for (final value in grouped.values) {
+        addList(value);
+      }
+    }
+
+    addGrouped(storeData['productsByCategory']);
+    addGrouped(storeData['productsByAisle']);
+    addList(storeData['products']);
+    addList(storeData['items']);
+
+    return products;
+  }
+
+  List<Map<String, dynamic>> _promotionProductMaps(
+    Map<String, dynamic> promotion,
+  ) {
+    final products = <Map<String, dynamic>>[];
+    for (final key in const [
+      'products',
+      'appliedProductDetails',
+      'appliedProductsDetails',
+      'productDetails',
+      'items',
+    ]) {
+      final value = promotion[key];
+      if (value is List) {
+        products.addAll(value.whereType<Map>().map(Map<String, dynamic>.from));
+      }
+    }
+
+    final appliedProducts = promotion['appliedProducts'];
+    if (appliedProducts is List) {
+      products.addAll(
+        appliedProducts.whereType<Map>().map(Map<String, dynamic>.from),
+      );
+    }
+
+    return products;
+  }
+
+  Set<String> _appliedProductIds(Map<String, dynamic> promotion) {
+    final raw =
+        promotion['appliedProducts'] ??
+        promotion['productIds'] ??
+        promotion['productIDs'] ??
+        promotion['products'] ??
+        promotion['items'];
+    final ids = <String>{};
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          final id = _stringValue(Map<String, dynamic>.from(item), const [
+            'id',
+            'productId',
+            'productID',
+            'itemId',
+            'itemID',
+          ], fallback: '');
+          if (id.isNotEmpty) ids.add(id);
+        } else {
+          final id = item.toString().trim();
+          if (id.isNotEmpty && id.toLowerCase() != 'null') ids.add(id);
+        }
+      }
+    }
+    return ids;
+  }
+
+  static String _stringValue(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    required String fallback,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return fallback;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authUid = FirebaseAuth.instance.currentUser?.uid;
@@ -382,7 +611,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
             backgroundColor: const Color(0xFF006677),
             foregroundColor: Colors.white,
           ),
-          body: Padding(
+          body: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
@@ -401,7 +630,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                                   (_, __, ___) => const Icon(
                                     Icons.store,
                                     size: 42,
-                                    color: const Color(0xFF006677),
+                                    color: Color(0xFF006677),
                                   ),
                             ),
                           )
@@ -414,7 +643,7 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                                 (_, __, ___) => const Icon(
                                   Icons.store,
                                   size: 42,
-                                  color: const Color(0xFF006677),
+                                  color: Color(0xFF006677),
                                 ),
                           ),
                 ),
@@ -581,56 +810,62 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream:
-                        FirebaseFirestore.instance
-                            .collection('store_promotions')
-                            .where('storeId', isEqualTo: widget.storeId)
-                            .orderBy('startsAt', descending: true)
-                            .limit(20)
-                            .snapshots(),
-                    builder: (context, snap) {
-                      if (snap.hasError) {
-                        return Center(
-                          child: Text('Promotions error: ${snap.error}'),
-                        );
-                      }
-                      if (!snap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final docs = snap.data!.docs;
+                FutureBuilder<List<_StoreProfilePromotion>>(
+                  future: _promotionsFuture,
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        child: Text('Promotions error: ${snap.error}'),
+                      );
+                    }
+                    if (!snap.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final promotions = snap.data!;
 
-                      if (docs.isEmpty) {
-                        return const Center(
+                    if (promotions.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(
                           child: Text(
                             'No active promotions right now.',
                             style: TextStyle(color: Colors.grey),
                           ),
-                        );
-                      }
-
-                      return ListView.separated(
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, i) {
-                          final p = docs[i].data() as Map<String, dynamic>;
-                          return Card(
-                            elevation: 0,
-                            color: Colors.grey.shade100,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.local_offer,
-                                color: const Color(0xFF006677),
-                              ),
-                              title: Text(p['title'] ?? 'Promotion'),
-                              subtitle: Text(p['description'] ?? ''),
-                            ),
-                          );
-                        },
+                        ),
                       );
-                    },
-                  ),
+                    }
+
+                    return Column(
+                      children: [
+                        for (var i = 0; i < promotions.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          _StoreProfilePromoCard(
+                            title: promotions[i].title,
+                            subtitle: promotions[i].subtitle,
+                            imageUrl: promotions[i].imageUrl,
+                            originalPriceText: promotions[i].originalPriceText,
+                            salePriceText: promotions[i].salePriceText,
+                            discountText: promotions[i].discountText,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => _StoreProfilePromotionDetailScreen(
+                                        promotion: promotions[i],
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -638,6 +873,667 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
         );
       },
     );
+  }
+}
+
+class _StoreProfilePromoCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String? imageUrl;
+  final String? originalPriceText;
+  final String? salePriceText;
+  final String? discountText;
+  final VoidCallback? onTap;
+
+  const _StoreProfilePromoCard({
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    required this.originalPriceText,
+    required this.salePriceText,
+    required this.discountText,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF006677).withValues(alpha: 0.16),
+            const Color(0xFFF88400).withValues(alpha: 0.10),
+            Colors.white.withValues(alpha: 0.55),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 7,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.75),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child:
+                  imageUrl == null
+                      ? const Icon(
+                        Icons.local_offer_outlined,
+                        color: Color(0xFF006677),
+                      )
+                      : Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => const Icon(
+                              Icons.local_offer_outlined,
+                              color: Color(0xFF006677),
+                            ),
+                      ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (originalPriceText != null || salePriceText != null) ...[
+                  Wrap(
+                    spacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (originalPriceText != null)
+                        Text(
+                          originalPriceText!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black45,
+                            fontWeight: FontWeight.w700,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      if (salePriceText != null)
+                        Text(
+                          salePriceText!,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF006677),
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      if (discountText != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF88400),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            discountText!,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Icon(
+            Icons.chevron_right,
+            color: Colors.black.withValues(alpha: 0.3),
+            size: 20,
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return card;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: card,
+    );
+  }
+}
+
+class _StoreProfilePromotionDetailScreen extends StatelessWidget {
+  final _StoreProfilePromotion promotion;
+
+  const _StoreProfilePromotionDetailScreen({required this.promotion});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText = _dateRangeText(promotion.startsAt, promotion.endsAt);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFE6F4F6),
+      appBar: AppBar(
+        title: const Text(
+          'Promotion Details',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        centerTitle: true,
+        backgroundColor: const Color(0xFF006677),
+        foregroundColor: Colors.white,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.25,
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                    child:
+                        promotion.imageUrl == null
+                            ? Container(
+                              color: const Color(0xFFE6F4F6),
+                              child: const Icon(
+                                Icons.local_offer_outlined,
+                                size: 72,
+                                color: Color(0xFF006677),
+                              ),
+                            )
+                            : Image.network(
+                              promotion.imageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (_, __, ___) => Container(
+                                    color: const Color(0xFFE6F4F6),
+                                    child: const Icon(
+                                      Icons.local_offer_outlined,
+                                      size: 72,
+                                      color: Color(0xFF006677),
+                                    ),
+                                  ),
+                            ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (promotion.subtitle.isNotEmpty) ...[
+                        Text(
+                          promotion.subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF006677),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      Text(
+                        promotion.title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          height: 1.08,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (promotion.originalPriceText != null)
+                            Text(
+                              promotion.originalPriceText!,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black45,
+                                fontWeight: FontWeight.w800,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                          if (promotion.salePriceText != null)
+                            Text(
+                              promotion.salePriceText!,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                color: Color(0xFF006677),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          if (promotion.discountText != null)
+                            _detailPill(
+                              promotion.discountText!,
+                              const Color(0xFFFFF3E0),
+                              const Color(0xFFB45F06),
+                            ),
+                        ],
+                      ),
+                      if (dateText.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _detailPill(
+                          dateText,
+                          const Color(0xFFE6F4F6),
+                          const Color(0xFF006677),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _detailPill(String text, Color background, Color foreground) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  static String _dateRangeText(DateTime? startsAt, DateTime? endsAt) {
+    if (startsAt == null && endsAt == null) return '';
+    if (startsAt != null && endsAt != null) {
+      return '${_shortDate(startsAt)} - ${_shortDate(endsAt)}';
+    }
+    if (startsAt != null) return 'Starts ${_shortDate(startsAt)}';
+    return 'Ends ${_shortDate(endsAt!)}';
+  }
+
+  static String _shortDate(DateTime date) {
+    final local = date.toLocal();
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '$day.$month.${local.year}';
+  }
+}
+
+class _StoreProfilePromotion {
+  final String title;
+  final String subtitle;
+  final String? imageUrl;
+  final String? originalPriceText;
+  final String? salePriceText;
+  final String? discountText;
+  final String status;
+  final bool? activeFlag;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+
+  const _StoreProfilePromotion({
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    required this.originalPriceText,
+    required this.salePriceText,
+    required this.discountText,
+    required this.status,
+    required this.activeFlag,
+    required this.startsAt,
+    required this.endsAt,
+  });
+
+  factory _StoreProfilePromotion.fromMap(Map<String, dynamic> data) {
+    final title = _stringValue(data, const [
+      'title',
+      'name',
+      'headline',
+      'promoTitle',
+    ], fallback: 'Promotion');
+    final subtitle = _stringValue(data, const [
+      'description',
+      'summary',
+      'subtitle',
+    ], fallback: '');
+    final discount = _stringValue(data, const [
+      'discountPercent',
+      'discount',
+      'discountPercentage',
+      'percentOff',
+    ], fallback: '');
+    final imageUrl = _stringValue(data, const [
+      'imageUrl',
+      'imageURL',
+      'image',
+      'image_url',
+      'productImageUrl',
+      'productImageURL',
+      'product_image_url',
+      'thumbnailUrl',
+      'thumbnail',
+      'url',
+      'src',
+    ], fallback: '');
+    final originalPrice = _firstValue(data, const [
+      'originalPrice',
+      'oldPrice',
+      'regularPrice',
+      'priceBefore',
+      'wasPrice',
+      'beforePrice',
+      'compareAtPrice',
+      'listPrice',
+    ]);
+    final salePrice =
+        _firstValue(data, const [
+          'salePrice',
+          'newPrice',
+          'discountedPrice',
+          'priceAfter',
+          'nowPrice',
+          'afterPrice',
+          'currentPrice',
+          'promoPrice',
+          'offerPrice',
+        ]) ??
+        _discountedPriceValue(originalPrice, discount);
+
+    return _StoreProfilePromotion(
+      title: title,
+      subtitle: subtitle,
+      imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
+      originalPriceText: _priceText(originalPrice),
+      salePriceText: _priceText(salePrice),
+      discountText: discount.isEmpty ? null : '${_cleanPercent(discount)}% off',
+      status:
+          _stringValue(data, const [
+            'status',
+            'state',
+          ], fallback: '').toLowerCase(),
+      activeFlag: _boolValue(data, const [
+        'active',
+        'isActive',
+        'enabled',
+        'published',
+        'isPublished',
+      ]),
+      startsAt: _dateValue(data, const [
+        'startsAt',
+        'startAt',
+        'startDate',
+        'validFrom',
+      ]),
+      endsAt: _dateValue(data, const [
+        'endsAt',
+        'endAt',
+        'endDate',
+        'validUntil',
+        'expiresAt',
+      ]),
+    );
+  }
+
+  factory _StoreProfilePromotion.fromPromotionAndProduct(
+    Map<String, dynamic> promotion,
+    Map<String, dynamic> product,
+  ) {
+    final productName = _stringValue(product, const [
+      'name',
+      'title',
+      'productName',
+      'itemName',
+    ], fallback: 'Promoted product');
+    final promoName = _stringValue(promotion, const [
+      'title',
+      'name',
+      'headline',
+      'promoTitle',
+    ], fallback: '');
+
+    return _StoreProfilePromotion.fromMap({
+      ...promotion,
+      'title': productName,
+      if (promoName.isNotEmpty) 'description': promoName,
+      ..._productPromoFields(product),
+    });
+  }
+
+  bool get isActive => isActiveAt(DateTime.now());
+
+  bool isActiveAt(DateTime now) {
+    if (activeFlag == false) return false;
+    if (status.isNotEmpty &&
+        !const {
+          'active',
+          'published',
+          'live',
+          'enabled',
+          'approved',
+        }.contains(status)) {
+      return false;
+    }
+    if (startsAt != null && startsAt!.isAfter(now)) return false;
+    if (endsAt != null && !endsAt!.isAfter(now)) return false;
+    return true;
+  }
+
+  static String _stringValue(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    required String fallback,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return fallback;
+  }
+
+  static Map<String, dynamic> _productPromoFields(
+    Map<String, dynamic> product,
+  ) {
+    final imageUrl = _stringValue(product, const [
+      'productImageUrl',
+      'productImageURL',
+      'product_image_url',
+      'imageUrl',
+      'imageURL',
+      'image_url',
+      'image',
+      'thumbnailUrl',
+      'thumbnail',
+      'url',
+      'src',
+    ], fallback: '');
+    final basePrice = _firstValue(product, const [
+      'originalPrice',
+      'oldPrice',
+      'regularPrice',
+      'priceBefore',
+      'wasPrice',
+      'beforePrice',
+      'compareAtPrice',
+      'listPrice',
+      'price',
+      'unitPrice',
+    ]);
+
+    return {
+      if (imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+      if (basePrice != null) 'originalPrice': basePrice,
+      for (final key in const [
+        'salePrice',
+        'newPrice',
+        'discountedPrice',
+        'priceAfter',
+        'nowPrice',
+        'afterPrice',
+        'currentPrice',
+        'promoPrice',
+        'offerPrice',
+      ])
+        if (product[key] != null) key: product[key],
+    };
+  }
+
+  static dynamic _firstValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return value;
+    }
+    return null;
+  }
+
+  static String? _priceText(dynamic value) {
+    final parsed = _numberValue(value);
+    if (parsed != null) return '€${parsed.toStringAsFixed(2)}';
+    final raw = value?.toString().trim() ?? '';
+    return raw.isEmpty || raw.toLowerCase() == 'null' ? null : raw;
+  }
+
+  static double? _discountedPriceValue(dynamic originalPrice, String discount) {
+    final original = _numberValue(originalPrice);
+    final percent = _numberValue(discount);
+    if (original == null || percent == null || percent <= 0) return null;
+    final discounted = original * (1 - (percent / 100));
+    return discounted < 0 ? 0 : discounted;
+  }
+
+  static double? _numberValue(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+
+    var raw = value.toString().trim();
+    if (raw.isEmpty || raw.toLowerCase() == 'null') return null;
+    raw = raw.replaceAll(RegExp(r'[^0-9,.\-]'), '');
+    if (raw.isEmpty) return null;
+
+    final comma = raw.lastIndexOf(',');
+    final dot = raw.lastIndexOf('.');
+    if (comma > dot) {
+      raw = raw.replaceAll('.', '').replaceAll(',', '.');
+    } else {
+      raw = raw.replaceAll(',', '');
+    }
+
+    return double.tryParse(raw);
+  }
+
+  static String _absoluteImageUrl(String rawUrl) {
+    final value = rawUrl.trim();
+    if (value.isEmpty) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return value;
+    if (value.startsWith('//')) return 'https:$value';
+    if (value.startsWith('/')) return '${StoreApiService.baseUrl}$value';
+    return '${StoreApiService.baseUrl}/$value';
+  }
+
+  static String _cleanPercent(String value) {
+    final parsed = _numberValue(value);
+    if (parsed == null) return value;
+    if (parsed == parsed.roundToDouble()) return parsed.toStringAsFixed(0);
+    return parsed.toStringAsFixed(2);
+  }
+
+  static bool? _boolValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is bool) return value;
+      if (value is num) return value != 0;
+      if (value is String) {
+        final lower = value.trim().toLowerCase();
+        if (lower == 'true' || lower == 'yes' || lower == '1') return true;
+        if (lower == 'false' || lower == 'no' || lower == '0') return false;
+      }
+    }
+    return null;
+  }
+
+  static DateTime? _dateValue(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) return parsed;
+      }
+    }
+    return null;
   }
 }
 
@@ -669,10 +1565,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: const Color(0xFF006677),
-            ),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF006677)),
           ),
           const SizedBox(height: 4),
           Text(
