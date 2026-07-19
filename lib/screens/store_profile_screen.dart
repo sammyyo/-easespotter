@@ -428,9 +428,12 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
   ) {
     final products = <String, Map<String, dynamic>>{};
 
-    void addProduct(dynamic rawProduct) {
+    void addProduct(
+      dynamic rawProduct, {
+      Map<String, dynamic> extras = const {},
+    }) {
       if (rawProduct is! Map) return;
-      final product = Map<String, dynamic>.from(rawProduct);
+      final product = {...extras, ...Map<String, dynamic>.from(rawProduct)};
       final id = _stringValue(product, const [
         'id',
         'productId',
@@ -441,22 +444,40 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
       if (id.isNotEmpty) products[id] = product;
     }
 
-    void addList(dynamic rawProducts) {
+    void addList(
+      dynamic rawProducts, {
+      Map<String, dynamic> extras = const {},
+    }) {
       if (rawProducts is! List) return;
       for (final product in rawProducts) {
-        addProduct(product);
+        addProduct(product, extras: extras);
       }
     }
 
-    void addGrouped(dynamic grouped) {
-      if (grouped is! Map) return;
-      for (final value in grouped.values) {
-        addList(value);
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is Map) {
+      for (final entry in productsByCategory.entries) {
+        addList(entry.value, extras: {'category': entry.key.toString()});
       }
     }
 
-    addGrouped(storeData['productsByCategory']);
-    addGrouped(storeData['productsByAisle']);
+    final productsByAisle = storeData['productsByAisle'];
+    if (productsByAisle is Map) {
+      for (final aisleEntry in productsByAisle.entries) {
+        final aisle = aisleEntry.key.toString();
+        final aisleValue = aisleEntry.value;
+        addList(aisleValue, extras: {'aisle': aisle});
+        if (aisleValue is Map) {
+          for (final shelfEntry in aisleValue.entries) {
+            addList(
+              shelfEntry.value,
+              extras: {'aisle': aisle, 'shelf': shelfEntry.key.toString()},
+            );
+          }
+        }
+      }
+    }
+
     addList(storeData['products']);
     addList(storeData['items']);
 
@@ -1179,6 +1200,37 @@ class _StoreProfilePromotionDetailScreen extends StatelessWidget {
                           const Color(0xFF006677),
                         ),
                       ],
+                      if (promotion.hasProductDetails) ...[
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Product Details',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (promotion.brand != null)
+                          _detailRow('Brand', promotion.brand!),
+                        if (promotion.category != null)
+                          _detailRow('Category', promotion.category!),
+                        if (promotion.locationText != null)
+                          _detailRow('Location', promotion.locationText!),
+                        if (promotion.barcode != null)
+                          _detailRow('Barcode', promotion.barcode!),
+                        if (promotion.description != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              promotion.description!,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.4,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
@@ -1208,26 +1260,73 @@ class _StoreProfilePromotionDetailScreen extends StatelessWidget {
     );
   }
 
+  static Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   static String _dateRangeText(DateTime? startsAt, DateTime? endsAt) {
-    if (startsAt == null && endsAt == null) return '';
-    if (startsAt != null && endsAt != null) {
-      return '${_shortDate(startsAt)} - ${_shortDate(endsAt)}';
-    }
+    if (endsAt != null) return 'Ends ${_shortDate(endsAt)}';
     if (startsAt != null) return 'Starts ${_shortDate(startsAt)}';
-    return 'Ends ${_shortDate(endsAt!)}';
+    return '';
   }
 
   static String _shortDate(DateTime date) {
     final local = date.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
     final day = local.day.toString().padLeft(2, '0');
-    return '$day.$month.${local.year}';
+    return '$day ${months[local.month - 1]}';
   }
 }
 
 class _StoreProfilePromotion {
   final String title;
   final String subtitle;
+  final String? description;
+  final String? brand;
+  final String? category;
+  final String? barcode;
+  final String? locationText;
   final String? imageUrl;
   final String? originalPriceText;
   final String? salePriceText;
@@ -1240,6 +1339,11 @@ class _StoreProfilePromotion {
   const _StoreProfilePromotion({
     required this.title,
     required this.subtitle,
+    required this.description,
+    required this.brand,
+    required this.category,
+    required this.barcode,
+    required this.locationText,
     required this.imageUrl,
     required this.originalPriceText,
     required this.salePriceText,
@@ -1258,9 +1362,9 @@ class _StoreProfilePromotion {
       'promoTitle',
     ], fallback: 'Promotion');
     final subtitle = _stringValue(data, const [
+      'subtitle',
       'description',
       'summary',
-      'subtitle',
     ], fallback: '');
     final discount = _stringValue(data, const [
       'discountPercent',
@@ -1308,6 +1412,39 @@ class _StoreProfilePromotion {
     return _StoreProfilePromotion(
       title: title,
       subtitle: subtitle,
+      description: _nullableStringValue(data, const [
+        'productDescription',
+        'product_description',
+        'description',
+        'desc',
+        'details',
+        'productDetails',
+        'summary',
+      ]),
+      brand: _nullableStringValue(data, const [
+        'brand',
+        'brandName',
+        'manufacturer',
+        'vendorBrand',
+      ]),
+      category: _nullableStringValue(data, const [
+        'category',
+        'department',
+        'categoryName',
+        'productCategory',
+      ]),
+      barcode: _nullableStringValue(data, const [
+        'barcode',
+        'upc',
+        'UPC',
+        'ean',
+        'EAN',
+        'sku',
+        'SKU',
+        'itemCode',
+        'productCode',
+      ]),
+      locationText: _locationText(data),
       imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
       originalPriceText: _priceText(originalPrice),
       salePriceText: _priceText(salePrice),
@@ -1360,12 +1497,20 @@ class _StoreProfilePromotion {
     return _StoreProfilePromotion.fromMap({
       ...promotion,
       'title': productName,
-      if (promoName.isNotEmpty) 'description': promoName,
+      if (promoName.isNotEmpty) 'subtitle': promoName,
       ..._productPromoFields(product),
     });
   }
 
   bool get isActive => isActiveAt(DateTime.now());
+
+  bool get hasProductDetails {
+    return description != null ||
+        brand != null ||
+        category != null ||
+        barcode != null ||
+        locationText != null;
+  }
 
   bool isActiveAt(DateTime now) {
     if (activeFlag == false) return false;
@@ -1431,6 +1576,38 @@ class _StoreProfilePromotion {
       if (imageUrl.isNotEmpty) 'imageUrl': imageUrl,
       if (basePrice != null) 'originalPrice': basePrice,
       for (final key in const [
+        'description',
+        'desc',
+        'details',
+        'productDescription',
+        'product_description',
+        'summary',
+        'brand',
+        'brandName',
+        'manufacturer',
+        'vendorBrand',
+        'category',
+        'department',
+        'categoryName',
+        'productCategory',
+        'barcode',
+        'upc',
+        'UPC',
+        'ean',
+        'EAN',
+        'sku',
+        'SKU',
+        'itemCode',
+        'productCode',
+        'aisle',
+        'shelf',
+        'section',
+        'location',
+        'locationLabel',
+        'locationText',
+      ])
+        if (product[key] != null) key: product[key],
+      for (final key in const [
         'salePrice',
         'newPrice',
         'discountedPrice',
@@ -1453,6 +1630,46 @@ class _StoreProfilePromotion {
       if (text.isNotEmpty && text.toLowerCase() != 'null') return value;
     }
     return null;
+  }
+
+  static String? _nullableStringValue(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    final value = _stringValue(data, keys, fallback: '');
+    return value.isEmpty ? null : value;
+  }
+
+  static String? _locationText(Map<String, dynamic> data) {
+    final location = data['location'];
+    if (location is Map) {
+      final locationMap = Map<String, dynamic>.from(location);
+      final aisle = _nullableStringValue(locationMap, const ['aisle']);
+      final shelf = _nullableStringValue(locationMap, const ['shelf']);
+      if (aisle != null && shelf != null) return 'Aisle $aisle - Shelf $shelf';
+      if (aisle != null) return 'Aisle $aisle';
+      if (shelf != null) return 'Shelf $shelf';
+    }
+
+    final explicit = _nullableStringValue(data, const [
+      'locationText',
+      'locationLabel',
+      'aisleLocation',
+      'aisle_location',
+    ]);
+    if (explicit != null) return explicit;
+
+    final parts = <String>[];
+    final aisle = _nullableStringValue(data, const ['aisle', 'aisleName']);
+    final shelf = _nullableStringValue(data, const ['shelf', 'shelfName']);
+    final section = _nullableStringValue(data, const [
+      'section',
+      'sectionName',
+    ]);
+    if (aisle != null) parts.add('Aisle $aisle');
+    if (shelf != null) parts.add('Shelf $shelf');
+    if (section != null) parts.add(section);
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   static String? _priceText(dynamic value) {

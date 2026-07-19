@@ -459,7 +459,7 @@ class _PromoCard extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             const Color(0xFF006677).withValues(alpha: 0.16),
-            Colors.pinkAccent.withValues(alpha: 0.10),
+            const Color(0xFFF88400).withValues(alpha: 0.10),
             Colors.white.withValues(alpha: 0.55),
           ],
           begin: Alignment.topLeft,
@@ -703,17 +703,19 @@ class _PromotionDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        promotion.storeName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF006677),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                      if (promotion.subtitle != null) ...[
+                        Text(
+                          promotion.subtitle!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF006677),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
+                        const SizedBox(height: 10),
+                      ],
                       Text(
                         promotion.title,
                         style: const TextStyle(
@@ -762,6 +764,37 @@ class _PromotionDetailScreen extends StatelessWidget {
                           const Color(0xFFE6F4F6),
                           const Color(0xFF006677),
                         ),
+                      ],
+                      if (promotion.hasProductDetails) ...[
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Product Details',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        if (promotion.brand != null)
+                          _detailRow('Brand', promotion.brand!),
+                        if (promotion.category != null)
+                          _detailRow('Category', promotion.category!),
+                        if (promotion.locationText != null)
+                          _detailRow('Location', promotion.locationText!),
+                        if (promotion.barcode != null)
+                          _detailRow('Barcode', promotion.barcode!),
+                        if (promotion.description != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              promotion.description!,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.4,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
                       ],
                     ],
                   ),
@@ -825,20 +858,62 @@ class _PromotionDetailScreen extends StatelessWidget {
     );
   }
 
+  static Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   static String _dateRangeText(DateTime? startsAt, DateTime? endsAt) {
-    if (startsAt == null && endsAt == null) return '';
-    if (startsAt != null && endsAt != null) {
-      return '${_shortDate(startsAt)} - ${_shortDate(endsAt)}';
-    }
+    if (endsAt != null) return 'Ends ${_shortDate(endsAt)}';
     if (startsAt != null) return 'Starts ${_shortDate(startsAt)}';
-    return 'Ends ${_shortDate(endsAt!)}';
+    return '';
   }
 
   static String _shortDate(DateTime date) {
     final local = date.toLocal();
-    final month = local.month.toString().padLeft(2, '0');
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
     final day = local.day.toString().padLeft(2, '0');
-    return '$day.$month.${local.year}';
+    return '$day ${months[local.month - 1]}';
   }
 }
 
@@ -906,6 +981,12 @@ class _Promotion {
   final String storeName;
   final String cleanStoreName;
   final String title;
+  final String? subtitle;
+  final String? description;
+  final String? brand;
+  final String? category;
+  final String? barcode;
+  final String? locationText;
   final String? imageUrl;
   final DateTime? startsAt;
   final DateTime? endsAt;
@@ -921,6 +1002,12 @@ class _Promotion {
     required this.storeName,
     required this.cleanStoreName,
     required this.title,
+    required this.subtitle,
+    required this.description,
+    required this.brand,
+    required this.category,
+    required this.barcode,
+    required this.locationText,
     required this.imageUrl,
     required this.startsAt,
     required this.endsAt,
@@ -1030,6 +1117,46 @@ class _Promotion {
       storeName: storeName,
       cleanStoreName: cleanStoreName,
       title: title,
+      subtitle: _nullableStringValue(data, const [
+        'subtitle',
+        'promotionTitle',
+        'promotionName',
+        'promoName',
+        'campaignName',
+      ]),
+      description: _nullableStringValue(data, const [
+        'productDescription',
+        'product_description',
+        'description',
+        'desc',
+        'details',
+        'productDetails',
+        'summary',
+      ]),
+      brand: _nullableStringValue(data, const [
+        'brand',
+        'brandName',
+        'manufacturer',
+        'vendorBrand',
+      ]),
+      category: _nullableStringValue(data, const [
+        'category',
+        'department',
+        'categoryName',
+        'productCategory',
+      ]),
+      barcode: _nullableStringValue(data, const [
+        'barcode',
+        'upc',
+        'UPC',
+        'ean',
+        'EAN',
+        'sku',
+        'SKU',
+        'itemCode',
+        'productCode',
+      ]),
+      locationText: _locationText(data),
       imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
       startsAt: _dateValue(data, const [
         'startsAt',
@@ -1088,6 +1215,14 @@ class _Promotion {
       'cancelled',
       'canceled',
     }.contains(status);
+  }
+
+  bool get hasProductDetails {
+    return description != null ||
+        brand != null ||
+        category != null ||
+        barcode != null ||
+        locationText != null;
   }
 
   String get logicalKey {
@@ -1187,6 +1322,9 @@ class _Promotion {
 
         final dedupeKey = 'api:$storeId:$promoId:product:$productId';
         if (!seen.add(dedupeKey)) continue;
+        debugPrint(
+          'Promotions: promo $promoId matched product $productId keys=${product.keys.toList()} category=${product['category']} aisle=${product['aisle']} shelf=${product['shelf']}',
+        );
 
         promos.add(
           _Promotion.fromPromotedProduct(
@@ -1340,6 +1478,39 @@ class _Promotion {
       'storeName': subtitleParts.join(' · '),
       'cleanStoreName': storeName,
       'title': productName,
+      if (promoName.isNotEmpty) 'subtitle': promoName,
+      for (final key in const [
+        'description',
+        'desc',
+        'details',
+        'productDescription',
+        'product_description',
+        'summary',
+        'brand',
+        'brandName',
+        'manufacturer',
+        'vendorBrand',
+        'category',
+        'department',
+        'categoryName',
+        'productCategory',
+        'barcode',
+        'upc',
+        'UPC',
+        'ean',
+        'EAN',
+        'sku',
+        'SKU',
+        'itemCode',
+        'productCode',
+        'aisle',
+        'shelf',
+        'section',
+        'location',
+        'locationLabel',
+        'locationText',
+      ])
+        if (product[key] != null) key: product[key],
       if (productBasePrice != null) 'originalPrice': productBasePrice,
       for (final key in const [
         'originalPrice',
@@ -1394,8 +1565,11 @@ class _Promotion {
   ) {
     final products = <String, Map<String, dynamic>>{};
 
-    void addProductMap(Map<dynamic, dynamic> rawProduct) {
-      final product = Map<String, dynamic>.from(rawProduct);
+    void addProductMap(
+      Map<dynamic, dynamic> rawProduct, {
+      Map<String, dynamic> extras = const {},
+    }) {
+      final product = {...extras, ...Map<String, dynamic>.from(rawProduct)};
       final id = _stringValue(product, const [
         'id',
         'productId',
@@ -1406,22 +1580,40 @@ class _Promotion {
       if (id.isNotEmpty) products[id] = product;
     }
 
-    void addProductList(dynamic rawProducts) {
+    void addProductList(
+      dynamic rawProducts, {
+      Map<String, dynamic> extras = const {},
+    }) {
       if (rawProducts is! List) return;
       for (final rawProduct in rawProducts) {
-        if (rawProduct is Map) addProductMap(rawProduct);
+        if (rawProduct is Map) addProductMap(rawProduct, extras: extras);
       }
     }
 
-    void addGroupedProducts(dynamic groupedProducts) {
-      if (groupedProducts is! Map) return;
-      for (final entry in groupedProducts.values) {
-        addProductList(entry);
+    final productsByCategory = storeData['productsByCategory'];
+    if (productsByCategory is Map) {
+      for (final entry in productsByCategory.entries) {
+        addProductList(entry.value, extras: {'category': entry.key.toString()});
       }
     }
 
-    addGroupedProducts(storeData['productsByCategory']);
-    addGroupedProducts(storeData['productsByAisle']);
+    final productsByAisle = storeData['productsByAisle'];
+    if (productsByAisle is Map) {
+      for (final aisleEntry in productsByAisle.entries) {
+        final aisle = aisleEntry.key.toString();
+        final aisleValue = aisleEntry.value;
+        addProductList(aisleValue, extras: {'aisle': aisle});
+        if (aisleValue is Map) {
+          for (final shelfEntry in aisleValue.entries) {
+            addProductList(
+              shelfEntry.value,
+              extras: {'aisle': aisle, 'shelf': shelfEntry.key.toString()},
+            );
+          }
+        }
+      }
+    }
+
     addProductList(storeData['products']);
     addProductList(storeData['items']);
 
@@ -1625,6 +1817,46 @@ class _Promotion {
       if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
     }
     return fallback;
+  }
+
+  static String? _nullableStringValue(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    final value = _stringValue(data, keys, fallback: '');
+    return value.isEmpty ? null : value;
+  }
+
+  static String? _locationText(Map<String, dynamic> data) {
+    final location = data['location'];
+    if (location is Map) {
+      final locationMap = Map<String, dynamic>.from(location);
+      final aisle = _nullableStringValue(locationMap, const ['aisle']);
+      final shelf = _nullableStringValue(locationMap, const ['shelf']);
+      if (aisle != null && shelf != null) return 'Aisle $aisle - Shelf $shelf';
+      if (aisle != null) return 'Aisle $aisle';
+      if (shelf != null) return 'Shelf $shelf';
+    }
+
+    final explicit = _nullableStringValue(data, const [
+      'locationText',
+      'locationLabel',
+      'aisleLocation',
+      'aisle_location',
+    ]);
+    if (explicit != null) return explicit;
+
+    final parts = <String>[];
+    final aisle = _nullableStringValue(data, const ['aisle', 'aisleName']);
+    final shelf = _nullableStringValue(data, const ['shelf', 'shelfName']);
+    final section = _nullableStringValue(data, const [
+      'section',
+      'sectionName',
+    ]);
+    if (aisle != null) parts.add('Aisle $aisle');
+    if (shelf != null) parts.add('Shelf $shelf');
+    if (section != null) parts.add(section);
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   static dynamic _firstValue(Map<String, dynamic> data, List<String> keys) {
