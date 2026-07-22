@@ -4,6 +4,7 @@
 <dict>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:www.easespotter.com</string>
 		<string>applinks:easespotter.com</string>
 	</array>
 	<key>com.apple.developer.applesignin</key>

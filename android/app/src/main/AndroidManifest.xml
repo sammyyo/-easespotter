@@ -45,7 +45,15 @@
                     android:pathPrefix="/share" />
                 <data
                     android:scheme="https"
+                    android:host="www.easespotter.com"
+                    android:pathPrefix="/share" />
+                <data
+                    android:scheme="https"
                     android:host="easespotter.com"
+                    android:pathPrefix="/recipes" />
+                <data
+                    android:scheme="https"
+                    android:host="www.easespotter.com"
                     android:pathPrefix="/recipes" />
                 <data
                     android:scheme="https"
@@ -53,7 +61,15 @@
                     android:pathPrefix="/glowup" />
                 <data
                     android:scheme="https"
+                    android:host="www.easespotter.com"
+                    android:pathPrefix="/glowup" />
+                <data
+                    android:scheme="https"
                     android:host="easespotter.com"
+                    android:pathPrefix="/reels" />
+                <data
+                    android:scheme="https"
+                    android:host="www.easespotter.com"
                     android:pathPrefix="/reels" />
             </intent-filter>
         </activity>

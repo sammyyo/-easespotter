@@ -120,7 +120,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     required String title,
   }) async {
     final resolvedTitle = title.isNotEmpty ? title : 'Glow-Up Story';
-    final link = 'https://easespotter.com/glowup/$docId';
+    final link = 'https://www.easespotter.com/glowup/$docId';
     final text = '$resolvedTitle\n$link';
 
     await showShareToConnectionsSheet(

@@ -172,7 +172,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   }
 
   String _shareLinkForCode(String code) =>
-      'https://easespotter.com/share/$code';
+      'https://www.easespotter.com/share/$code';
 
   String _collaborationCodeFromInput(String input) {
     final trimmed = input.trim();
@@ -180,7 +180,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     final uri = Uri.tryParse(trimmed);
     if (uri != null &&
-        uri.host.toLowerCase() == 'easespotter.com' &&
+        (uri.host.toLowerCase() == 'www.easespotter.com' ||
+            uri.host.toLowerCase() == 'easespotter.com') &&
         uri.pathSegments.length >= 2 &&
         uri.pathSegments.first.toLowerCase() == 'share') {
       return uri.pathSegments[1].trim().toUpperCase();
@@ -1128,7 +1129,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   TextField(
                     controller: codeController,
                     decoration: const InputDecoration(
-                      hintText: 'Code or https://easespotter.com/share/ABC123',
+                      hintText:
+                          'Code or https://www.easespotter.com/share/ABC123',
                     ),
                   ),
                 ],

@@ -111,7 +111,9 @@ class _MyAppState extends State<MyApp> {
   }
 
   String? _idFromUri(Uri uri, String firstPathSegment) {
-    final isEaseSpotterHost = uri.host.toLowerCase() == 'easespotter.com';
+    final host = uri.host.toLowerCase();
+    final isEaseSpotterHost =
+        host == 'www.easespotter.com' || host == 'easespotter.com';
     final isExpectedPath =
         uri.pathSegments.length >= 2 &&
         uri.pathSegments.first.toLowerCase() == firstPathSegment.toLowerCase();

@@ -99,7 +99,7 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
   }
 
   void _shareGlowUp() async {
-    final url = 'https://easespotter.com/glowup/${widget.glowUpId}';
+    final url = 'https://www.easespotter.com/glowup/${widget.glowUpId}';
     await Clipboard.setData(ClipboardData(text: url));
     if (mounted) {
       ScaffoldMessenger.of(

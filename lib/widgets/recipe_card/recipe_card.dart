@@ -143,7 +143,7 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
 
   Future<void> _shareRecipe() async {
     final title = widget.title.isNotEmpty ? widget.title : 'Recipe';
-    final link = 'https://easespotter.com/recipes/${widget.recipeId}';
+    final link = 'https://www.easespotter.com/recipes/${widget.recipeId}';
     final text = '$title\n$link';
 
     await showShareToConnectionsSheet(

@@ -590,7 +590,7 @@ class _ReelPageState extends State<_ReelPage> {
 
   Future<void> _shareReel() async {
     final title = (widget.data['title'] ?? 'Reel').toString();
-    final link = 'https://easespotter.com/reels/${widget.reelId}';
+    final link = 'https://www.easespotter.com/reels/${widget.reelId}';
     await SharePlus.instance.share(
       ShareParams(text: 'Check out this EaseSpotter reel: $title\n$link'),
     );
