@@ -134,8 +134,9 @@ class ExploreTabScreen extends StatelessWidget {
                     .limit(10)
                     .snapshots(),
             builder: (context, snapshot) {
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
 
               final docs = snapshot.data!.docs;
               return ListView.separated(

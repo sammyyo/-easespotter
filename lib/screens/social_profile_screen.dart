@@ -252,8 +252,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   Future<void> _toggleFollow() async {
     final authUid = _authUser?.uid;
     final resolvedUid = _getResolvedUid();
-    if (authUid == null || resolvedUid.isEmpty || authUid == resolvedUid)
+    if (authUid == null || resolvedUid.isEmpty || authUid == resolvedUid) {
       return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -399,7 +400,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           return ListTile(
             leading: const Icon(
               Icons.star_rounded,
-              color: const Color(0xFF006677),
+              color: Color(0xFF006677),
             ),
             title: Text(
               'Add to Shopping Circle (#$rank)',
@@ -648,7 +649,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                   height: 1.0,
                 ),
               ),
@@ -709,7 +710,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 fallback: const CircleAvatar(
                   radius: 27,
                   backgroundColor: Color(0xFFE6F4F6),
-                  child: Icon(Icons.person, color: const Color(0xFF006677)),
+                  child: Icon(Icons.person, color: Color(0xFF006677)),
                 ),
               ),
               const SizedBox(height: 9),
@@ -738,7 +739,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1089,7 +1090,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         style: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w900,
-          color: const Color(0xFF006677),
+          color: Color(0xFF006677),
         ),
       ),
     );
@@ -1144,7 +1145,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               .get();
       final results = await Future.wait([topFuture, recipeFuture]);
       return (
-        (results[0] as QuerySnapshot<Map<String, dynamic>>).docs,
+        (results[0]).docs,
         (results[1] as QuerySnapshot).docs,
       );
     } catch (_) {
@@ -1395,7 +1396,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 isSelected
                     ? const Icon(
                       Icons.check_circle,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     )
                     : const Icon(Icons.swap_vert, color: Colors.black38),
             onTap: () => Navigator.pop(ctx, rank),
@@ -1520,7 +1521,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                       child: Icon(
                         Icons.person,
                         size: 34,
-                        color: const Color(0xFF006677),
+                        color: Color(0xFF006677),
                       ),
                     ),
                   ),
@@ -1699,7 +1700,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF006677),
+                    color: Color(0xFF006677),
                     height: 1.0,
                   ),
                 ),
@@ -1960,7 +1961,7 @@ class _ProfileContentAction extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: const BoxDecoration(
-              color: const Color(0xFF006677),
+              color: Color(0xFF006677),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: Colors.white, size: 22),

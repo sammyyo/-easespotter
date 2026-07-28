@@ -57,7 +57,7 @@ class MissionListScreen extends StatelessWidget {
                         Text(
                           'Store: $store',
                           style: const TextStyle(
-                            color: const Color(0xFF006677),
+                            color: Color(0xFF006677),
                           ),
                         ),
                       if (createdAt != null)

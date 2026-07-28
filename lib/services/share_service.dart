@@ -36,6 +36,8 @@ class ShareService {
         'uid': creatorUid,
         'creatorUid': creatorUid,
         'collaborators': <String>[],
+        'participants': <String>[creatorUid],
+        'participantMap': {creatorUid: true},
         'list': groceryItems,
         'createdAt': now,
         'updatedAt': now,

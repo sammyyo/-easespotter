@@ -489,15 +489,17 @@ class _InboxScreenState extends State<InboxScreen> {
                   final lastAt = data['lastMessageAt'] as Timestamp?;
 
                   if (otherUid.isEmpty) return const SizedBox.shrink();
-                  if (_locallyHiddenConvos.contains(convoId))
+                  if (_locallyHiddenConvos.contains(convoId)) {
                     return const SizedBox.shrink();
+                  }
 
                   final isArchived = _isTrue(data, 'archived');
                   final isDeleted = _isTrue(data, 'deleted');
                   if (isArchived || isDeleted) return const SizedBox.shrink();
 
-                  if (_unreadOnly && unread <= 0)
+                  if (_unreadOnly && unread <= 0) {
                     return const SizedBox.shrink();
+                  }
 
                   // FIX: never use UID as the visible fallback
                   final cachedTitle = _safeImmediateNameFromInboxDoc(

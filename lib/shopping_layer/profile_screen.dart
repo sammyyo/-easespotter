@@ -680,7 +680,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                 ),
               ),
             ],

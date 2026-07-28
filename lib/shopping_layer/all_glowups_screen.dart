@@ -22,12 +22,14 @@ class AllGlowUpsScreen extends StatelessWidget {
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final docs = snapshot.data!.docs;
 
-          if (docs.isEmpty)
+          if (docs.isEmpty) {
             return const Center(child: Text('No glow-up stories found.'));
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),

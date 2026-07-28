@@ -277,7 +277,7 @@ class _FavoritesListScreenState extends State<FavoritesListScreen> {
                               ),
                               leading: const Icon(
                                 Icons.list_alt,
-                                color: const Color(0xFF006677),
+                                color: Color(0xFF006677),
                               ),
                               title: Text(
                                 title,

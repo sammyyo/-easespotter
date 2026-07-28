@@ -189,8 +189,9 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
                       .orderBy('createdAt', descending: true)
                       .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final docs = snapshot.data!.docs;
 
                 final filteredDocs =
@@ -206,10 +207,11 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
                       return tagMatch && emojiMatch;
                     }).toList();
 
-                if (filteredDocs.isEmpty)
+                if (filteredDocs.isEmpty) {
                   return const Center(
                     child: Text('No posts match your filter.'),
                   );
+                }
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),

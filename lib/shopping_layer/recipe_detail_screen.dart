@@ -68,7 +68,7 @@ class RecipeDetailScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
             onPressed: () {
-              final url = 'https://www.easespotter.com/recipes/$recipeId';
+              final url = 'https://easespotter.com/recipes/$recipeId';
               Share.share('Check out this recipe on EaseSpotter 🍽️:\n$url');
             },
           ),
@@ -290,7 +290,7 @@ class RecipeDetailScreen extends StatelessWidget {
                           Text(
                             category,
                             style: const TextStyle(
-                              color: const Color(0xFF006677),
+                              color: Color(0xFF006677),
                               fontWeight: FontWeight.w600,
                             ),
                           ),

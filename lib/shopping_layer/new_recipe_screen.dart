@@ -247,7 +247,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: 'Category',
-            labelStyle: const TextStyle(color: const Color(0xFF006677)),
+            labelStyle: const TextStyle(color: Color(0xFF006677)),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -257,7 +257,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
             ),
             suffixIcon: const Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: const Color(0xFF006677),
+              color: Color(0xFF006677),
               size: 28,
             ),
           ),
@@ -291,7 +291,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: const Color(0xFF006677),
+            color: Color(0xFF006677),
             width: 2,
           ),
         ),
@@ -326,7 +326,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: const Color(0xFF006677),
+            color: Color(0xFF006677),
             width: 2,
           ),
         ),
@@ -380,7 +380,7 @@ class _NewRecipeScreenState extends State<NewRecipeScreen> {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                       width: 2,
                     ),
                   ),

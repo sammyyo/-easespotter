@@ -145,7 +145,7 @@ class _StoreAvatar extends StatelessWidget {
                   errorBuilder: (context, error, stackTrace) {
                     return const Icon(
                       Icons.store,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     );
                   },
                 ),
@@ -157,7 +157,7 @@ class _StoreAvatar extends StatelessWidget {
                 fit: BoxFit.contain,
                 errorBuilder:
                     (_, __, ___) =>
-                        const Icon(Icons.store, color: const Color(0xFF006677)),
+                        const Icon(Icons.store, color: Color(0xFF006677)),
               ),
     );
   }

@@ -39,7 +39,7 @@ class AppBottomNav extends StatelessWidget {
                   )
                   : const CircleAvatar(
                     radius: 12,
-                    backgroundColor: const Color(0xFF006677),
+                    backgroundColor: Color(0xFF006677),
                     child: Icon(Icons.person, size: 16, color: Colors.white),
                   ),
           label: 'Profile',

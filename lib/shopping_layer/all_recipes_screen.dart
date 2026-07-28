@@ -22,12 +22,14 @@ class AllRecipesScreen extends StatelessWidget {
                 .orderBy('upvotesCount', descending: true)
                 .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
 
           final docs = snapshot.data!.docs;
-          if (docs.isEmpty)
+          if (docs.isEmpty) {
             return const Center(child: Text('No recipes found.'));
+          }
 
           return ListView.separated(
             padding: const EdgeInsets.all(16),

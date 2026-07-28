@@ -151,7 +151,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                     children: [
                       const Icon(
                         Icons.receipt_long,
-                        color: const Color(0xFF006677),
+                        color: Color(0xFF006677),
                         size: 44,
                       ),
                       const SizedBox(height: 14),
@@ -217,7 +217,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
-                                color: const Color(0xFF006677),
+                                color: Color(0xFF006677),
                               ),
                             ),
                           ),
@@ -255,7 +255,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                       '${_selectedIndexes.length} of ${_items.length} selected',
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF006677),
+                        color: Color(0xFF006677),
                       ),
                     ),
                   ),

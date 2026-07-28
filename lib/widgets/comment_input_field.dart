@@ -121,7 +121,7 @@ class _CommentInputFieldState extends State<CommentInputField> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                  : const Icon(Icons.send, color: const Color(0xFF006677)),
+                  : const Icon(Icons.send, color: Color(0xFF006677)),
           onPressed: _isSending ? null : _submitComment,
         ),
       ],

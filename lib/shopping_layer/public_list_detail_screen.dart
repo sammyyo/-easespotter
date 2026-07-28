@@ -117,7 +117,7 @@ class PublicListDetailScreen extends StatelessWidget {
                           child: ListTile(
                             leading: const Icon(
                               Icons.check_circle_outline,
-                              color: const Color(0xFF006677),
+                              color: Color(0xFF006677),
                             ),
                             title: Text(title),
                             subtitle: Text('Qty: $qty • $cat'),

@@ -260,8 +260,9 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
 
       if (url.isEmpty || !url.startsWith('http')) continue;
 
-      if (_collabAvatarUrls[uid] == url && _collabAvatarProviders[uid] != null)
+      if (_collabAvatarUrls[uid] == url && _collabAvatarProviders[uid] != null) {
         continue;
+      }
 
       _collabAvatarUrls[uid] = url;
       final provider = NetworkImage(url);
@@ -343,7 +344,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: TextButton.icon(
-        icon: const Icon(Icons.library_music, color: const Color(0xFF006677)),
+        icon: const Icon(Icons.library_music, color: Color(0xFF006677)),
         label: const Text('Listen on Spotify'),
         onPressed: () async {
           final uri = Uri.parse(cleaned);
@@ -558,7 +559,7 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
                                       child: const Icon(
                                         Icons.edit_outlined,
                                         size: 18,
-                                        color: const Color(0xFF006677),
+                                        color: Color(0xFF006677),
                                       ),
                                     ),
                                     onPressed:

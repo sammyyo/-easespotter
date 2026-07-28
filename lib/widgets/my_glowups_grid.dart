@@ -21,8 +21,9 @@ class MyGlowUpsGrid extends StatelessWidget {
               .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data!.docs;
 
         if (docs.isEmpty) {

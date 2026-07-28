@@ -256,33 +256,13 @@ class ProductDetailsScreen extends StatelessWidget {
               .collection('stores')
               .doc(storeId)
               .get();
-      final firestoreLogo = StoreLogoService.resolveFromData(doc.data());
-      if (firestoreLogo.isNotEmpty) return firestoreLogo;
-    } catch (_) {
-      // Fall through to the backend store payload.
-    }
-
-    try {
-      final numericStoreId = int.tryParse(storeId);
-      if (numericStoreId == null) return '';
-      final storeData = await StoreApiService.fetchStoreById(numericStoreId);
-      return StoreLogoService.resolveFromData(storeData);
+      return StoreLogoService.resolveFromData(doc.data());
     } catch (_) {
       return '';
     }
   }
 
   Widget _fallbackStoreIcon(String storeName) {
-    return Image.asset(
-      StoreLogoService.fallbackAsset,
-      width: 22,
-      height: 22,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _fallbackStoreInitial(storeName),
-    );
-  }
-
-  Widget _fallbackStoreInitial(String storeName) {
     return Text(
       storeName.trim().isEmpty ? '?' : storeName.trim()[0].toUpperCase(),
       style: const TextStyle(

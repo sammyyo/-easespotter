@@ -651,9 +651,57 @@ service cloud.firestore {
     // GROCERY SHARES
     // ================================
     match /grocery_shares/{shareId} {
+      function isGroceryShareMember(d) {
+        return request.auth.uid == d.uid
+          || request.auth.uid == d.creatorUid
+          || (d.collaborators is list && request.auth.uid in d.collaborators)
+          || (d.participants is list && request.auth.uid in d.participants)
+          || (d.participantMap is map && d.participantMap[request.auth.uid] == true);
+      }
+
+      function groceryShareIdentityUnchanged() {
+        return (!('code' in resource.data) || request.resource.data.code == resource.data.code)
+          && (!('uid' in resource.data) || request.resource.data.uid == resource.data.uid)
+          && (!('creatorUid' in resource.data) || request.resource.data.creatorUid == resource.data.creatorUid)
+          && (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt)
+          && (!('expiresAt' in resource.data) || request.resource.data.expiresAt == resource.data.expiresAt);
+      }
+
+      function groceryShareOnlyChanges(keys) {
+        return request.resource.data.diff(resource.data).removedKeys().size() == 0
+          && request.resource.data.diff(resource.data).addedKeys().hasOnly(keys)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(keys);
+      }
+
+      function joinsSelfAsGroceryParticipant() {
+        return isSignedIn()
+          && groceryShareIdentityUnchanged()
+          && groceryShareOnlyChanges(['collaborators', 'participants', 'participantMap', 'updatedAt'])
+          && (
+            (request.resource.data.collaborators is list && request.auth.uid in request.resource.data.collaborators)
+            || (request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
+            || (request.resource.data.participantMap is map && request.resource.data.participantMap[request.auth.uid] == true)
+          );
+      }
+
+      function updatesGroceryShareList() {
+        return isSignedIn()
+          && isGroceryShareMember(resource.data)
+          && groceryShareIdentityUnchanged()
+          && groceryShareOnlyChanges(['list', 'updatedAt', 'updatedBy', 'collaborators', 'participants', 'participantMap'])
+          && request.resource.data.list is list
+          && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy == request.auth.uid)
+          && (!('collaborators' in request.resource.data) || request.resource.data.collaborators is list)
+          && (!('participants' in request.resource.data) || request.resource.data.participants is list)
+          && (!('participantMap' in request.resource.data) || request.resource.data.participantMap is map);
+      }
+
       allow read: if isSignedIn();
       allow create: if isOwnerByUID();
-      allow update, delete: if isExistingOwner() && uidUnchanged();
+      allow update: if (isExistingOwner() && uidUnchanged())
+        || joinsSelfAsGroceryParticipant()
+        || updatesGroceryShareList();
+      allow delete: if isExistingOwner() && uidUnchanged();
     }
 
     // STORE VISITS

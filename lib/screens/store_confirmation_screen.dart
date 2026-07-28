@@ -687,7 +687,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: const Color(0xFF006677),
+                                    color: Color(0xFF006677),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
                                   ),
@@ -1608,7 +1608,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                           decoration: InputDecoration(
                             labelText: 'Select Category',
                             labelStyle: const TextStyle(
-                              color: const Color(0xFF006677),
+                              color: Color(0xFF006677),
                             ),
                             filled: true,
                             fillColor: Colors.white,
@@ -1621,7 +1621,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                             ),
                             suffixIcon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
-                              color: const Color(0xFF006677),
+                              color: Color(0xFF006677),
                               size: 28,
                             ),
                           ),
@@ -1804,7 +1804,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                           const Icon(
                                             Icons.store_mall_directory,
                                             size: 50,
-                                            color: const Color(0xFF006677),
+                                            color: Color(0xFF006677),
                                           ),
                                 ),
                               )
@@ -1816,7 +1816,7 @@ class _StoreConfirmationScreenState extends State<StoreConfirmationScreen> {
                                     (_, __, ___) => const Icon(
                                       Icons.store_mall_directory,
                                       size: 50,
-                                      color: const Color(0xFF006677),
+                                      color: Color(0xFF006677),
                                     ),
                               ),
                     ),

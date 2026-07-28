@@ -1253,7 +1253,7 @@ class _PersonSuggestionCard extends StatelessWidget {
                         : Text(
                           initial,
                           style: const TextStyle(
-                            color: const Color(0xFF006677),
+                            color: Color(0xFF006677),
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1284,7 +1284,7 @@ class _PersonSuggestionCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 11,
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1327,7 +1327,7 @@ class _PersonRowCard extends StatelessWidget {
                     : Text(
                       initial,
                       style: const TextStyle(
-                        color: const Color(0xFF006677),
+                        color: Color(0xFF006677),
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1363,7 +1363,7 @@ class _PersonRowCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),

@@ -27,12 +27,14 @@ class ActivityFeedScreen extends StatelessWidget {
                 .limit(50)
                 .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final docs = snapshot.data!.docs;
 
-          if (docs.isEmpty)
+          if (docs.isEmpty) {
             return const Center(child: Text("No recent activity."));
+          }
 
           return ListView.separated(
             itemCount: docs.length,

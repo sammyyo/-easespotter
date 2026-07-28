@@ -675,7 +675,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      color: const Color(0xFF006677),
+                                      color: Color(0xFF006677),
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,
                                     ),

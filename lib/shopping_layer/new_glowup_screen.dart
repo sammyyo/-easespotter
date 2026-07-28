@@ -209,7 +209,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: const Color(0xFF006677),
+            color: Color(0xFF006677),
             width: 2,
           ),
         ),
@@ -244,7 +244,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: const Color(0xFF006677),
+            color: Color(0xFF006677),
             width: 2,
           ),
         ),

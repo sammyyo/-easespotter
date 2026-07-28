@@ -211,7 +211,7 @@ class _TopCollaboratorsPreviewState extends State<TopCollaboratorsPreview> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                 ),
               ),
               const SizedBox(height: 4),

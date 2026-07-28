@@ -22,8 +22,9 @@ class AllPublicListsScreen extends StatelessWidget {
                 .orderBy('views', descending: true)
                 .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
 
           final docs = snapshot.data!.docs;
 

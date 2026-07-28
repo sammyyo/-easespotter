@@ -179,9 +179,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (trimmed.isEmpty) return '';
 
     final uri = Uri.tryParse(trimmed);
+    final host = uri?.host.toLowerCase();
     if (uri != null &&
-        (uri.host.toLowerCase() == 'www.easespotter.com' ||
-            uri.host.toLowerCase() == 'easespotter.com') &&
+        (host == 'www.easespotter.com' || host == 'easespotter.com') &&
         uri.pathSegments.length >= 2 &&
         uri.pathSegments.first.toLowerCase() == 'share') {
       return uri.pathSegments[1].trim().toUpperCase();
@@ -256,7 +256,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -385,47 +385,79 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   }
 
   Future<void> _joinCollaboration(String code) async {
-    final query =
-        await FirebaseFirestore.instance
-            .collection('grocery_shares')
-            .where('code', isEqualTo: code)
-            .limit(1)
-            .get();
+    final uid = _currentSignedInUid(showMessage: true);
+    if (uid == null) return;
 
-    if (!mounted) return;
+    try {
+      final query =
+          await FirebaseFirestore.instance
+              .collection('grocery_shares')
+              .where('code', isEqualTo: code)
+              .limit(1)
+              .get();
 
-    if (query.docs.isNotEmpty) {
-      final doc = query.docs.first;
-      final list = List<Map<String, dynamic>>.from(doc['list']);
+      if (!mounted) return;
 
-      setState(() {
-        _groceryItems = list;
-        _activeCollabCode = code;
-        if (!_collaborations.any((c) => c['code'] == code)) {
-          _collaborations.add({'code': code, 'docId': doc.id});
-        }
-      });
+      if (query.docs.isNotEmpty) {
+        final doc = query.docs.first;
+        final list = List<Map<String, dynamic>>.from(doc['list']);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        UserScopedPrefs.key('grocery_list'),
-        jsonEncode(list),
-      );
-      await prefs.setString(
-        UserScopedPrefs.key('collaborations'),
-        jsonEncode(_collaborations),
-      );
+        await _joinGroceryShareDocument(doc.reference);
 
-      _listenToCollaboration(code);
-    } else {
+        if (!mounted) return;
+        setState(() {
+          _groceryItems = list;
+          _activeCollabCode = code;
+          if (!_collaborations.any((c) => c['code'] == code)) {
+            _collaborations.add({'code': code, 'docId': doc.id});
+          }
+        });
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          UserScopedPrefs.key('grocery_list'),
+          jsonEncode(list),
+        );
+        await prefs.setString(
+          UserScopedPrefs.key('collaborations'),
+          jsonEncode(_collaborations),
+        );
+
+        _listenToCollaboration(code);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid code. Collaboration not found.'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error joining collaboration: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid code. Collaboration not found.')),
+        const SnackBar(content: Text('Failed to join collaboration.')),
       );
     }
   }
 
+  Future<void> _joinGroceryShareDocument(
+    DocumentReference<Map<String, dynamic>> reference,
+  ) async {
+    final uid = _currentSignedInUid(showMessage: true);
+    if (uid == null) return;
+
+    await reference.set({
+      'collaborators': FieldValue.arrayUnion([uid]),
+      'participants': FieldValue.arrayUnion([uid]),
+      'participantMap.$uid': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> _updateCollaboration() async {
     if (_activeCollabCode == null) return;
+    final uid = _currentSignedInUid();
+    if (uid == null) return;
 
     final query =
         await FirebaseFirestore.instance
@@ -437,15 +469,16 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (query.docs.isNotEmpty) {
       final doc = query.docs.first;
       final collaborators = List<String>.from(doc['collaborators'] ?? []);
-      final uid = FirebaseAuth.instance.currentUser!.uid;
       if (!collaborators.contains(uid)) {
         collaborators.add(uid);
       }
       await doc.reference.update({
         'list': _groceryItems,
         'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': FirebaseAuth.instance.currentUser!.uid,
+        'updatedBy': uid,
         'collaborators': collaborators,
+        'participants': FieldValue.arrayUnion([uid]),
+        'participantMap.$uid': true,
       });
     }
   }
@@ -1204,7 +1237,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1290,8 +1323,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (t.isNotEmpty) return t;
 
     final id = (item['recipeId'] ?? '').toString().trim();
-    if (id.isNotEmpty)
+    if (id.isNotEmpty) {
       return 'Recipe · ${id.substring(0, id.length >= 6 ? 6 : id.length)}';
+    }
 
     return 'Recipe (Unknown)';
   }
@@ -1423,7 +1457,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: 'Select Category',
-            labelStyle: const TextStyle(color: const Color(0xFF006677)),
+            labelStyle: const TextStyle(color: Color(0xFF006677)),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -1433,7 +1467,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
             ),
             suffixIcon: const Icon(
               Icons.keyboard_arrow_down_rounded,
-              color: const Color(0xFF006677),
+              color: Color(0xFF006677),
               size: 28,
             ),
           ),
@@ -1459,7 +1493,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF006677),
+            color: Color(0xFF006677),
           ),
         ),
         const Divider(thickness: 1.2),
@@ -1560,7 +1594,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       value: 'brought',
                       child: Row(
                         children: [
-                          Icon(Icons.kitchen, color: const Color(0xFF006677)),
+                          Icon(Icons.kitchen, color: Color(0xFF006677)),
                           SizedBox(width: 10),
                           Text('Brought home'),
                         ],
@@ -1570,10 +1604,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       value: 'move',
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.swap_horiz,
-                            color: const Color(0xFF006677),
-                          ),
+                          Icon(Icons.swap_horiz, color: Color(0xFF006677)),
                           SizedBox(width: 10),
                           Text('Change Category'),
                         ],
@@ -1771,7 +1802,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   children: [
                     const Icon(
                       Icons.shopping_cart_outlined,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -1779,7 +1810,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: const Color(0xFF006677),
+                        color: Color(0xFF006677),
                       ),
                     ),
                   ],
@@ -1796,7 +1827,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: const Color(0xFF006677),
+                      color: Color(0xFF006677),
                     ),
                   ),
                 ),
@@ -1852,7 +1883,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                                   children: [
                                     const Icon(
                                       Icons.restaurant_menu,
-                                      color: const Color(0xFF006677),
+                                      color: Color(0xFF006677),
                                       size: 18,
                                     ),
                                     const SizedBox(width: 8),
@@ -1862,7 +1893,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF006677),
+                                          color: Color(0xFF006677),
                                         ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
