@@ -1,9 +1,54 @@
+import 'store_location.dart';
+
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
 class StoreApiService {
-  static const String baseUrl = 'https://easespotter-production.up.railway.app';
+  static const String baseUrl = String.fromEnvironment(
+    'STORE_API_BASE_URL',
+    defaultValue: 'https://easespotter-production.up.railway.app',
+  );
+
+  static Future<List<StoreLocation>> fetchNearbyStores({
+    required double latitude,
+    required double longitude,
+    http.Client? client,
+  }) async {
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude.abs() > 90 ||
+        longitude.abs() > 180) {
+      throw ArgumentError('Invalid position');
+    }
+    final uri = Uri.parse('$baseUrl/api/stores/nearby').replace(
+      queryParameters: {
+        'latitude': '$latitude',
+        'longitude': '$longitude',
+        'radiusKm': '50',
+        'limit': '10',
+      },
+    );
+    final response = await (client == null ? http.get(uri) : client.get(uri))
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200)
+      throw Exception('Store locations are temporarily unavailable.');
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map ||
+        decoded['success'] != true ||
+        decoded['data'] is! List) {
+      throw const FormatException('Invalid store locations response');
+    }
+    return (decoded['data'] as List)
+        .whereType<Map>()
+        .map(
+          (value) => StoreLocation.fromJson(Map<String, dynamic>.from(value)),
+        )
+        .whereType<StoreLocation>()
+        .where((value) => value.distanceMeters != null)
+        .toList();
+  }
 
   /// Store payload (includes productsByCategory, productsByAisle, etc.)
   static Future<Map<String, dynamic>> fetchStoreById(int storeId) async {
@@ -42,22 +87,19 @@ class StoreApiService {
 
   /// Store addresses from the Neon-backed website data.
   static Future<List<Map<String, dynamic>>> fetchStoreAddresses(
-    int storeId,
-  ) async {
+    int storeId, {
+    http.Client? client,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/stores/$storeId/addresses');
     debugPrint('StoreApiService: fetching addresses $uri');
 
     try {
-      final res = await http
-          .get(uri, headers: {'Content-Type': 'application/json'})
+      final res = await (client == null ? http.get(uri) : client.get(uri))
           .timeout(const Duration(seconds: 15));
 
-      debugPrint(
-        'StoreApiService Addresses: Response ${res.statusCode} ${res.body}',
-      );
-
+      if (res.statusCode == 404) return [];
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        throw Exception('API error ${res.statusCode}: ${res.body}');
+        throw Exception('Store address API unavailable (${res.statusCode}).');
       }
 
       final decoded = jsonDecode(res.body);

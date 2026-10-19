@@ -4,17 +4,15 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <meta-data android:name="com.google.android.geo.API_KEY"
-        android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
-
-
-
     <application
         android:label="easespotter"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:enableOnBackInvokedCallback="true">
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyABkt83oAh6pSJn5OheR09J1rACvbDY6OA" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,9 +26,6 @@
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme"
                 />
-            <meta-data
-                android:name="com.google.android.geo.API_KEY"
-                android:value="AIzaSyBedouAVKmIZxFS5Hs_TtopeBscoHOTcjM"/>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

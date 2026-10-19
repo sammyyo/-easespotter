@@ -1,3 +1,4 @@
+import { publicAddress } from "../store-location";
 import { Request, Response } from 'express';
 import { db } from '@db';
 import { eq, and, desc } from 'drizzle-orm';
@@ -361,64 +362,24 @@ export const getStoreInfo = async (req: Request, res: Response) => {
 
 /**
  * Get store address data by vendor ID or store slug.
- * Address currently comes from Vendor Settings via vendors.address.
+ * Only the explicitly published customer-facing location is returned.
  */
 export const getStoreAddresses = async (req: Request, res: Response) => {
   try {
-    const { storeId } = req.params;
-
-    if (!storeId) {
-      return res.status(400).json({ error: 'Store ID or vendor slug is required' });
-    }
-
-    const isNumericStoreId = !Number.isNaN(Number(storeId));
-    const [store] = await db
-      .select({
-        vendorId: vendors.id,
-        vendorName: vendors.name,
-        vendorBusinessName: vendors.businessName,
-        vendorEmail: vendors.email,
-        vendorAddress: vendors.address,
-        vendorPhone: vendors.phone,
-        storeProfileName: storeProfiles.name,
-        storeContactEmail: storeProfiles.contactEmail,
-        storeContactPhone: storeProfiles.contactPhone,
-      })
-      .from(vendors)
-      .leftJoin(storeProfiles, eq(vendors.id, storeProfiles.vendorId))
-      .where(isNumericStoreId ? eq(vendors.id, Number(storeId)) : eq(storeProfiles.slug, storeId))
-      .limit(1);
-
-    if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
-    }
-
-    const addresses = store.vendorAddress?.trim()
-      ? [{
-          id: `${store.vendorId}-primary`,
-          type: 'primary',
-          source: 'vendor_settings',
-          label: store.storeProfileName || store.vendorBusinessName || store.vendorName,
-          address: store.vendorAddress,
-          formattedAddress: store.vendorAddress,
-          vendorId: store.vendorId,
-          vendorName: store.vendorName,
-          businessName: store.vendorBusinessName,
-          email: store.storeContactEmail || store.vendorEmail,
-          phone: store.storeContactPhone || store.vendorPhone,
-          latitude: null,
-          longitude: null,
-        }]
-      : [];
-
-    return res.status(200).json({
-      success: true,
-      data: addresses,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    console.error('Error fetching store addresses:', error);
-    return res.status(500).json({ error: 'Failed to fetch store addresses', details: error.message });
+    const {storeId} = req.params;
+    const numeric = /^\d+$/.test(storeId);
+    if (numeric && !Number.isSafeInteger(Number(storeId))) return res.status(400).json({error: 'Invalid store ID'});
+    const [store] = await db.select({
+      vendorId: vendors.id, name: storeProfiles.name, businessName: vendors.businessName,
+      logoUrl: storeProfiles.logoUrl, integrationSettings: storeProfiles.integrationSettings,
+      status: vendors.status,
+    }).from(vendors).leftJoin(storeProfiles, eq(vendors.id, storeProfiles.vendorId))
+      .where(numeric ? eq(vendors.id, Number(storeId)) : eq(storeProfiles.slug, storeId)).limit(1);
+    if (!store || store.status !== 'active') return res.status(404).json({error: 'Store not found'});
+    const address = publicAddress(store);
+    return res.set('Cache-Control', 'no-store').json({success: true, data: address ? [address] : []});
+  } catch {
+    return res.status(503).json({error: 'Store addresses are temporarily unavailable.'});
   }
 };
 

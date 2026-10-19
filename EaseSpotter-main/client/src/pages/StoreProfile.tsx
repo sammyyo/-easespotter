@@ -1,3 +1,4 @@
+import { publicStoreLocationSchema, emptyStoreLocation } from "../../../shared/store-location";
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useLocation } from "wouter";
@@ -53,6 +54,7 @@ import { Switch } from "@/components/ui/switch";
 
 // Form schema
 const storeProfileSchema = z.object({
+  publicLocation: publicStoreLocationSchema,
   name: z.string().min(2, "Store name must be at least 2 characters"),
   description: z.string().optional(),
   website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -177,6 +179,7 @@ export default function StoreProfile() {
   const form = useForm<StoreProfileFormValues>({
     resolver: zodResolver(storeProfileSchema),
     defaultValues: {
+      publicLocation: {...emptyStoreLocation},
       name: "",
       description: "",
       website: "",
@@ -198,6 +201,7 @@ export default function StoreProfile() {
     if (storeProfile) {
       const locationLabels = getStoreLocationLabels(storeProfile);
       form.reset({
+        publicLocation: storeProfile.publicLocation || {...emptyStoreLocation},
         name: storeProfile.name || "",
         description: storeProfile.description || "",
         website: storeProfile.website || "",
@@ -684,6 +688,53 @@ export default function StoreProfile() {
                       )}
                     />
                   </div>
+
+                  <section className="space-y-4 rounded-lg border p-4" aria-label="Public store location">
+                    <h3 className="font-semibold">Store location in the app</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Add your customer-facing address and map coordinates so shoppers can find your store nearby.
+                      This is separate from your business contact address in Vendor Settings.
+                    </p>
+                    <FormField control={form.control} name="publicLocation.address" render={({field}) => (
+                      <FormItem><FormLabel>Store address</FormLabel>
+                        <FormControl><Textarea {...field} placeholder="Street, building number, postal code, city, country" /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {(["latitude", "longitude"] as const).map((coordinate) => (
+                        <FormField key={coordinate} control={form.control} name={`publicLocation.${coordinate}`} render={({field}) => (
+                          <FormItem><FormLabel>{coordinate === "latitude" ? "Latitude" : "Longitude"}</FormLabel>
+                            <FormControl><Input type="number" step="any" min={coordinate === "latitude" ? -90 : -180}
+                              max={coordinate === "latitude" ? 90 : 180} value={field.value ?? ""}
+                              onBlur={field.onBlur} ref={field.ref} name={field.name}
+                              onChange={(event) => field.onChange(event.target.value === "" ? null : Number(event.target.value))} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      ))}
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => {
+                      if (!navigator.geolocation) {
+                        toast({title: "Location unavailable", description: "Enter the coordinates from your map instead."});
+                        return;
+                      }
+                      navigator.geolocation.getCurrentPosition((position) => {
+                        form.setValue("publicLocation.latitude", position.coords.latitude, {shouldDirty: true, shouldValidate: true});
+                        form.setValue("publicLocation.longitude", position.coords.longitude, {shouldDirty: true, shouldValidate: true});
+                      }, () => toast({title: "Could not get your location", description: "Allow location access or enter the coordinates manually."}),
+                      {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+                    }}>Use current location</Button>
+                    <p className="text-sm text-muted-foreground">Use current location only while you are at the store. You can also copy latitude and longitude from your map.</p>
+                    <FormField control={form.control} name="publicLocation.published" render={({field}) => (
+                      <FormItem className="flex items-center justify-between gap-4">
+                        <div><FormLabel>Show this location in the app</FormLabel>
+                          <FormDescription>Your address and map location will be publicly visible. Save your profile to apply changes.</FormDescription></div>
+                        <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </section>
 
                   {/* Hidden inputs for image URLs */}
                   <input type="hidden" {...form.register("brandImageUrl")} />

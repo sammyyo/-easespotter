@@ -1,3 +1,5 @@
+import { publicStoreLocationSchema, emptyStoreLocation } from "../shared/store-location";
+import { storeLocationRoutes } from "./store-location-routes";
 import { Request, Response, Router } from "express";
 import { db } from "@db";
 import {
@@ -21,6 +23,14 @@ import * as integrations from "./api-integrations";
 import { persistImageDataUrl, removePersistedUpload } from "./image-storage";
 
 const router = Router();
+router.use(storeLocationRoutes(async () => db.select({
+  vendorId: vendors.id,
+  name: storeProfiles.name,
+  businessName: vendors.businessName,
+  logoUrl: storeProfiles.logoUrl,
+  integrationSettings: storeProfiles.integrationSettings,
+}).from(vendors).innerJoin(storeProfiles, eq(vendors.id, storeProfiles.vendorId))
+  .where(eq(vendors.status, "active"))));
 
 const parseIntegrationSettings = (settings: unknown): Record<string, any> => {
   if (!settings) return {};
@@ -54,10 +64,12 @@ const getLocationLabels = (settings: Record<string, any>) => {
 const withLocationLabelFields = <T extends { integrationSettings?: unknown }>(profile: T) => {
   const integrationSettings = parseIntegrationSettings(profile.integrationSettings);
   const locationLabels = getLocationLabels(integrationSettings);
+  const location = publicStoreLocationSchema.safeParse(integrationSettings.publicLocation);
 
   return {
     ...profile,
     integrationSettings,
+    publicLocation: location.success ? location.data : emptyStoreLocation,
     locationLabelPrimary: locationLabels.primary,
     locationLabelSecondary: locationLabels.secondary,
   };
@@ -131,9 +143,18 @@ router.post("/profile", isAuthenticated, async (req, res) => {
 
     const existingIntegrationSettings = parseIntegrationSettings(existingProfile?.integrationSettings);
 
+    const locationResult = publicStoreLocationSchema.safeParse(
+      updatedData.publicLocation ?? existingIntegrationSettings.publicLocation ?? emptyStoreLocation,
+    );
+    if (!locationResult.success) {
+      return res.status(400).json({error: fromZodError(locationResult.error).message});
+    }
+    delete updatedData.publicLocation;
+
     updatedData.integrationSettings = {
       ...existingIntegrationSettings,
       ...(updatedData.integrationSettings && typeof updatedData.integrationSettings === "object" ? updatedData.integrationSettings : {}),
+      publicLocation: locationResult.data,
       locationLabels: {
         primary: locationLabelPrimary,
         secondary: locationLabelSecondary,

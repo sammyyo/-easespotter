@@ -1682,7 +1682,7 @@ export const insertStoreProfileSchema = createInsertSchema(storeProfiles, {
   name: z.string().min(2, "Store name must be at least 2 characters"),
   description: z.string().optional(),
   themeColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Theme color must be a valid hex color").optional(),
-  contactEmail: z.string().email("Invalid email format").optional(),
+  contactEmail: z.string().email("Invalid email format").optional().or(z.literal("")),
 });
 export const selectStoreProfileSchema = createSelectSchema(storeProfiles);
 

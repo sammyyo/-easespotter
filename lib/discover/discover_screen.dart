@@ -1,3 +1,4 @@
+import 'package:easespotter/services/store_location.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -524,7 +525,8 @@ class _NearbyGpsStoresList extends StatefulWidget {
 class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
   bool _loading = true;
   String? _error;
-  Position? _pos;
+  Future<List<StoreLocation>>? _nearbyFuture;
+  bool _servicesOff = false;
 
   @override
   void initState() {
@@ -540,6 +542,8 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
+      _servicesOff = !serviceEnabled;
       if (!serviceEnabled) {
         setState(() {
           _loading = false;
@@ -554,6 +558,7 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
         permission = await Geolocator.requestPermission();
       }
 
+      if (!mounted) return;
       if (permission == LocationPermission.denied) {
         setState(() {
           _loading = false;
@@ -572,19 +577,25 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
 
       if (!mounted) return;
       setState(() {
-        _pos = pos;
+        _nearbyFuture = StoreApiService.fetchNearbyStores(
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+        );
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Failed to get location: $e';
+        _error = 'Could not read your location. Please try again.';
       });
     }
   }
@@ -592,179 +603,85 @@ class _NearbyGpsStoresListState extends State<_NearbyGpsStoresList> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const _LoadingList();
-
     if (_error != null) {
-      return _InfoCard(title: 'Nearby unavailable', subtitle: _error!);
-    }
-
-    final pos = _pos;
-    if (pos == null) {
-      return const _InfoCard(
-        title: 'Nearby unavailable',
-        subtitle: 'Could not read your location.',
+      return Column(
+        children: [
+          _InfoCard(title: 'Nearby unavailable', subtitle: _error!),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: _initLocation,
+                child: const Text('Try again'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (_servicesOff) {
+                    await Geolocator.openLocationSettings();
+                  } else {
+                    await Geolocator.openAppSettings();
+                  }
+                },
+                child: const Text('Open settings'),
+              ),
+            ],
+          ),
+        ],
       );
     }
-
-    // We fetch candidate store IDs from the app database, then resolve
-    // coordinates from the Neon-backed store address API.
-    final stream =
-        FirebaseFirestore.instance.collection('stores').limit(80).snapshots();
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: stream,
-      builder: (context, snap) {
-        if (snap.hasError) {
-          return _InfoCard(
-            title: 'Couldn’t load stores',
-            subtitle: '${snap.error}',
+    return FutureBuilder<List<StoreLocation>>(
+      future: _nearbyFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Column(
+            children: [
+              const _InfoCard(
+                title: 'Couldn’t load nearby stores',
+                subtitle: 'Check your connection and try again.',
+              ),
+              TextButton(onPressed: _initLocation, child: const Text('Retry')),
+            ],
           );
         }
-
-        if (!snap.hasData) return const _LoadingList();
-
-        return FutureBuilder<List<_NearbyStoreItem>>(
-          future: _loadNearbyStoresFromApi(pos, snap.data!.docs),
-          builder: (context, nearbySnap) {
-            if (nearbySnap.hasError) {
-              return _InfoCard(
-                title: 'Couldn’t load nearby stores',
-                subtitle: '${nearbySnap.error}',
-              );
-            }
-
-            if (!nearbySnap.hasData) return const _LoadingList();
-
-            final show = nearbySnap.data!;
-            if (show.isEmpty) {
-              return const _InfoCard(
-                title: 'No nearby stores yet',
-                subtitle: 'No store addresses with coordinates were found.',
-              );
-            }
-
-            return Column(
-              children: List.generate(show.length, (i) {
-                final s = show[i];
-
-                final km = s.meters / 1000.0;
-                final kmText =
-                    km < 1
-                        ? '${(s.meters).round()} m'
-                        : '${km.toStringAsFixed(1)} km';
-
-                final variant =
-                    (i % 3 == 0)
-                        ? _CardVariant.blue
-                        : (i % 3 == 1)
-                        ? _CardVariant.green
-                        : _CardVariant.purple;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _StoreRowCard(
-                    storeName: s.storeName,
-                    meta: kmText,
-                    variant: variant,
-                    logoUrl: s.logoUrl,
-                    onTap:
-                        () => widget.onOpenStore(
-                          storeId: s.storeId,
-                          storeName: s.storeName,
-                          logoUrl: s.logoUrl,
-                        ),
-                  ),
-                );
-              }),
+        if (!snapshot.hasData) return const _LoadingList();
+        final stores = snapshot.data!;
+        if (stores.isEmpty) {
+          return const _InfoCard(
+            title: 'No nearby stores yet',
+            subtitle:
+                'No stores have published a location within 50 km of you.',
+          );
+        }
+        return Column(
+          children: List.generate(stores.length, (index) {
+            final store = stores[index];
+            final meters = store.distanceMeters!;
+            final distance = meters < 1000
+                ? '${meters.round()} m'
+                : '${(meters / 1000).toStringAsFixed(1)} km';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _StoreRowCard(
+                storeName: store.name,
+                meta: '$distance • ${store.address}',
+                variant: index % 3 == 0
+                    ? _CardVariant.blue
+                    : index % 3 == 1
+                    ? _CardVariant.green
+                    : _CardVariant.purple,
+                logoUrl: StoreLogoService.resolveUrl(store.logoUrl),
+                onTap: () => widget.onOpenStore(
+                  storeId: '${store.storeId}',
+                  storeName: store.name,
+                  logoUrl: StoreLogoService.resolveUrl(store.logoUrl),
+                ),
+              ),
             );
-          },
+          }),
         );
       },
     );
   }
-
-  Future<List<_NearbyStoreItem>> _loadNearbyStoresFromApi(
-    Position pos,
-    List<QueryDocumentSnapshot> docs,
-  ) async {
-    final items = <_NearbyStoreItem>[];
-
-    for (final d in docs) {
-      final data = d.data() as Map<String, dynamic>;
-      final storeId = _storeIdFromDoc(d, data);
-      final numericStoreId = int.tryParse(storeId);
-      if (numericStoreId == null) continue;
-
-      final fallbackName =
-          (data['name'] ?? data['vendorName'] ?? data['storeName'] ?? 'Store')
-              .toString();
-      final logoUrl = StoreLogoService.resolveFromData(data);
-
-      try {
-        final addresses = await StoreApiService.fetchStoreAddresses(
-          numericStoreId,
-        );
-        for (final address in addresses) {
-          final lat = _doubleValue(address['latitude']);
-          final lng = _doubleValue(address['longitude']);
-          if (lat == null || lng == null) continue;
-
-          final storeName =
-              (address['label'] ??
-                      address['vendorName'] ??
-                      address['businessName'] ??
-                      fallbackName)
-                  .toString();
-
-          final meters = Geolocator.distanceBetween(
-            pos.latitude,
-            pos.longitude,
-            lat,
-            lng,
-          );
-
-          items.add(
-            _NearbyStoreItem(
-              storeId: storeId,
-              storeName: storeName,
-              logoUrl: logoUrl.isNotEmpty ? logoUrl : null,
-              meters: meters,
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('Nearby stores: address lookup failed for $storeId: $e');
-      }
-    }
-
-    items.sort((a, b) => a.meters.compareTo(b.meters));
-    return items.take(10).toList();
-  }
-
-  String _storeIdFromDoc(DocumentSnapshot doc, Map<String, dynamic> data) {
-    return (data['storeId'] ?? data['vendorId'] ?? data['vendorid'] ?? doc.id)
-        .toString()
-        .trim();
-  }
-
-  double? _doubleValue(dynamic value) {
-    if (value is num) return value.toDouble();
-    if (value is String) return double.tryParse(value.trim());
-    return null;
-  }
-}
-
-class _NearbyStoreItem {
-  final String storeId;
-  final String storeName;
-  final String? logoUrl;
-  final double meters;
-
-  _NearbyStoreItem({
-    required this.storeId,
-    required this.storeName,
-    required this.logoUrl,
-    required this.meters,
-  });
 }
 
 class _NearbyNoGpsList extends StatelessWidget {

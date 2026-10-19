@@ -1,3 +1,4 @@
+import '../widgets/store_location_card.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -820,6 +821,8 @@ class _StoreProfileScreenState extends State<StoreProfileScreen> {
                     },
                   ),
 
+                if (widget.allowRemoteLookup)
+                  StoreLocationCard(storeId: widget.storeId),
                 const SizedBox(height: 18),
                 const Divider(),
 

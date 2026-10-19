@@ -14,7 +14,8 @@
     "uploads:optimize": "node --env-file=.env --import tsx scripts/optimize-existing-uploads.ts --apply --delete-originals",
     "uploads:cleanup:dry-run": "node --env-file=.env --import tsx scripts/cleanup-orphan-uploads.ts",
     "uploads:cleanup": "node --env-file=.env --import tsx scripts/cleanup-orphan-uploads.ts --delete",
-    "test:mobile-links": "node --import tsx --test server/mobile-links.test.ts"
+    "test:mobile-links": "node --import tsx --test server/mobile-links.test.ts",
+    "test:store-locations": "node --import tsx --test server/store-location.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

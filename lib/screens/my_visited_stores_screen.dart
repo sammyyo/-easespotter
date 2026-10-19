@@ -1,3 +1,5 @@
+import '../services/store_api_service.dart';
+import '../services/store_location.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -280,32 +282,25 @@ class _VisitedStoresMapState extends State<_VisitedStoresMap> {
       final Set<Marker> markers = {};
       final List<LatLng> points = [];
 
-      for (final storeId in storeIds) {
-        final doc =
-            await FirebaseFirestore.instance
-                .collection('stores')
-                .doc(storeId)
-                .get();
-        if (!doc.exists) continue;
-
-        final data = doc.data()!;
-        final geo = data['geo'];
-        if (geo is GeoPoint) {
-          final latLng = LatLng(geo.latitude, geo.longitude);
-          points.add(latLng);
-
-          final name = data['name'] ?? data['vendorName'] ?? 'Store';
-
-          markers.add(
-            Marker(
-              markerId: MarkerId(storeId),
-              position: latLng,
-              infoWindow: InfoWindow(
-                title: name.toString(),
-                snippet: 'Visited',
-              ),
-            ),
-          );
+      // Use the same published website locations as Discover and store profiles.
+      // Limit parallel requests while resolving the user's recent visits.
+      final ids = storeIds.map(int.tryParse).whereType<int>().toList();
+      for (var offset = 0; offset < ids.length; offset += 5) {
+        final batch = ids.skip(offset).take(5);
+        final responses = await Future.wait(batch.map(StoreApiService.fetchStoreAddresses));
+        if (!mounted) return;
+        for (final rows in responses) {
+          for (final row in rows) {
+            final location = StoreLocation.fromJson(row);
+            if (location == null) continue;
+            final point = LatLng(location.latitude, location.longitude);
+            points.add(point);
+            markers.add(Marker(
+              markerId: MarkerId('${location.storeId}'),
+              position: point,
+              infoWindow: InfoWindow(title: location.name, snippet: location.address),
+            ));
+          }
         }
       }
 
