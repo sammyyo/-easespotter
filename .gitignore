@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local credentials and session exports
+/EaseSpotter-main/attached_assets/Pasted--FIREBASE-SERVICE-ACCOUNT-JSON-*.txt
+/EaseSpotter-main/cookies.txt
+/eval "$(ssh-agent -s)"

@@ -1,0 +1,5 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="60" height="60" rx="10" fill="currentColor" />
+  <path d="M15 30L30 15L45 30L30 45L15 30Z" fill="white" />
+  <text x="70" y="38" font-family="Arial, sans-serif" font-weight="bold" font-size="24" fill="currentColor">EaseSpotter</text>
+</svg>

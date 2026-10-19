@@ -1,3 +1,4 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -126,13 +127,12 @@ class _CommentsPanelState extends State<CommentsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final commentsStream =
-        FirebaseFirestore.instance
-            .collection('recipes')
-            .doc(widget.recipeId)
-            .collection('comments')
-            .orderBy('createdAt', descending: true)
-            .snapshots();
+    final commentsStream = FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(widget.recipeId)
+        .collection('comments')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
 
     return SafeArea(
       top: false,
@@ -199,14 +199,17 @@ class _CommentsPanelState extends State<CommentsPanel> {
                       }
                     }
 
-                    return CommentTile(
-                      recipeId: widget.recipeId,
-                      ownerUid: widget.ownerUid,
-                      commentId: d.id,
-                      userId: userId,
-                      content: content,
-                      timeLabel: timeLabel,
-                      onReplyTap: _startReply,
+                    return SafetyContent(
+                      uid: userId,
+                      child: CommentTile(
+                        recipeId: widget.recipeId,
+                        ownerUid: widget.ownerUid,
+                        commentId: d.id,
+                        userId: userId,
+                        content: content,
+                        timeLabel: timeLabel,
+                        onReplyTap: _startReply,
+                      ),
                     );
                   },
                 );
@@ -248,8 +251,9 @@ class _CommentsPanelState extends State<CommentsPanel> {
               focusNode: _focusNode,
               isSending: _sending,
               onSend: _send,
-              replyingToLabel:
-                  _replyingToCommentId == null ? null : _replyingToName,
+              replyingToLabel: _replyingToCommentId == null
+                  ? null
+                  : _replyingToName,
             ),
           ),
         ],
@@ -354,8 +358,10 @@ class _CommentTileState extends State<CommentTile> {
 
       const chunk = 300;
       while (true) {
-        final replies =
-            await commentRef.collection('replies').limit(chunk).get();
+        final replies = await commentRef
+            .collection('replies')
+            .limit(chunk)
+            .get();
         if (replies.docs.isEmpty) break;
         final b = FirebaseFirestore.instance.batch();
         for (final r in replies.docs) {
@@ -366,9 +372,8 @@ class _CommentTileState extends State<CommentTile> {
 
       await commentRef.delete();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Comment deleted.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Comment deleted.')));
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -400,14 +405,13 @@ class _CommentTileState extends State<CommentTile> {
 
     bool understood = false;
 
-    final repliesStream =
-        FirebaseFirestore.instance
-            .collection('recipes')
-            .doc(widget.recipeId)
-            .collection('comments')
-            .doc(widget.commentId)
-            .collection('replies')
-            .snapshots();
+    final repliesStream = FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(widget.recipeId)
+        .collection('comments')
+        .doc(widget.commentId)
+        .collection('replies')
+        .snapshots();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -511,20 +515,18 @@ class _CommentTileState extends State<CommentTile> {
                       Expanded(
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor:
-                                understood
-                                    ? Colors.red
-                                    : Colors.red.withOpacity(0.5),
+                            backgroundColor: understood
+                                ? Colors.red
+                                : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed:
-                              understood
-                                  ? () async {
-                                    HapticFeedback.mediumImpact();
-                                    Navigator.of(ctx).pop();
-                                    await _deleteComment(context);
-                                  }
-                                  : null,
+                          onPressed: understood
+                              ? () async {
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.of(ctx).pop();
+                                  await _deleteComment(context);
+                                }
+                              : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -554,10 +556,9 @@ class _CommentTileState extends State<CommentTile> {
         final List<String> upvotedBy = ((data['upvotedBy'] ?? []) as List)
             .map((e) => e.toString())
             .toList(growable: false);
-        final int upvotesCount =
-            (data['upvotesCount'] is int)
-                ? data['upvotesCount'] as int
-                : upvotedBy.length;
+        final int upvotesCount = (data['upvotesCount'] is int)
+            ? data['upvotesCount'] as int
+            : upvotedBy.length;
         final isLiked = current != null && upvotedBy.contains(current.uid);
 
         final cached = ProfileCache.peek(widget.userId);
@@ -582,14 +583,13 @@ class _CommentTileState extends State<CommentTile> {
               final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
               final hasImage = p.avatarUrl.isNotEmpty;
 
-              final repliesCountStream =
-                  FirebaseFirestore.instance
-                      .collection('recipes')
-                      .doc(widget.recipeId)
-                      .collection('comments')
-                      .doc(widget.commentId)
-                      .collection('replies')
-                      .snapshots();
+              final repliesCountStream = FirebaseFirestore.instance
+                  .collection('recipes')
+                  .doc(widget.recipeId)
+                  .collection('comments')
+                  .doc(widget.commentId)
+                  .collection('replies')
+                  .snapshots();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,24 +620,25 @@ class _CommentTileState extends State<CommentTile> {
                             children: [
                               CircleAvatar(
                                 radius: avatarRadius,
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.secondary.withOpacity(0.12),
-                                backgroundImage:
-                                    hasImage ? NetworkImage(p.avatarUrl) : null,
-                                child:
-                                    hasImage
-                                        ? null
-                                        : Text(
-                                          (name.trim().isNotEmpty
-                                                  ? name.trim().characters.first
-                                                  : 'U')
-                                              .toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                          ),
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .secondary
+                                    .withOpacity(0.12),
+                                backgroundImage: hasImage
+                                    ? NetworkImage(p.avatarUrl)
+                                    : null,
+                                child: hasImage
+                                    ? null
+                                    : Text(
+                                        (name.trim().isNotEmpty
+                                                ? name.trim().characters.first
+                                                : 'U')
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
                                         ),
+                                      ),
                               ),
                               const SizedBox(width: gap),
                             ],
@@ -681,10 +682,10 @@ class _CommentTileState extends State<CommentTile> {
                                       Text(
                                         widget.timeLabel,
                                         style: TextStyle(
-                                          color:
-                                              Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall?.color,
+                                          color: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.color,
                                           fontSize: 12,
                                         ),
                                       ),
@@ -707,18 +708,14 @@ class _CommentTileState extends State<CommentTile> {
                                     color: isLiked ? Colors.red : Colors.grey,
                                   ),
                                 ),
-                                onPressed:
-                                    () =>
-                                        _toggleLike(context, isLiked: isLiked),
+                                onPressed: () =>
+                                    _toggleLike(context, isLiked: isLiked),
                               ),
                               const SizedBox(width: 6),
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 180),
-                                transitionBuilder:
-                                    (child, anim) => ScaleTransition(
-                                      scale: anim,
-                                      child: child,
-                                    ),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
                                 child: Text(
                                   '$upvotesCount',
                                   key: ValueKey<int>(upvotesCount),
@@ -777,10 +774,9 @@ class _CommentTileState extends State<CommentTile> {
                             if (count == 0) {
                               return const SizedBox.shrink();
                             }
-                            final label =
-                                _showReplies
-                                    ? 'Hide replies ($count)'
-                                    : 'View replies ($count)';
+                            final label = _showReplies
+                                ? 'Hide replies ($count)'
+                                : 'View replies ($count)';
                             return TextButton(
                               style: TextButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -790,10 +786,8 @@ class _CommentTileState extends State<CommentTile> {
                                 minimumSize: const Size(0, 0),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              onPressed:
-                                  () => setState(
-                                    () => _showReplies = !_showReplies,
-                                  ),
+                              onPressed: () =>
+                                  setState(() => _showReplies = !_showReplies),
                               child: Text(label),
                             );
                           },
@@ -837,15 +831,14 @@ class RepliesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream =
-        FirebaseFirestore.instance
-            .collection('recipes')
-            .doc(recipeId)
-            .collection('comments')
-            .doc(commentId)
-            .collection('replies')
-            .orderBy('createdAt', descending: false)
-            .snapshots();
+    final stream = FirebaseFirestore.instance
+        .collection('recipes')
+        .doc(recipeId)
+        .collection('comments')
+        .doc(commentId)
+        .collection('replies')
+        .orderBy('createdAt', descending: false)
+        .snapshots();
 
     final replyIndent = parentLeftIndent + 24;
 
@@ -859,45 +852,44 @@ class RepliesList extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(left: replyIndent - parentLeftIndent),
           child: Column(
-            children:
-                docs.map((d) {
-                  final data = d.data();
-                  final content = (data['content'] ?? '') as String;
-                  final userId = (data['userId'] ?? '') as String;
-                  final ts = data['createdAt'];
-                  DateTime? dt;
-                  if (ts is Timestamp) dt = ts.toDate();
+            children: docs.map((d) {
+              final data = d.data();
+              final content = (data['content'] ?? '') as String;
+              final userId = (data['userId'] ?? '') as String;
+              final ts = data['createdAt'];
+              DateTime? dt;
+              if (ts is Timestamp) dt = ts.toDate();
 
-                  String timeLabel;
-                  if (dt == null) {
-                    timeLabel = 'now';
-                  } else {
-                    final diff = DateTime.now().difference(dt);
-                    if (diff.inMinutes < 1) {
-                      timeLabel = 'now';
-                    } else if (diff.inMinutes < 60) {
-                      timeLabel = '${diff.inMinutes}m';
-                    } else if (diff.inHours < 24) {
-                      timeLabel = '${diff.inHours}h';
-                    } else {
-                      timeLabel = '${diff.inDays}d';
-                    }
-                  }
+              String timeLabel;
+              if (dt == null) {
+                timeLabel = 'now';
+              } else {
+                final diff = DateTime.now().difference(dt);
+                if (diff.inMinutes < 1) {
+                  timeLabel = 'now';
+                } else if (diff.inMinutes < 60) {
+                  timeLabel = '${diff.inMinutes}m';
+                } else if (diff.inHours < 24) {
+                  timeLabel = '${diff.inHours}h';
+                } else {
+                  timeLabel = '${diff.inDays}d';
+                }
+              }
 
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 6),
-                    child: ReplyTile(
-                      recipeId: recipeId,
-                      ownerUid: ownerUid,
-                      commentId: commentId,
-                      replyId: d.id,
-                      userId: userId,
-                      content: content,
-                      timeLabel: timeLabel,
-                      leftIndent: replyIndent,
-                    ),
-                  );
-                }).toList(),
+              return Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 6),
+                child: ReplyTile(
+                  recipeId: recipeId,
+                  ownerUid: ownerUid,
+                  commentId: commentId,
+                  replyId: d.id,
+                  userId: userId,
+                  content: content,
+                  timeLabel: timeLabel,
+                  leftIndent: replyIndent,
+                ),
+              );
+            }).toList(),
           ),
         );
       },
@@ -1000,9 +992,8 @@ class ReplyTile extends StatelessWidget {
           .doc(replyId)
           .delete();
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Reply deleted.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Reply deleted.')));
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1103,9 +1094,8 @@ class ReplyTile extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'This action cannot be undone.',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: Colors.red),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: Colors.red),
                     ),
                   ),
 
@@ -1133,20 +1123,18 @@ class ReplyTile extends StatelessWidget {
                       Expanded(
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor:
-                                understood
-                                    ? Colors.red
-                                    : Colors.red.withOpacity(0.5),
+                            backgroundColor: understood
+                                ? Colors.red
+                                : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed:
-                              understood
-                                  ? () async {
-                                    HapticFeedback.mediumImpact();
-                                    Navigator.of(ctx).pop();
-                                    await _deleteReply(context);
-                                  }
-                                  : null,
+                          onPressed: understood
+                              ? () async {
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.of(ctx).pop();
+                                  await _deleteReply(context);
+                                }
+                              : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -1168,77 +1156,81 @@ class ReplyTile extends StatelessWidget {
     const avatarSize = avatarRadius * 2;
     const gap = 8.0;
 
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: _replyStream(),
-      builder: (context, snap) {
-        final data = snap.data?.data() ?? const <String, dynamic>{};
-        final List<String> upvotedBy = ((data['upvotedBy'] ?? []) as List)
-            .map((e) => e.toString())
-            .toList(growable: false);
-        final int upvotesCount =
-            (data['upvotesCount'] is int)
-                ? data['upvotesCount'] as int
-                : upvotedBy.length;
-        final isLiked = current != null && upvotedBy.contains(current.uid);
+    return SafetyContent(
+      uid: userId,
+      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: _replyStream(),
+        builder: (context, snap) {
+          final data = snap.data?.data() ?? const <String, dynamic>{};
+          final List<String> upvotedBy = ((data['upvotedBy'] ?? []) as List)
+              .map((e) => e.toString())
+              .toList(growable: false);
+          final int upvotesCount = (data['upvotesCount'] is int)
+              ? data['upvotesCount'] as int
+              : upvotedBy.length;
+          final isLiked = current != null && upvotedBy.contains(current.uid);
 
-        final cached = ProfileCache.peek(userId);
+          final cached = ProfileCache.peek(userId);
 
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onLongPress: () => _showDeleteSheet(context),
-          onSecondaryTapDown: (_) => _showDeleteSheet(context),
-          child: StreamBuilder<UserProfile>(
-            stream: _profileStream(userId),
-            initialData: cached,
-            builder: (context, snapshot) {
-              final p =
-                  snapshot.data ??
-                  UserProfile(uid: userId, displayName: '', avatarUrl: '');
-              if (snapshot.hasData) ProfileCache.putMany([p]);
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onLongPress: () => _showDeleteSheet(context),
+            onSecondaryTapDown: (_) => _showDeleteSheet(context),
+            child: StreamBuilder<UserProfile>(
+              stream: _profileStream(userId),
+              initialData: cached,
+              builder: (context, snapshot) {
+                final p =
+                    snapshot.data ??
+                    UserProfile(uid: userId, displayName: '', avatarUrl: '');
+                if (snapshot.hasData) ProfileCache.putMany([p]);
 
-              final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
-              final hasImage = p.avatarUrl.isNotEmpty;
+                final name = p.displayName.isNotEmpty
+                    ? p.displayName
+                    : 'Someone';
+                final hasImage = p.avatarUrl.isNotEmpty;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // header aligned to reply indent
-                  SizedBox(
-                    height: avatarSize,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        SizedBox(width: leftIndent - avatarSize - gap),
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // header aligned to reply indent
+                    SizedBox(
+                      height: avatarSize,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(width: leftIndent - avatarSize - gap),
 
-                        // ✅ Wrap Reply Avatar in InkWell for navigation
-                        InkWell(
-                          onTap: () async {
-                            if (userId.isNotEmpty) {
-                              await SocialProfileScreen.open(
-                                context,
-                                viewedUid: userId,
-                                initialProfileHint: {
-                                  'displayName': name,
-                                  'avatarUrl': p.avatarUrl,
-                                },
-                              );
-                            }
-                          },
-                          borderRadius: BorderRadius.circular(20),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircleAvatar(
-                                radius: avatarRadius,
-                                backgroundColor: Theme.of(
+                          // ✅ Wrap Reply Avatar in InkWell for navigation
+                          InkWell(
+                            onTap: () async {
+                              if (userId.isNotEmpty) {
+                                await SocialProfileScreen.open(
                                   context,
-                                ).colorScheme.secondary.withOpacity(0.12),
-                                backgroundImage:
-                                    hasImage ? NetworkImage(p.avatarUrl) : null,
-                                child:
-                                    hasImage
-                                        ? null
-                                        : Text(
+                                  viewedUid: userId,
+                                  initialProfileHint: {
+                                    'displayName': name,
+                                    'avatarUrl': p.avatarUrl,
+                                  },
+                                );
+                              }
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircleAvatar(
+                                  radius: avatarRadius,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .secondary
+                                      .withOpacity(0.12),
+                                  backgroundImage: hasImage
+                                      ? NetworkImage(p.avatarUrl)
+                                      : null,
+                                  child: hasImage
+                                      ? null
+                                      : Text(
                                           (name.trim().isNotEmpty
                                                   ? name.trim().characters.first
                                                   : 'U')
@@ -1248,113 +1240,113 @@ class ReplyTile extends StatelessWidget {
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
-                              ),
-                              const SizedBox(width: gap),
-                            ],
+                                ),
+                                const SizedBox(width: gap),
+                              ],
+                            ),
                           ),
-                        ),
 
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  onTap: () async {
-                                    if (userId.isNotEmpty) {
-                                      await SocialProfileScreen.open(
-                                        context,
-                                        viewedUid: userId,
-                                        initialProfileHint: {
-                                          'displayName': name,
-                                          'avatarUrl': p.avatarUrl,
-                                        },
-                                      );
-                                    }
-                                  },
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () async {
+                                      if (userId.isNotEmpty) {
+                                        await SocialProfileScreen.open(
+                                          context,
+                                          viewedUid: userId,
+                                          initialProfileHint: {
+                                            'displayName': name,
+                                            'avatarUrl': p.avatarUrl,
+                                          },
+                                        );
+                                      }
+                                    },
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        timeLabel,
-                                        style: TextStyle(
-                                          color:
-                                              Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall?.color,
-                                          fontSize: 11,
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          timeLabel,
+                                          style: TextStyle(
+                                            color: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.color,
+                                            fontSize: 11,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                tooltip: isLiked ? 'Unlike' : 'Like',
-                                icon: AnimatedScale(
-                                  scale: isLiked ? 1.15 : 1.0,
-                                  duration: const Duration(milliseconds: 150),
-                                  child: Icon(
-                                    isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isLiked ? Colors.red : Colors.grey,
-                                    size: 18,
-                                  ),
-                                ),
-                                onPressed:
-                                    () =>
-                                        _toggleLike(context, isLiked: isLiked),
-                              ),
-                              const SizedBox(width: 4),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 180),
-                                transitionBuilder:
-                                    (child, anim) => ScaleTransition(
-                                      scale: anim,
-                                      child: child,
+                                      ],
                                     ),
-                                child: Text(
-                                  '$upvotesCount',
-                                  key: ValueKey<int>(upvotesCount),
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: isLiked ? 'Unlike' : 'Like',
+                                  icon: AnimatedScale(
+                                    scale: isLiked ? 1.15 : 1.0,
+                                    duration: const Duration(milliseconds: 150),
+                                    child: Icon(
+                                      isLiked
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: isLiked ? Colors.red : Colors.grey,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  onPressed: () =>
+                                      _toggleLike(context, isLiked: isLiked),
+                                ),
+                                const SizedBox(width: 4),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  transitionBuilder: (child, anim) =>
+                                      ScaleTransition(
+                                        scale: anim,
+                                        child: child,
+                                      ),
+                                  child: Text(
+                                    '$upvotesCount',
+                                    key: ValueKey<int>(upvotesCount),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // body
-                  Padding(
-                    padding: EdgeInsets.only(left: leftIndent),
-                    child: Text(content),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
+                    // body
+                    Padding(
+                      padding: EdgeInsets.only(left: leftIndent),
+                      child: Text(content),
+                    ),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -1416,14 +1408,13 @@ class CommentComposer extends StatelessWidget {
                       if (canSend) onSend();
                     },
                     decoration: InputDecoration(
-                      hintText:
-                          user == null
-                              ? (replyingToLabel == null
-                                  ? 'Sign in to leave a comment…'
-                                  : 'Sign in to reply…')
-                              : (replyingToLabel == null
-                                  ? 'Leave a comment…'
-                                  : 'Write a reply…'),
+                      hintText: user == null
+                          ? (replyingToLabel == null
+                                ? 'Sign in to leave a comment…'
+                                : 'Sign in to reply…')
+                          : (replyingToLabel == null
+                                ? 'Leave a comment…'
+                                : 'Write a reply…'),
                       isDense: true,
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
@@ -1442,15 +1433,13 @@ class CommentComposer extends StatelessWidget {
 
         // Send button
         Tooltip(
-          message:
-              user == null
-                  ? 'Sign in to comment'
-                  : (canSend ? 'Send' : 'Type a comment'),
+          message: user == null
+              ? 'Sign in to comment'
+              : (canSend ? 'Send' : 'Type a comment'),
           child: Material(
-            color:
-                canSend
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.primary.withOpacity(0.5),
+            color: canSend
+                ? theme.colorScheme.primary
+                : theme.colorScheme.primary.withOpacity(0.5),
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
@@ -1459,19 +1448,18 @@ class CommentComposer extends StatelessWidget {
                 width: 40,
                 height: 40,
                 child: Center(
-                  child:
-                      isSending
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                  child: isSending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
                             ),
-                          )
-                          : const Icon(Icons.send, color: Colors.white),
+                          ),
+                        )
+                      : const Icon(Icons.send, color: Colors.white),
                 ),
               ),
             ),
@@ -1514,20 +1502,18 @@ class ComposerAvatar extends StatelessWidget {
         final hasImage = p.avatarUrl.isNotEmpty;
         return CircleAvatar(
           radius: 14,
-          backgroundColor: Theme.of(
-            context,
-          ).colorScheme.secondary.withOpacity(0.12),
+          backgroundColor: Theme.of(context).colorScheme.secondary
+              .withOpacity(0.12),
           backgroundImage: hasImage ? NetworkImage(p.avatarUrl) : null,
-          child:
-              hasImage
-                  ? null
-                  : Text(
-                    (name.trim().characters.first).toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+          child: hasImage
+              ? null
+              : Text(
+                  (name.trim().characters.first).toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
         );
       },
     );

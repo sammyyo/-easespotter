@@ -1,0 +1,39 @@
+Attempting WebSocket connection to: wss://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/ws
+WebSocket connected
+WebSocket connection opened
+WebSocket connected
+WebSocket connection opened
+WebSocket connection established
+Warning: Encountered two children with the same key, &#x60;3&#x60;. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+    at div
+    at div
+    at div
+    at https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=2f480ade:41:13
+    at https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-scroll-area.js?v=2f480ade:114:13
+    at div
+    at https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CPFL7ZFD.js?v=2f480ade:41:13
+    at Provider (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-JJS7DLG7.js?v=2f480ade:38:15)
+    at https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-scroll-area.js?v=2f480ade:52:7
+    at _c (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/ui/scroll-area.tsx:21:11)
+    at div
+    at _c9 (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/ui/card.tsx:106:12)
+    at div
+    at _c (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/ui/card.tsx:20:11)
+    at PriceUpdateCard (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/dashboard/PriceUpdateCard.tsx:24:33)
+    at div
+    at div
+    at Dashboard (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/pages/Dashboard.tsx:43:68)
+    at Route (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=2f480ade:191:16)
+    at ProtectedRoute (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/lib/protected-route.tsx:22:3)
+    at Switch (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=2f480ade:247:17)
+    at AppRoutes
+    at main
+    at div
+    at div
+    at DashboardLayout (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/layout/DashboardLayout.tsx:94:43)
+    at ErrorBoundary (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/ErrorBoundary.tsx:7:5)
+    at AuthProvider (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at QueryClientProvider (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=2f480ade:2805:3)
+    at App (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/App.tsx:112:3)
+    at QueryClientProvider (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=2f480ade:2805:3)
+    at ErrorBoundary (https://9b3a3309-c1e0-4845-9068-28f6c2a8c75b-00-b0hqqzuq2qak.spock.replit.dev/src/components/ErrorBoundary.tsx:7:5)

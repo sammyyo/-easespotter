@@ -1,0 +1,565 @@
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useCurrency } from "@/hooks/use-currency";
+
+// Some high-contrast, dark-mode-friendly colors
+const COLORS = [
+  "#FFC700", // Gold/Yellow - Very high contrast for dark mode
+  "#FF5E9F", // Hot Pink/Magenta - Very high contrast for dark mode
+  "#56CCF2", // Bright Sky Blue - Maximum contrast in dark mode
+  "#FF2D55", // Bright Red - Very visible in dark mode
+  "#34C759", // Vibrant Green - Good visibility in dark mode
+  "#AF52DE", // Purple - Good contrast in dark mode
+];
+
+interface PriceChange {
+  id: number;
+  productId: number;
+  oldPrice: string;
+  newPrice: string;
+  timestamp: string;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  category: string;
+  currentPrice: string;
+}
+
+export default function Analytics() {
+  const { data: priceChanges = [] } = useQuery<PriceChange[]>({
+    queryKey: ["/api/analytics/price-changes"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/analytics/price-changes");
+      return res.json();
+    },
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/products");
+      return res.json();
+    },
+  });
+
+  const { currency } = useCurrency();
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency }).format(value);
+
+  if (priceChanges.length === 0 && products.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">No data available yet</h2>
+          <p className="text-muted-foreground">
+            Start adding products and price changes to see analytics here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Process price changes by day
+  const priceChangesByDay = priceChanges.reduce((acc: Record<string, number>, change: PriceChange) => {
+    const date = new Date(change.timestamp).toLocaleDateString();
+    acc[date] = (acc[date] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const priceChangeTrend = Object.entries(priceChangesByDay).map(([date, count]) => ({
+    date,
+    "Price Changes": count,
+  }));
+
+  // Calculate average price by day
+  const averagePriceByDay = priceChanges.reduce((acc: Record<string, { sum: number; count: number }>, change: PriceChange) => {
+    const date = new Date(change.timestamp).toLocaleDateString();
+    if (!acc[date]) {
+      acc[date] = { sum: 0, count: 0 };
+    }
+    acc[date].sum += Number(change.newPrice);
+    acc[date].count += 1;
+    return acc;
+  }, {} as Record<string, { sum: number; count: number }>);
+
+  const averagePrices = Object.entries(averagePriceByDay).map(([date, data]) => ({
+    date,
+    "Average Price": Number((data.sum / data.count).toFixed(2)),
+  }));
+
+  // Process category distribution
+  const categoryData = Object.entries(
+    products.reduce((acc: Record<string, number>, product) => {
+      const category = product.category || 'Uncategorized';
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)
+  ).map(([name, value]) => ({ name, value }));
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Analytics</h1>
+        <div className="text-sm text-muted-foreground">
+          Last updated: {new Date().toLocaleString()}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Price Changes Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Price Changes Over Time</CardTitle>
+            <CardDescription>Number of price adjustments per day</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px] mt-4 w-full">
+              {/* Custom Bar Chart */}
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2 justify-end">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#FFC700" }}></div>
+                  <span className="text-sm">Price Changes</span>
+                </div>
+                <div className="flex-1 relative">
+                  {priceChangeTrend.length > 0 ? (
+                    <>
+                      <div className="absolute inset-0 flex items-end">
+                        {priceChangeTrend.map((item, index) => {
+                          const maxValue = Math.max(...priceChangeTrend.map(i => i["Price Changes"])) || 1;
+                          const height = (item["Price Changes"] / maxValue) * 100;
+                          return (
+                            <div 
+                              key={index}
+                              className="flex-1 flex flex-col justify-end items-center px-1"
+                            >
+                              <div 
+                                className="w-full rounded-t-sm" 
+                                style={{ 
+                                  height: `${height}%`, 
+                                  backgroundColor: "#FFC700",
+                                  minHeight: "1px"
+                                }} 
+                              />
+                              <div className="text-xs mt-1 text-muted-foreground">{item.date}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="absolute left-0 top-0 bottom-0 w-12 border-r flex flex-col justify-between text-xs text-muted-foreground">
+                        {[0, 0.25, 0.5, 0.75, 1].map((tick, i) => {
+                          const maxValue = Math.max(...priceChangeTrend.map(i => i["Price Changes"])) || 1;
+                          const value = Math.round(maxValue * tick);
+                          return (
+                            <div key={i} className="flex items-center">
+                              <span className="mr-1">{value}</span>
+                              <div className="h-px w-1 bg-muted-foreground"></div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      No data available
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Average Price Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Average Price Trend</CardTitle>
+            <CardDescription>Daily average price movement</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px] mt-4 w-full">
+              {/* Custom Line Chart */}
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2 justify-end">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#FF5E9F" }}></div>
+                  <span className="text-sm">Average Price</span>
+                </div>
+                <div className="flex-1 relative">
+                  {averagePrices.length > 0 ? (
+                    <>
+                      <svg className="w-full h-full">
+                        <g>
+                          {/* Y-axis ticks */}
+                          {[0, 0.25, 0.5, 0.75, 1].map((tick, i) => {
+                          const maxValue = Math.max(...averagePrices.map(item => item["Average Price"])) || 1;
+                          const value = maxValue * tick;
+                          const y = (1 - tick) * 100;
+                          return (
+                            <g key={i} transform={`translate(40, ${y}%)`}>
+                                <text
+                                  x={-5}
+                                  y={0}
+                                  textAnchor="end"
+                                  dominantBaseline="middle"
+                                  className="text-xs fill-muted-foreground"
+                                >
+                                {formatCurrency(value)}
+                                </text>
+                                <line
+                                  x1={0}
+                                  y1={0}
+                                  x2={5}
+                                  y2={0}
+                                  stroke="currentColor"
+                                  className="stroke-muted-foreground"
+                                  strokeWidth={1}
+                                />
+                              </g>
+                            );
+                          })}
+
+                          {/* Grid lines */}
+                          {[0.25, 0.5, 0.75].map((tick, i) => {
+                            const y = (1 - tick) * 100;
+                            return (
+                              <line
+                                key={i}
+                                x1={40}
+                                y1={`${y}%`}
+                                x2="100%"
+                                y2={`${y}%`}
+                                stroke="currentColor"
+                                className="stroke-muted/20"
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                              />
+                            );
+                          })}
+
+                          {/* X-axis */}
+                          <line
+                            x1={40}
+                            y1="100%"
+                            x2="100%"
+                            y2="100%"
+                            stroke="currentColor"
+                            className="stroke-muted-foreground"
+                            strokeWidth={1}
+                          />
+
+                          {/* Y-axis */}
+                          <line
+                            x1={40}
+                            y1={0}
+                            x2={40}
+                            y2="100%"
+                            stroke="currentColor"
+                            className="stroke-muted-foreground"
+                            strokeWidth={1}
+                          />
+
+                          {/* X-axis labels */}
+                          {averagePrices.map((item, i) => {
+                            const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                            return (
+                              <g key={i} transform={`translate(${x}, 100%)`}>
+                                <text
+                                  y={15}
+                                  textAnchor="middle"
+                                  className="text-xs fill-muted-foreground"
+                                >
+                                  {item.date}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {/* Draw the line */}
+                          {averagePrices.length > 1 && (
+                            <polyline
+                              points={averagePrices.map((item, i) => {
+                                const maxValue = Math.max(...averagePrices.map(d => d["Average Price"])) || 1;
+                                const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                                const y = (1 - (item["Average Price"] / maxValue)) * 100;
+                                return `${x},${y}`;
+                              }).join(' ')}
+                              fill="none"
+                              stroke="#FF5E9F"
+                              strokeWidth={3}
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                            />
+                          )}
+
+                          {/* Data points */}
+                          {averagePrices.map((item, i) => {
+                            const maxValue = Math.max(...averagePrices.map(d => d["Average Price"])) || 1;
+                            const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                            const y = (1 - (item["Average Price"] / maxValue)) * 100;
+                            return (
+                              <circle
+                                key={i}
+                                cx={x}
+                                cy={y}
+                                r={4}
+                                fill="#FF5E9F"
+                                stroke="black"
+                                strokeWidth={1}
+                              />
+                            );
+                          })}
+                        </g>
+                      </svg>
+                    </>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      No data available
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Category Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Category Distribution</CardTitle>
+            <CardDescription>Products by category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="border-b">
+                  <tr className="border-b transition-colors hover:bg-muted/50">
+                    <th className="h-12 px-4 text-left align-middle font-medium">Category Name</th>
+                    <th className="h-12 px-4 text-right align-middle font-medium">Product Count</th>
+                    <th className="h-12 px-4 text-right align-middle font-medium">Percentage</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
+                  {categoryData.map((category, index) => {
+                    const totalProducts = categoryData.reduce((sum, cat) => sum + cat.value, 0);
+                    const percentage = ((category.value / totalProducts) * 100).toFixed(1);
+                    
+                    return (
+                      <tr 
+                        key={category.name}
+                        className="border-b transition-colors hover:bg-muted/50"
+                      >
+                        <td className="p-4 align-middle flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          ></div>
+                          {category.name}
+                        </td>
+                        <td className="p-4 align-middle text-right font-medium">{category.value}</td>
+                        <td className="p-4 align-middle text-right text-muted-foreground">{percentage}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="border-t">
+                  <tr>
+                    <th className="h-12 px-4 text-left align-middle font-medium">Total</th>
+                    <th className="h-12 px-4 text-right align-middle font-medium">
+                      {categoryData.reduce((sum, category) => sum + category.value, 0)}
+                    </th>
+                    <th className="h-12 px-4 text-right align-middle font-medium">100%</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Price Trend Area Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Price Trend Analysis</CardTitle>
+            <CardDescription>Cumulative price changes over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px] mt-4 w-full">
+              {/* Custom Area Chart */}
+              <div className="flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-2 justify-end">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#56CCF2" }}></div>
+                  <span className="text-sm">Average Price</span>
+                </div>
+                <div className="flex-1 relative">
+                  {averagePrices.length > 0 ? (
+                    <>
+                      <svg className="w-full h-full" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#56CCF2" stopOpacity="0.8" />
+                            <stop offset="100%" stopColor="#56CCF2" stopOpacity="0.1" />
+                          </linearGradient>
+                        </defs>
+                        <g>
+                          {/* Y-axis ticks */}
+                          {[0, 0.25, 0.5, 0.75, 1].map((tick, i) => {
+                          const maxValue = Math.max(...averagePrices.map(item => item["Average Price"])) || 1;
+                          const value = maxValue * tick;
+                          const y = (1 - tick) * 100;
+                          return (
+                            <g key={i} transform={`translate(40, ${y}%)`}>
+                                <text
+                                  x={-5}
+                                  y={0}
+                                  textAnchor="end"
+                                  dominantBaseline="middle"
+                                  className="text-xs fill-muted-foreground"
+                                >
+                                {formatCurrency(value)}
+                                </text>
+                                <line
+                                  x1={0}
+                                  y1={0}
+                                  x2={5}
+                                  y2={0}
+                                  stroke="currentColor"
+                                  className="stroke-muted-foreground"
+                                  strokeWidth={1}
+                                />
+                              </g>
+                            );
+                          })}
+
+                          {/* Grid lines */}
+                          {[0.25, 0.5, 0.75].map((tick, i) => {
+                            const y = (1 - tick) * 100;
+                            return (
+                              <line
+                                key={i}
+                                x1={40}
+                                y1={`${y}%`}
+                                x2="100%"
+                                y2={`${y}%`}
+                                stroke="currentColor"
+                                className="stroke-muted/20"
+                                strokeWidth={1}
+                                strokeDasharray="4,4"
+                              />
+                            );
+                          })}
+
+                          {/* X-axis */}
+                          <line
+                            x1={40}
+                            y1="100%"
+                            x2="100%"
+                            y2="100%"
+                            stroke="currentColor"
+                            className="stroke-muted-foreground"
+                            strokeWidth={1}
+                          />
+
+                          {/* Y-axis */}
+                          <line
+                            x1={40}
+                            y1={0}
+                            x2={40}
+                            y2="100%"
+                            stroke="currentColor"
+                            className="stroke-muted-foreground"
+                            strokeWidth={1}
+                          />
+
+                          {/* X-axis labels */}
+                          {averagePrices.map((item, i) => {
+                            const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                            return (
+                              <g key={i} transform={`translate(${x}, 100%)`}>
+                                <text
+                                  y={15}
+                                  textAnchor="middle"
+                                  className="text-xs fill-muted-foreground"
+                                >
+                                  {item.date}
+                                </text>
+                              </g>
+                            );
+                          })}
+
+                          {averagePrices.length > 1 && (
+                            <>
+                              {/* Area path */}
+                              <path
+                                d={`
+                                  M ${40} ${100}
+                                  ${averagePrices.map((item, i) => {
+                                    const maxValue = Math.max(...averagePrices.map(d => d["Average Price"])) || 1;
+                                    const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                                    const y = (1 - (item["Average Price"] / maxValue)) * 100;
+                                    return `L ${x} ${y}`;
+                                  }).join(' ')}
+                                  L ${40 + ((averagePrices.length - 1) / Math.max(1, averagePrices.length - 1)) * (100 - 40)} ${100}
+                                  Z
+                                `}
+                                fill="url(#areaGradient)"
+                              />
+
+                              {/* Line on top of area */}
+                              <path
+                                d={`
+                                  M ${40} ${(1 - (averagePrices[0]["Average Price"] / (Math.max(...averagePrices.map(d => d["Average Price"])) || 1))) * 100}
+                                  ${averagePrices.map((item, i) => {
+                                    const maxValue = Math.max(...averagePrices.map(d => d["Average Price"])) || 1;
+                                    const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                                    const y = (1 - (item["Average Price"] / maxValue)) * 100;
+                                    return `L ${x} ${y}`;
+                                  }).join(' ')}
+                                `}
+                                stroke="#56CCF2"
+                                strokeWidth={3}
+                                fill="none"
+                              />
+                            </>
+                          )}
+
+                          {/* Data points */}
+                          {averagePrices.map((item, i) => {
+                            const maxValue = Math.max(...averagePrices.map(d => d["Average Price"])) || 1;
+                            const x = 40 + ((i / Math.max(1, averagePrices.length - 1)) * (100 - 40));
+                            const y = (1 - (item["Average Price"] / maxValue)) * 100;
+                            return (
+                              <circle
+                                key={i}
+                                cx={x}
+                                cy={y}
+                                r={4}
+                                fill="#56CCF2"
+                                className="stroke-background"
+                                strokeWidth={1}
+                              />
+                            );
+                          })}
+                        </g>
+                      </svg>
+                    </>
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      No data available
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

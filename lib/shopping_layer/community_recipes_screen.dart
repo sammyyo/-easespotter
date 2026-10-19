@@ -221,7 +221,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
                 ignoring: !_fabExpanded,
                 child: _buildFabOption(
                   icon: Icons.auto_awesome,
-                  label: "New Glow-Up",
+                  label: "Add a Taste",
                   onTap: () {
                     Navigator.push(
                       context,
@@ -250,7 +250,7 @@ class _CommunityRecipesScreenState extends State<CommunityRecipesScreen> {
                 ignoring: !_fabExpanded,
                 child: _buildFabOption(
                   icon: Icons.movie_creation_outlined,
-                  label: "New Reel",
+                  label: "New Bite",
                   onTap: () {
                     Navigator.push(
                       context,

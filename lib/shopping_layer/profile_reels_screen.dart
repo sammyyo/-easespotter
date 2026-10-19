@@ -1,6 +1,9 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
+import '../widgets/bite_video_cover.dart';
 import 'reels_feed_screen.dart';
 
 enum _ProfileReelsView { publicReels, savedReels }
@@ -44,12 +47,11 @@ class _ProfileReelsScreenState extends State<ProfileReelsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (_) => ReelsFeedScreen(
-              authorUid: ownerUid,
-              initialReelId: reelId,
-              includePrivate: false,
-            ),
+        builder: (_) => ReelsFeedScreen(
+          authorUid: ownerUid,
+          initialReelId: reelId,
+          includePrivate: false,
+        ),
       ),
     );
   }
@@ -65,7 +67,7 @@ class _ProfileReelsScreenState extends State<ProfileReelsScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          widget.isOwnerViewing ? 'My Reels' : 'Reels',
+          'Bites',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
@@ -77,14 +79,11 @@ class _ProfileReelsScreenState extends State<ProfileReelsScreen> {
           if (widget.isOwnerViewing)
             _ProfileReelsPillSwitch(
               selectedIndex: isSaved ? 1 : 0,
-              onSelect:
-                  (index) => setState(
-                    () =>
-                        _view =
-                            index == 0
-                                ? _ProfileReelsView.publicReels
-                                : _ProfileReelsView.savedReels,
-                  ),
+              onSelect: (index) => setState(
+                () => _view = index == 0
+                    ? _ProfileReelsView.publicReels
+                    : _ProfileReelsView.savedReels,
+              ),
             ),
           Expanded(
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -98,89 +97,89 @@ class _ProfileReelsScreenState extends State<ProfileReelsScreen> {
                 if (docs.isEmpty) {
                   return Center(
                     child: Text(
-                      isSaved ? 'No saved reels yet.' : 'No public reels yet.',
+                      isSaved ? 'No saved bites yet.' : 'No public bites yet.',
                     ),
                   );
                 }
 
                 return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  padding: EdgeInsets.zero,
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(0),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 0,
+                    mainAxisSpacing: 0,
                     childAspectRatio: 0.68,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final doc = docs[index];
                     final data = doc.data();
-                    final reelId =
-                        isSaved
-                            ? (data['reelId'] ?? doc.id).toString()
-                            : doc.id;
+                    final reelId = isSaved
+                        ? (data['reelId'] ?? doc.id).toString()
+                        : doc.id;
                     final ownerUid =
                         (data['ownerUid'] ?? data['uid'] ?? widget.uid)
                             .toString();
-                    final title = (data['title'] ?? 'Reel').toString();
+                    final title = (data['title'] ?? 'Bite').toString();
                     final coverUrl = _reelCoverUrl(data);
 
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap:
-                          () => _openReel(
-                            reelId: reelId,
-                            ownerUid: ownerUid.isEmpty ? widget.uid : ownerUid,
+                    return SafetyContent(
+                      key: ValueKey(reelId),
+                      uid: ownerUid,
+                      child: InkWell(
+                        borderRadius: BorderRadius.zero,
+                        onTap: () => _openReel(
+                          reelId: reelId,
+                          ownerUid: ownerUid.isEmpty ? widget.uid : ownerUid,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.zero,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              BiteVideoCover(
+                                coverUrl: coverUrl,
+                                videoUrl: (data['videoUrl'] ?? '')
+                                    .toString()
+                                    .trim(),
+                              ),
+                              const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Color(0x99000000),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const Center(
+                                child: Icon(
+                                  Icons.play_circle_fill_rounded,
+                                  color: Colors.white70,
+                                  size: 42,
+                                ),
+                              ),
+                              Positioned(
+                                left: 8,
+                                right: 8,
+                                bottom: 8,
+                                child: Text(
+                                  title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (coverUrl.isNotEmpty)
-                              Image.network(
-                                coverUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder:
-                                    (_, __, ___) => const _ReelCoverFallback(),
-                              )
-                            else
-                              const _ReelCoverFallback(),
-                            const DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Color(0x99000000),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const Center(
-                              child: Icon(
-                                Icons.play_circle_fill_rounded,
-                                color: Colors.white70,
-                                size: 42,
-                              ),
-                            ),
-                            Positioned(
-                              left: 8,
-                              right: 8,
-                              bottom: 8,
-                              child: Text(
-                                title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     );
@@ -224,8 +223,9 @@ class _ProfileReelsPillSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = isDark ? Colors.black12 : Colors.grey.shade100;
-    final border =
-        isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.06);
+    final border = isDark
+        ? Colors.white10
+        : Colors.black.withValues(alpha: 0.06);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -245,7 +245,7 @@ class _ProfileReelsPillSwitch extends StatelessWidget {
           children: [
             Expanded(
               child: _ProfileReelsPillButton(
-                label: 'Public Reels',
+                label: 'Public Bites',
                 selected: selectedIndex == 0,
                 onTap: () => onSelect(0),
               ),
@@ -253,7 +253,7 @@ class _ProfileReelsPillSwitch extends StatelessWidget {
             const SizedBox(width: 6),
             Expanded(
               child: _ProfileReelsPillButton(
-                label: 'My Saved Reels',
+                label: 'My Saved Bites',
                 selected: selectedIndex == 1,
                 onTap: () => onSelect(1),
               ),
@@ -287,9 +287,8 @@ class _ProfileReelsPillButtonState extends State<_ProfileReelsPillButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final selectedBg = const Color(
-      0xFF006677,
-    ).withValues(alpha: isDark ? 0.35 : 0.12);
+    final selectedBg = const Color(0xFF006677)
+        .withValues(alpha: isDark ? 0.35 : 0.12);
     final selectedText = isDark ? Colors.white : const Color(0xFF006677);
     final unselectedText = isDark ? Colors.white70 : Colors.grey.shade700;
 
@@ -319,23 +318,6 @@ class _ProfileReelsPillButtonState extends State<_ProfileReelsPillButton> {
               color: widget.selected ? selectedText : unselectedText,
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReelCoverFallback extends StatelessWidget {
-  const _ReelCoverFallback();
-
-  @override
-  Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF20142F), Color(0xFF6F3BFF)],
         ),
       ),
     );

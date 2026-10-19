@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'safety_service.dart';
+
 class MessagingService {
   final _db = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
   static const friendOnlyMessage =
-      "You can only message people when you both follow each other.";
+      "Messaging is unavailable. You must both follow each other and neither account can have a block in place.";
 
   // -----------------------------------
   // Conversation helpers
@@ -205,6 +207,7 @@ class MessagingService {
       return false;
     }
 
+    if (await SafetyService.instance.isBlockedEitherWay(otherUid)) return false;
     final myDoc = await _db.collection('users').doc(me.uid).get();
     final otherDoc = await _db.collection('users').doc(otherUid).get();
     final myFollowing = List<String>.from(
@@ -271,12 +274,11 @@ class MessagingService {
         .doc(convoId)
         .collection('messages');
 
-    final snap =
-        await msgsRef
-            .where('senderId', isEqualTo: otherUid)
-            .orderBy('createdAt', descending: true)
-            .limit(limit)
-            .get();
+    final snap = await msgsRef
+        .where('senderId', isEqualTo: otherUid)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
 
     if (snap.docs.isEmpty) return;
 
@@ -322,10 +324,9 @@ class MessagingService {
       final data = snap.data() ?? {};
       final userReactions =
           (data['userReactions'] as Map?)?.cast<String, dynamic>() ?? {};
-      final current =
-          (userReactions[uid] is String)
-              ? (userReactions[uid] as String).trim()
-              : '';
+      final current = (userReactions[uid] is String)
+          ? (userReactions[uid] as String).trim()
+          : '';
 
       // remove if: removeOnly OR tapping same emoji
       final removing = removeOnly || (current.isNotEmpty && current == emoji);

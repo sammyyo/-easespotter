@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/presence_service.dart';
 import '../widgets/app_bottom_nav.dart';
 import 'home_screen.dart';
+import 'grocery_list_screen.dart';
+import '../services/share_service.dart';
 import 'qr_scanner_screen.dart';
 import 'social_profile_screen.dart';
 
@@ -44,6 +47,31 @@ class _MainScaffoldState extends State<MainScaffold>
     _presence.setOnline();
     _presence.startHeartbeat();
     _loadAvatar();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final user = FirebaseAuth.instance.currentUser;
+      // AuthGate can build behind the login route before login navigation ends.
+      // Only the visible main screen may consume the pending invitation.
+      if (!mounted ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          user == null ||
+          user.isAnonymous) {
+        return;
+      }
+      final code = await ShareService.takeInvite();
+      if (code == null) return;
+      if (!mounted ||
+          ModalRoute.of(context)?.isCurrent != true ||
+          FirebaseAuth.instance.currentUser?.uid != user.uid) {
+        await ShareService.rememberInvite(code);
+        return;
+      }
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              GroceryListScreen(showBackButton: true, initialShareCode: code),
+        ),
+      );
+    });
   }
 
   @override
@@ -71,11 +99,10 @@ class _MainScaffoldState extends State<MainScaffold>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
     if (doc.exists && doc.data()?['avatarUrl'] != null) {
       setState(() {
         _avatarUrl = doc['avatarUrl'];
@@ -169,26 +196,23 @@ class _MainScaffoldState extends State<MainScaffold>
     ];
 
     return Scaffold(
-      appBar:
-          isProfileTab
-              ? null // Remove AppBar entirely when on SocialProfileScreen
-              : AppBar(
-                title:
-                    _titles[_currentIndex] != null
-                        ? Text(
-                          _titles[_currentIndex]!,
-                          style: (appBarTitleStyle ?? const TextStyle())
-                              .copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
-                        )
-                        : null,
-                centerTitle: true,
-                backgroundColor: const Color(0xFF006677),
-                iconTheme: const IconThemeData(color: Colors.white),
-                actions: const [],
-              ),
+      appBar: isProfileTab
+          ? null // Remove AppBar entirely when on SocialProfileScreen
+          : AppBar(
+              title: _titles[_currentIndex] != null
+                  ? Text(
+                      _titles[_currentIndex]!,
+                      style: (appBarTitleStyle ?? const TextStyle()).copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    )
+                  : null,
+              centerTitle: true,
+              backgroundColor: const Color(0xFF006677),
+              iconTheme: const IconThemeData(color: Colors.white),
+              actions: const [],
+            ),
       body: screens[_currentIndex],
       bottomNavigationBar: AppBottomNav(
         currentIndex: _currentIndex,

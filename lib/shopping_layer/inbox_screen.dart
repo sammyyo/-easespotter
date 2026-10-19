@@ -1,3 +1,4 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -239,27 +240,26 @@ class _InboxScreenState extends State<InboxScreen> {
   Future<bool?> _confirmDeleteDialog(BuildContext context) {
     return showDialog<bool>(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Delete conversation?"),
-            content: const Text("This will remove it from your inbox."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  "Delete",
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+      builder: (_) => AlertDialog(
+        title: const Text("Delete conversation?"),
+        content: const Text("This will remove it from your inbox."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              "Delete",
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -338,8 +338,9 @@ class _InboxScreenState extends State<InboxScreen> {
               color: _unreadOnly ? const Color(0xFF006677) : Colors.black87,
             ),
             side: BorderSide(
-              color:
-                  _unreadOnly ? const Color(0xFF006677) : Colors.grey.shade300,
+              color: _unreadOnly
+                  ? const Color(0xFF006677)
+                  : Colors.grey.shade300,
             ),
           ),
           const SizedBox(width: 10),
@@ -379,35 +380,34 @@ class _InboxScreenState extends State<InboxScreen> {
           splashRadius: 22,
           tooltip: "Back",
         ),
-        title:
-            _showSearch
-                ? TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  onChanged: _onSearchChanged,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  cursorColor: Colors.white,
-                  decoration: InputDecoration(
-                    hintText: "Search…",
-                    hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.75),
-                      fontWeight: FontWeight.w500,
-                    ),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                )
-                : const Text(
-                  "Inbox",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
+        title: _showSearch
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: _onSearchChanged,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
+                cursorColor: Colors.white,
+                decoration: InputDecoration(
+                  hintText: "Search…",
+                  hintStyle: TextStyle(
+                    color: Colors.white.withOpacity(0.75),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+              )
+            : const Text(
+                "Inbox",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
         actions: [
           IconButton(
             onPressed: () {
@@ -528,27 +528,70 @@ class _InboxScreenState extends State<InboxScreen> {
                         return const SizedBox.shrink();
                       }
 
-                      return Dismissible(
-                        key: ValueKey("convo_$convoId"),
-                        direction: DismissDirection.horizontal,
-                        background: _swipeBackground(
-                          alignment: Alignment.centerLeft,
-                          icon: Icons.archive,
-                          label: "Archive",
-                          color: Colors.blueGrey,
-                        ),
-                        secondaryBackground: _swipeBackground(
-                          alignment: Alignment.centerRight,
-                          icon: Icons.delete,
-                          label: "Delete",
-                          color: Colors.redAccent,
-                        ),
-                        confirmDismiss: (direction) async {
-                          if (uid == null) return false;
+                      return SafetyContent(
+                        uid: otherUid,
+                        child: Dismissible(
+                          key: ValueKey("convo_$convoId"),
+                          direction: DismissDirection.horizontal,
+                          background: _swipeBackground(
+                            alignment: Alignment.centerLeft,
+                            icon: Icons.archive,
+                            label: "Archive",
+                            color: Colors.blueGrey,
+                          ),
+                          secondaryBackground: _swipeBackground(
+                            alignment: Alignment.centerRight,
+                            icon: Icons.delete,
+                            label: "Delete",
+                            color: Colors.redAccent,
+                          ),
+                          confirmDismiss: (direction) async {
+                            if (uid == null) return false;
 
-                          if (direction == DismissDirection.startToEnd) {
+                            if (direction == DismissDirection.startToEnd) {
+                              try {
+                                await _archiveConversation(convoId);
+                                if (!mounted) return false;
+
+                                setState(
+                                  () => _locallyHiddenConvos.add(convoId),
+                                );
+
+                                final snack = ScaffoldMessenger.of(context);
+                                snack.hideCurrentSnackBar();
+                                snack.showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      "Conversation archived",
+                                    ),
+                                    action: SnackBarAction(
+                                      label: "Undo",
+                                      onPressed: () async {
+                                        await _unarchiveConversation(convoId);
+                                        if (!mounted) return;
+                                        setState(
+                                          () => _locallyHiddenConvos.remove(
+                                            convoId,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!mounted) return false;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Archive failed: $e")),
+                                );
+                              }
+                              return false;
+                            }
+
+                            final ok = await _confirmDeleteDialog(context);
+                            if (ok != true) return false;
+
                             try {
-                              await _archiveConversation(convoId);
+                              await _deleteConversation(convoId);
                               if (!mounted) return false;
 
                               setState(() => _locallyHiddenConvos.add(convoId));
@@ -557,11 +600,11 @@ class _InboxScreenState extends State<InboxScreen> {
                               snack.hideCurrentSnackBar();
                               snack.showSnackBar(
                                 SnackBar(
-                                  content: const Text("Conversation archived"),
+                                  content: const Text("Conversation deleted"),
                                   action: SnackBarAction(
                                     label: "Undo",
                                     onPressed: () async {
-                                      await _unarchiveConversation(convoId);
+                                      await _undeleteConversation(convoId);
                                       if (!mounted) return;
                                       setState(
                                         () => _locallyHiddenConvos.remove(
@@ -575,132 +618,95 @@ class _InboxScreenState extends State<InboxScreen> {
                             } catch (e) {
                               if (!mounted) return false;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Archive failed: $e")),
+                                SnackBar(content: Text("Delete failed: $e")),
                               );
                             }
                             return false;
-                          }
-
-                          final ok = await _confirmDeleteDialog(context);
-                          if (ok != true) return false;
-
-                          try {
-                            await _deleteConversation(convoId);
-                            if (!mounted) return false;
-
-                            setState(() => _locallyHiddenConvos.add(convoId));
-
-                            final snack = ScaffoldMessenger.of(context);
-                            snack.hideCurrentSnackBar();
-                            snack.showSnackBar(
-                              SnackBar(
-                                content: const Text("Conversation deleted"),
-                                action: SnackBarAction(
-                                  label: "Undo",
-                                  onPressed: () async {
-                                    await _undeleteConversation(convoId);
-                                    if (!mounted) return;
-                                    setState(
-                                      () =>
-                                          _locallyHiddenConvos.remove(convoId),
-                                    );
-                                  },
+                          },
+                          child: Column(
+                            children: [
+                              ListTile(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChatScreen(
+                                        conversationId: convoId,
+                                        otherUid: otherUid,
+                                        otherDisplayName: title,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                leading: _avatarWithOnlineDot(
+                                  avatarUrl: avatar,
+                                  isOnline: online,
                                 ),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return false;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Delete failed: $e")),
-                            );
-                          }
-                          return false;
-                        },
-                        child: Column(
-                          children: [
-                            ListTile(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => ChatScreen(
-                                          conversationId: convoId,
-                                          otherUid: otherUid,
-                                          otherDisplayName: title,
-                                        ),
-                                  ),
-                                );
-                              },
-                              leading: _avatarWithOnlineDot(
-                                avatarUrl: avatar,
-                                isOnline: online,
-                              ),
-                              title: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  if (time.isNotEmpty)
-                                    Text(
-                                      time,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      lastMessage,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade700,
-                                        fontWeight:
-                                            unread > 0
-                                                ? FontWeight.w600
-                                                : FontWeight.w400,
-                                      ),
-                                    ),
-                                  ),
-                                  if (unread > 0)
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 8),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.redAccent,
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                      ),
+                                title: Row(
+                                  children: [
+                                    Expanded(
                                       child: Text(
-                                        unread.toString(),
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
                                           fontWeight: FontWeight.w700,
                                         ),
                                       ),
                                     ),
-                                ],
+                                    if (time.isNotEmpty)
+                                      Text(
+                                        time,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                subtitle: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        lastMessage,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.grey.shade700,
+                                          fontWeight: unread > 0
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                        ),
+                                      ),
+                                    ),
+                                    if (unread > 0)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.redAccent,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          unread.toString(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const Divider(height: 1),
-                          ],
+                              const Divider(height: 1),
+                            ],
+                          ),
                         ),
                       );
                     },

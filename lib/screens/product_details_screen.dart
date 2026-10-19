@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:easespotter/services/currency_formatting.dart';
+import 'package:easespotter/services/stock_display.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
@@ -49,6 +50,10 @@ class ProductDetailsScreen extends StatelessWidget {
     final logoUrl = _logoUrlFromProduct();
     final storeId = _storeIdFromProduct();
     final location = _locationText();
+    final stockText = StockDisplay.textFor(product);
+    debugPrint(
+      'Product details stock render: $name stock=${product['stock']} currentStock=${product['currentStock']} inStock=${product['inStock']} showStockCount=${product['showStockCount']} label=$stockText',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFE6F4F6),
@@ -155,6 +160,16 @@ class ProductDetailsScreen extends StatelessWidget {
                               formattedPrice,
                               const Color(0xFFFFF3E0),
                               const Color(0xFFB45F06),
+                            ),
+                          if (stockText != null)
+                            _infoPill(
+                              stockText,
+                              stockText == 'Out of stock'
+                                  ? const Color(0xFFFFEBEE)
+                                  : const Color(0xFFEFF7F5),
+                              stockText == 'Out of stock'
+                                  ? Colors.red.shade700
+                                  : Colors.teal.shade700,
                             ),
                           if (location.isNotEmpty)
                             _infoPill(

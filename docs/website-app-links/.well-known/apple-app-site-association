@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "JVQNWKGP23.com.easespotter.app",
+        "paths": [
+          "/share/*",
+          "/recipes/*",
+          "/glowup/*",
+          "/reels/*"
+        ]
+      },
+      {
+        "appID": "JVQNWKGP23.com.samuel.easespotter",
+        "paths": [
+          "/share/*",
+          "/recipes/*",
+          "/glowup/*",
+          "/reels/*"
+        ]
+      }
+    ]
+  }
+}

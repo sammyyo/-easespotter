@@ -1,6 +1,9 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
 import 'new_wall_post_screen.dart';
 import '../shopping_layer/wall_post_detail_screen.dart';
 
@@ -28,10 +31,9 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
     final alreadyLiked = likedBy.contains(uid);
 
     await docRef.update({
-      'likedBy':
-          alreadyLiked
-              ? FieldValue.arrayRemove([uid])
-              : FieldValue.arrayUnion([uid]),
+      'likedBy': alreadyLiked
+          ? FieldValue.arrayRemove([uid])
+          : FieldValue.arrayUnion([uid]),
     });
   }
 
@@ -47,76 +49,73 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
 
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Edit Post'),
-            content: SingleChildScrollView(
-              child: Column(
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                  ),
-                  TextField(
-                    controller: emojiController,
-                    decoration: const InputDecoration(labelText: 'Emoji'),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    children:
-                        existingTags.map((tag) {
-                          return Chip(
-                            label: Text(tag),
-                            onDeleted: () {
-                              setState(() => existingTags.remove(tag));
-                              Navigator.pop(context);
-                              _showEditOptionsDialog(postId, {
-                                ...data,
-                                'tags': existingTags,
-                              });
-                            },
-                          );
-                        }).toList(),
-                  ),
-                  TextField(
-                    controller: tagController,
-                    decoration: const InputDecoration(labelText: 'Add Tag'),
-                  ),
-                ],
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Post'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Title'),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+              TextField(
+                controller: emojiController,
+                decoration: const InputDecoration(labelText: 'Emoji'),
               ),
-              ElevatedButton(
-                onPressed: () async {
-                  final updatedTags = [...existingTags];
-                  final newTag = tagController.text.trim();
-                  if (newTag.isNotEmpty && !updatedTags.contains(newTag)) {
-                    updatedTags.add(newTag);
-                  }
-
-                  await FirebaseFirestore.instance
-                      .collection('shopping_wall')
-                      .doc(postId)
-                      .update({
-                        'title': titleController.text.trim(),
-                        'emoji': emojiController.text.trim(),
-                        'tags': updatedTags,
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                children: existingTags.map((tag) {
+                  return Chip(
+                    label: Text(tag),
+                    onDeleted: () {
+                      setState(() => existingTags.remove(tag));
+                      Navigator.pop(context);
+                      _showEditOptionsDialog(postId, {
+                        ...data,
+                        'tags': existingTags,
                       });
-
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Post updated')));
-                },
-                child: const Text('Save'),
+                    },
+                  );
+                }).toList(),
+              ),
+              TextField(
+                controller: tagController,
+                decoration: const InputDecoration(labelText: 'Add Tag'),
               ),
             ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final updatedTags = [...existingTags];
+              final newTag = tagController.text.trim();
+              if (newTag.isNotEmpty && !updatedTags.contains(newTag)) {
+                updatedTags.add(newTag);
+              }
+
+              await FirebaseFirestore.instance
+                  .collection('shopping_wall')
+                  .doc(postId)
+                  .update({
+                    'title': titleController.text.trim(),
+                    'emoji': emojiController.text.trim(),
+                    'tags': updatedTags,
+                  });
+
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('Post updated')));
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -129,13 +128,11 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
             child: DropdownButton<String>(
               value: selectedEmoji ?? 'All',
               isExpanded: true,
-              items:
-                  emojis
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-              onChanged:
-                  (val) =>
-                      setState(() => selectedEmoji = val == 'All' ? null : val),
+              items: emojis
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (val) =>
+                  setState(() => selectedEmoji = val == 'All' ? null : val),
             ),
           ),
           const SizedBox(width: 10),
@@ -143,13 +140,11 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
             child: DropdownButton<String>(
               value: selectedTag ?? 'All',
               isExpanded: true,
-              items:
-                  tags
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-              onChanged:
-                  (val) =>
-                      setState(() => selectedTag = val == 'All' ? null : val),
+              items: tags
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (val) =>
+                  setState(() => selectedTag = val == 'All' ? null : val),
             ),
           ),
         ],
@@ -183,29 +178,25 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
           _buildFilters(),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance
-                      .collection('shopping_wall')
-                      .orderBy('createdAt', descending: true)
-                      .snapshots(),
+              stream: FirebaseFirestore.instance
+                  .collection('shopping_wall')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final docs = snapshot.data!.docs;
 
-                final filteredDocs =
-                    docs.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final tagMatch =
-                          selectedTag == null ||
-                          (data['tags'] as List?)?.contains(selectedTag) ==
-                              true;
-                      final emojiMatch =
-                          selectedEmoji == null ||
-                          data['emoji'] == selectedEmoji;
-                      return tagMatch && emojiMatch;
-                    }).toList();
+                final filteredDocs = docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final tagMatch =
+                      selectedTag == null ||
+                      (data['tags'] as List?)?.contains(selectedTag) == true;
+                  final emojiMatch =
+                      selectedEmoji == null || data['emoji'] == selectedEmoji;
+                  return tagMatch && emojiMatch;
+                }).toList();
 
                 if (filteredDocs.isEmpty) {
                   return const Center(
@@ -227,112 +218,111 @@ class _ShoppingWallFeedScreenState extends State<ShoppingWallFeedScreen> {
                     final likedBy = List<String>.from(data['likedBy'] ?? []);
                     final isLiked = uid != null && likedBy.contains(uid);
 
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => WallPostDetailScreen(postId: postId),
+                    return SafetyContent(
+                      uid: SafetyService.ownerOf(data),
+                      showNotice: false,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  WallPostDetailScreen(postId: postId),
+                            ),
+                          );
+                        },
+                        onLongPress: () {
+                          if (data['uid'] == uid) {
+                            _showEditOptionsDialog(postId, data);
+                          }
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 20),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        );
-                      },
-                      onLongPress: () {
-                        if (data['uid'] == uid) {
-                          _showEditOptionsDialog(postId, data);
-                        }
-                      },
-                      child: Card(
-                        margin: const EdgeInsets.only(bottom: 20),
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (imageUrl != null && imageUrl.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(12),
-                                ),
-                                child: Image.network(
-                                  imageUrl,
-                                  height: 160,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$emoji $title',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (imageUrl != null && imageUrl.isNotEmpty)
+                                ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(12),
                                   ),
-                                  if (tags.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        tags,
-                                        style: const TextStyle(
-                                          color: Colors.black54,
-                                        ),
+                                  child: Image.network(
+                                    imageUrl,
+                                    height: 160,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '$emoji $title',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
                                       ),
                                     ),
-                                  const SizedBox(height: 10),
-                                  StreamBuilder<QuerySnapshot>(
-                                    stream:
-                                        FirebaseFirestore.instance
-                                            .collection('shopping_wall')
-                                            .doc(postId)
-                                            .collection('comments')
-                                            .snapshots(),
-                                    builder: (context, commentSnapshot) {
-                                      final commentCount =
-                                          commentSnapshot.data?.docs.length ??
-                                          0;
+                                    if (tags.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 6),
+                                        child: Text(
+                                          tags,
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                    StreamBuilder<QuerySnapshot>(
+                                      stream: FirebaseFirestore.instance
+                                          .collection('shopping_wall')
+                                          .doc(postId)
+                                          .collection('comments')
+                                          .snapshots(),
+                                      builder: (context, commentSnapshot) {
+                                        final commentCount =
+                                            commentSnapshot.data?.docs.length ??
+                                            0;
 
-                                      return Row(
-                                        children: [
-                                          IconButton(
-                                            icon: Icon(
-                                              isLiked
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color:
-                                                  isLiked
-                                                      ? Colors.red
-                                                      : Colors.grey,
+                                        return Row(
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(
+                                                isLiked
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color: isLiked
+                                                    ? Colors.red
+                                                    : Colors.grey,
+                                              ),
+                                              onPressed: () =>
+                                                  _toggleLike(postId, likedBy),
                                             ),
-                                            onPressed:
-                                                () => _toggleLike(
-                                                  postId,
-                                                  likedBy,
-                                                ),
-                                          ),
-                                          Text('${likedBy.length}'),
-                                          const SizedBox(width: 16),
-                                          const Icon(
-                                            Icons.comment,
-                                            size: 20,
-                                            color: Colors.grey,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text('$commentCount'),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ],
+                                            Text('${likedBy.length}'),
+                                            const SizedBox(width: 16),
+                                            const Icon(
+                                              Icons.comment,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text('$commentCount'),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );

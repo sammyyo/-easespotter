@@ -1,0 +1,1451 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Truck,
+  TrendingUp,
+  DollarSign,
+  AlertCircle,
+  CheckCircle,
+  Calendar,
+  FileText,
+  Search,
+  ArrowUpDown,
+  Settings,
+  Plus,
+  Pencil,
+  XCircle,
+  Zap,
+  Activity,
+  Star,
+  Filter,
+  Loader2,
+} from "lucide-react";
+import {
+  CircularProgressbarWithChildren,
+  buildStyles,
+} from "react-circular-progressbar";
+import "react-circular-progressbar/dist/styles.css";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Type definitions based on database schema
+interface Supplier {
+  id: number;
+  name: string;
+  vendorId: number;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  address: string;
+  country: string;
+  categories: string;
+  status: "active" | "probation" | "inactive" | "blacklisted";
+  paymentTerms: string;
+  leadTime: number;
+  minimumOrderQuantity: number;
+  performanceScore: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SupplierPerformance {
+  id: number;
+  supplierId: number;
+  vendorId: number;
+  metricDate: string;
+  onTimeDeliveryRate: number;
+  qualityScore: number;
+  responseTime: number;
+  priceCompetitiveness: number;
+  costSavings: number;
+  defectRate: number;
+  riskScore: number;
+  complianceScore: number;
+  innovationScore: number;
+  overallScore: number;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SupplierCost {
+  id: number;
+  supplierId: number;
+  vendorId: number;
+  productId: number;
+  costDate: string;
+  unitCost: string;
+  currencyCode: string;
+  quantity: number;
+  totalCost: string;
+  priceFluctuation: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+  productName?: string; // Joined from products table
+}
+
+interface NegotiationRecommendation {
+  id: number;
+  supplierId: number;
+  vendorId: number;
+  recommendationDate: string;
+  recommendationType: string;
+  valueType: string;
+  currentValue: string;
+  recommendedValue: string;
+  potentialSavings: string;
+  confidenceScore: string;
+  rationale: string;
+  tactics: string; // JSON string of tactics array
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Tactic {
+  tactic: string;
+  description: string;
+  priority: number;
+}
+
+// Custom hook for supplier data
+function useSupplierData(supplierId?: number) {
+  const { user } = useAuth();
+  const vendorId = user?.vendorId;
+
+  // Get all suppliers for the vendor
+  const {
+    data: suppliers = [],
+    isLoading: isSuppliersLoading,
+    isError: isSuppliersError,
+    refetch: refetchSuppliers,
+  } = useQuery<Supplier[]>({
+    queryKey: ["suppliers", vendorId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/suppliers?vendorId=${vendorId}`);
+      if (!res.ok) throw new Error("Failed to fetch suppliers");
+      return res.json();
+    },
+    enabled: !!vendorId,
+  });
+
+  // Get supplier performance metrics if a supplier is selected
+  const {
+    data: performance,
+    isLoading: isPerformanceLoading,
+    isError: isPerformanceError,
+  } = useQuery<SupplierPerformance>({
+    queryKey: ["supplier-performance", supplierId],
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/supplier-performance/${supplierId}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch supplier performance");
+      return res.json();
+    },
+    enabled: !!supplierId,
+  });
+
+  // Get supplier costs if a supplier is selected
+  const {
+    data: costs = [],
+    isLoading: isCostsLoading,
+    isError: isCostsError,
+  } = useQuery<SupplierCost[]>({
+    queryKey: ["supplier-costs", supplierId],
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/supplier-costs?supplierId=${supplierId}`
+      );
+      if (!res.ok) throw new Error("Failed to fetch supplier costs");
+      return res.json();
+    },
+    enabled: !!supplierId,
+  });
+
+  // Get negotiation recommendations if a supplier is selected
+  const {
+    data: recommendations = [],
+    isLoading: isRecommendationsLoading,
+    isError: isRecommendationsError,
+  } = useQuery<NegotiationRecommendation[]>({
+    queryKey: ["negotiation-recommendations", supplierId],
+    queryFn: async () => {
+      const res = await apiRequest(
+        "GET",
+        `/api/negotiation-recommendations?supplierId=${supplierId}`
+      );
+      if (!res.ok)
+        throw new Error("Failed to fetch negotiation recommendations");
+      return res.json();
+    },
+    enabled: !!supplierId,
+  });
+
+  return {
+    suppliers,
+    performance,
+    costs,
+    recommendations,
+    isLoading:
+      isSuppliersLoading ||
+      (!!supplierId &&
+        (isPerformanceLoading ||
+          isCostsLoading ||
+          isRecommendationsLoading)),
+    isError:
+      isSuppliersError ||
+      (!!supplierId &&
+        (isPerformanceError || isCostsError || isRecommendationsError)),
+    refetchSuppliers,
+  };
+}
+
+// Supplier Status Badge component
+function SupplierStatusBadge({ status }: { status: Supplier["status"] }) {
+  const statusConfig = {
+    active: { variant: "success", label: "Active" },
+    probation: { variant: "warning", label: "Probation" },
+    inactive: { variant: "secondary", label: "Inactive" },
+    blacklisted: { variant: "destructive", label: "Blacklisted" },
+  } as const;
+
+  const config = statusConfig[status] || statusConfig.inactive;
+
+  return (
+    <Badge
+      variant={
+        config.variant as "default" | "destructive" | "outline" | "secondary"
+      }
+    >
+      {config.label}
+    </Badge>
+  );
+}
+
+// Supplier List Component
+function SupplierList({
+  suppliers,
+  isLoading,
+  onSelectSupplier,
+  selectedSupplierId,
+}: {
+  suppliers: Supplier[];
+  isLoading: boolean;
+  onSelectSupplier: (supplierId: number) => void;
+  selectedSupplierId?: number;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    return (
+      (supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        supplier.contactName.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (statusFilter === "all" || supplier.status === statusFilter)
+    );
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Card key={i} className="cursor-pointer">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search suppliers..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <Select
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+        >
+          <SelectTrigger className="w-[180px]">
+            <Filter className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="probation">Probation</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="blacklisted">Blacklisted</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filteredSuppliers.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No suppliers found matching your criteria.
+        </div>
+      ) : (
+        filteredSuppliers.map((supplier) => (
+          <Card
+            key={supplier.id}
+            className={`cursor-pointer hover:shadow-md transition-shadow ${
+              selectedSupplierId === supplier.id
+                ? "border-primary border-2"
+                : ""
+            }`}
+            onClick={() => onSelectSupplier(supplier.id)}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex justify-between">
+                <CardTitle className="text-lg">{supplier.name}</CardTitle>
+                <SupplierStatusBadge status={supplier.status} />
+              </div>
+              <CardDescription>
+                Contact: {supplier.contactName}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">
+                  <Star className="h-4 w-4 inline-block mr-1 text-primary" />
+                  Performance Score: {parseFloat(supplier.performanceScore as any).toFixed(1)}/5
+                </span>
+                <Badge variant="outline" className="font-mono">
+                  {supplier.paymentTerms}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
+  );
+}
+
+// Supplier Performance Component
+function SupplierPerformanceView({
+  supplier,
+  performance,
+  isLoading,
+}: {
+  supplier?: Supplier;
+  performance?: SupplierPerformance;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 justify-between">
+            <Skeleton className="h-48 w-48 rounded-full mx-auto" />
+            <div className="space-y-4 flex-1">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-1/4" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!supplier || !performance) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Supplier Performance</CardTitle>
+          <CardDescription>Select a supplier to view performance metrics</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <Truck className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No supplier selected</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Performance Metrics</CardTitle>
+        <CardDescription>
+          Last updated: {new Date(performance.metricDate).toLocaleDateString()}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="flex-shrink-0 w-48 h-48 mx-auto">
+            <CircularProgressbarWithChildren
+              value={parseFloat(performance.overallScore as any)}
+              maxValue={5}
+              strokeWidth={10}
+              styles={buildStyles({
+                strokeLinecap: "round",
+                pathColor: `hsl(var(--primary))`,
+                trailColor: "hsl(var(--muted))",
+              })}
+            >
+              <div className="text-center">
+                <div className="text-3xl font-bold">
+                  {parseFloat(performance.overallScore as any).toFixed(1)}
+                </div>
+                <div className="text-sm text-muted-foreground">Overall Score</div>
+              </div>
+            </CircularProgressbarWithChildren>
+          </div>
+
+          <div className="flex-1 space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>On-Time Delivery</span>
+                <span className="font-medium">
+                  {(parseFloat(performance.onTimeDeliveryRate as any) * 100).toFixed(1)}%
+                </span>
+              </div>
+              <Progress
+                value={parseFloat(performance.onTimeDeliveryRate as any) * 100}
+                className="h-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Quality Score</span>
+                <span className="font-medium">
+                  {parseFloat(performance.qualityScore as any).toFixed(1)}/5
+                </span>
+              </div>
+              <Progress
+                value={(parseFloat(performance.qualityScore as any) / 5) * 100}
+                className="h-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Price Competitiveness</span>
+                <span className="font-medium">
+                  {parseFloat(performance.priceCompetitiveness as any).toFixed(1)}/5
+                </span>
+              </div>
+              <Progress
+                value={(parseFloat(performance.priceCompetitiveness as any) / 5) * 100}
+                className="h-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Compliance Score</span>
+                <span className="font-medium">
+                  {parseFloat(performance.complianceScore as any).toFixed(1)}/5
+                </span>
+              </div>
+              <Progress
+                value={(parseFloat(performance.complianceScore as any) / 5) * 100}
+                className="h-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Innovation Score</span>
+                <span className="font-medium">
+                  {parseFloat(performance.innovationScore as any).toFixed(1)}/5
+                </span>
+              </div>
+              <Progress
+                value={(parseFloat(performance.innovationScore as any) / 5) * 100}
+                className="h-2"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-4 border-t">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-2">
+            <div className="p-4 bg-background rounded-lg border shadow-sm">
+              <div className="flex items-start">
+                <div className="mr-2 p-2 bg-primary/10 rounded-full">
+                  <CheckCircle className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Defect Rate</div>
+                  <div className="font-semibold text-lg">
+                    {(parseFloat(performance.defectRate as any) * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-background rounded-lg border shadow-sm">
+              <div className="flex items-start">
+                <div className="mr-2 p-2 bg-primary/10 rounded-full">
+                  <AlertCircle className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Risk Score</div>
+                  <div className="font-semibold text-lg">
+                    {parseFloat(performance.riskScore as any).toFixed(1)}/5
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-background rounded-lg border shadow-sm">
+              <div className="flex items-start">
+                <div className="mr-2 p-2 bg-primary/10 rounded-full">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Cost Savings</div>
+                  <div className="font-semibold text-lg">
+                    ${parseFloat(performance.costSavings as any).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {performance.notes && (
+          <div className="mt-6 p-4 bg-muted rounded-lg">
+            <h4 className="font-medium mb-2">Notes</h4>
+            <p className="text-muted-foreground text-sm">{performance.notes}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Cost History Component
+function CostHistoryView({
+  supplier,
+  costs,
+  isLoading,
+}: {
+  supplier?: Supplier;
+  costs: SupplierCost[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!supplier) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost History</CardTitle>
+          <CardDescription>Select a supplier to view cost history</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <DollarSign className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No supplier selected</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (costs.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cost History</CardTitle>
+          <CardDescription>
+            Cost history for {supplier.name}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <Activity className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No cost history available</p>
+            <p className="text-sm mt-1">
+              Cost data will appear here once recorded
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Calculate average fluctuation
+  const avgFluctuation =
+    costs.reduce(
+      (sum, cost) => sum + parseFloat(cost.priceFluctuation || "0"),
+      0
+    ) / costs.length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Cost History</CardTitle>
+        <CardDescription>
+          Cost history for {supplier.name} ({costs.length} records)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4 flex flex-col items-center">
+              <span className="text-sm text-muted-foreground">Latest Unit Cost</span>
+              <span className="text-2xl font-bold mt-1">
+                {costs[0]?.currencyCode} {parseFloat(costs[0]?.unitCost || "0").toFixed(2)}
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                per unit
+              </span>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 flex flex-col items-center">
+              <span className="text-sm text-muted-foreground">Avg. Price Fluctuation</span>
+              <span className={`text-2xl font-bold mt-1 ${
+                avgFluctuation > 0 
+                  ? "text-red-500" 
+                  : avgFluctuation < 0 
+                  ? "text-green-500" 
+                  : ""
+              }`}>
+                {avgFluctuation > 0 ? "+" : ""}{avgFluctuation.toFixed(2)}%
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                over last {costs.length} records
+              </span>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 flex flex-col items-center">
+              <span className="text-sm text-muted-foreground">Total Spend</span>
+              <span className="text-2xl font-bold mt-1">
+                {costs[0]?.currencyCode} {costs.reduce(
+                  (sum, cost) => sum + parseFloat(cost.totalCost || "0"),
+                  0
+                ).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                all-time
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead className="text-right">Unit Cost</TableHead>
+                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Fluctuation</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {costs.map((cost) => (
+                <TableRow key={cost.id}>
+                  <TableCell>
+                    {new Date(cost.costDate).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>{cost.productName}</TableCell>
+                  <TableCell className="text-right">
+                    {cost.currencyCode} {parseFloat(cost.unitCost).toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {cost.quantity.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {cost.currencyCode} {parseFloat(cost.totalCost).toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span
+                      className={
+                        parseFloat(cost.priceFluctuation) > 0
+                          ? "text-red-500"
+                          : parseFloat(cost.priceFluctuation) < 0
+                          ? "text-green-500"
+                          : ""
+                      }
+                    >
+                      {parseFloat(cost.priceFluctuation) > 0 ? "+" : ""}
+                      {parseFloat(cost.priceFluctuation).toFixed(2)}%
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Negotiation Recommendations Component
+function NegotiationRecommendationsView({
+  supplier,
+  recommendations,
+  isLoading,
+}: {
+  supplier?: Supplier;
+  recommendations: NegotiationRecommendation[];
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!supplier) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Negotiation Recommendations</CardTitle>
+          <CardDescription>Select a supplier to view recommendations</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <Zap className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No supplier selected</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (recommendations.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Negotiation Recommendations</CardTitle>
+          <CardDescription>
+            For supplier: {supplier.name}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <FileText className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No recommendations available yet</p>
+            <p className="text-sm mt-1">
+              Check back later for AI-powered negotiation suggestions
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function parseAndRenderTactics(tacticsJson: string) {
+    try {
+      const tactics = JSON.parse(tacticsJson) as Tactic[];
+      return (
+        <div className="mt-4 space-y-3">
+          <h4 className="font-medium">Suggested Tactics:</h4>
+          <ul className="space-y-2">
+            {tactics.map((tactic, index) => (
+              <li key={index} className="flex items-start">
+                <div className="flex-shrink-0 mr-2 mt-1 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs text-primary font-medium">
+                  {tactic.priority}
+                </div>
+                <div>
+                  <p className="font-medium">{tactic.tactic}</p>
+                  <p className="text-sm text-muted-foreground">{tactic.description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    } catch (error) {
+      return <div className="text-sm text-muted-foreground mt-2">No tactics available</div>;
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Negotiation Recommendations</CardTitle>
+        <CardDescription>
+          For supplier: {supplier.name}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {recommendations.map((recommendation) => (
+          <Card key={recommendation.id} className="border-l-4 border-l-primary">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center">
+                  <Calendar className="mr-2 h-5 w-5 text-muted-foreground" />
+                  {new Date(recommendation.recommendationDate).toLocaleDateString()}
+                </CardTitle>
+                <Badge variant="outline" className="font-mono">
+                  {recommendation.recommendationType}
+                </Badge>
+              </div>
+              <CardDescription>
+                Confidence Score: {parseFloat(recommendation.confidenceScore).toFixed(2)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-3">
+              <div className="space-y-4">
+                <div>
+                  <div className="font-medium">Current Value:</div>
+                  <div className="text-2xl">{recommendation.currentValue} <span className="text-base">{recommendation.valueType}</span></div>
+                </div>
+                <div>
+                  <div className="font-medium">Recommended Value:</div>
+                  <div className="text-2xl text-primary">{recommendation.recommendedValue} <span className="text-base">{recommendation.valueType}</span></div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Potential Savings: {recommendation.potentialSavings}
+                  </div>
+                </div>
+                <div>
+                  <div className="font-medium mb-1">Rationale:</div>
+                  <div className="text-muted-foreground">{recommendation.rationale}</div>
+                </div>
+                {recommendation.tactics && parseAndRenderTactics(recommendation.tactics)}
+              </div>
+            </CardContent>
+            <CardFooter className="border-t pt-3 flex justify-end">
+              <Button variant="outline" size="sm">
+                Apply Recommendation
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Supplier Details View Component
+function SupplierDetailsView({
+  supplier,
+  isLoading,
+}: {
+  supplier?: Supplier;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-full" />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!supplier) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Supplier Details</CardTitle>
+          <CardDescription>Select a supplier to view details</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center py-10">
+          <div className="text-center text-muted-foreground">
+            <Settings className="h-10 w-10 mx-auto mb-4 opacity-30" />
+            <p>No supplier selected</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{supplier.name}</CardTitle>
+            <CardDescription>
+              {supplier.contactName && `Contact: ${supplier.contactName}`}
+            </CardDescription>
+          </div>
+          <SupplierStatusBadge status={supplier.status} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <div>
+              <Label>Contact Email</Label>
+              <div className="font-medium mt-1">
+                {supplier.contactEmail || "N/A"}
+              </div>
+            </div>
+            <div>
+              <Label>Contact Phone</Label>
+              <div className="font-medium mt-1">
+                {supplier.contactPhone || "N/A"}
+              </div>
+            </div>
+            <div>
+              <Label>Address</Label>
+              <div className="font-medium mt-1">{supplier.address || "N/A"}</div>
+            </div>
+            <div>
+              <Label>Country</Label>
+              <div className="font-medium mt-1">{supplier.country}</div>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Categories</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {supplier.categories.split(",").map((category, i) => (
+                  <Badge key={i} variant="secondary">
+                    {category.trim()}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Payment Terms</Label>
+              <div className="font-medium mt-1">{supplier.paymentTerms}</div>
+            </div>
+            <div>
+              <Label>Lead Time</Label>
+              <div className="font-medium mt-1">{supplier.leadTime} days</div>
+            </div>
+            <div>
+              <Label>Minimum Order Quantity</Label>
+              <div className="font-medium mt-1">{supplier.minimumOrderQuantity.toLocaleString()} units</div>
+            </div>
+            <div>
+              <Label>Performance Score</Label>
+              <div className="font-medium mt-1 flex items-center">
+                {parseFloat(supplier.performanceScore as any).toFixed(1)}/5.0
+                <Star className="h-4 w-4 text-primary ml-2" />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-between mt-6 pt-4 border-t">
+          <div className="text-sm text-muted-foreground">
+            Created: {new Date(supplier.createdAt).toLocaleDateString()}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Last Updated: {new Date(supplier.updatedAt).toLocaleDateString()}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Main Supplier Management Page
+export default function SupplierManagement() {
+  const [selectedSupplierId, setSelectedSupplierId] = useState<number>();
+  const { suppliers, performance, costs, recommendations, isLoading, isError, refetchSuppliers } = useSupplierData(selectedSupplierId);
+  const { toast } = useToast();
+
+  const selectedSupplier = suppliers.find(
+    (supplier) => supplier.id === selectedSupplierId
+  );
+
+  if (isError) {
+    return (
+      <div className="max-w-6xl mx-auto py-6">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
+          <div className="flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 mr-3" />
+            <div>
+              <h3 className="text-lg font-medium text-red-800">
+                Error Loading Data
+              </h3>
+              <p className="text-red-700 mt-1">
+                There was a problem loading supplier data. Please try refreshing
+                the page or contact support if the problem persists.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => window.location.reload()}
+              >
+                Refresh Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const [showCreateSupplierDialog, setShowCreateSupplierDialog] = useState(false);
+  const queryClient = useQueryClient();
+  
+  // Create new supplier mutation
+  const createSupplierMutation = useMutation({
+    mutationFn: async (supplierData: Omit<Supplier, "id" | "vendorId" | "createdAt" | "updatedAt">) => {
+      const res = await apiRequest("POST", "/api/suppliers", supplierData);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to create supplier");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Supplier created",
+        description: "New supplier has been added successfully",
+      });
+      setShowCreateSupplierDialog(false);
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create supplier",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle form submission
+  const handleCreateSupplier = async (data: Omit<Supplier, "id" | "vendorId" | "createdAt" | "updatedAt">) => {
+    createSupplierMutation.mutate(data);
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto py-6">
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Supplier Management
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your suppliers, track performance, and optimize procurement
+          </p>
+        </div>
+        <Button 
+          onClick={() => setShowCreateSupplierDialog(true)}
+          className="flex items-center"
+          size="sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Supplier
+        </Button>
+      </div>
+      
+      {/* Create Supplier Dialog */}
+      <Dialog open={showCreateSupplierDialog} onOpenChange={setShowCreateSupplierDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Supplier</DialogTitle>
+            <DialogDescription>
+              Add a new supplier to your vendor account
+            </DialogDescription>
+          </DialogHeader>
+          <CreateSupplierForm 
+            onSubmit={handleCreateSupplier} 
+            isLoading={createSupplierMutation.isPending}
+            onCancel={() => setShowCreateSupplierDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-1">
+          <SupplierList
+            suppliers={suppliers}
+            isLoading={isLoading}
+            onSelectSupplier={setSelectedSupplierId}
+            selectedSupplierId={selectedSupplierId}
+          />
+        </div>
+
+        <div className="md:col-span-2 space-y-6">
+          <Tabs defaultValue="details" className="w-full">
+            <TabsList className="grid grid-cols-4 mb-4">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+              <TabsTrigger value="costs">Cost History</TabsTrigger>
+              <TabsTrigger value="negotiations">Negotiations</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="p-0">
+              <SupplierDetailsView
+                supplier={selectedSupplier}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="performance" className="p-0">
+              <SupplierPerformanceView
+                supplier={selectedSupplier}
+                performance={performance}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="costs" className="p-0">
+              <CostHistoryView
+                supplier={selectedSupplier}
+                costs={costs}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="negotiations" className="p-0">
+              <NegotiationRecommendationsView
+                supplier={selectedSupplier}
+                recommendations={recommendations}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Create Supplier Form Component
+function CreateSupplierForm({
+  onSubmit,
+  isLoading,
+  onCancel,
+}: {
+  onSubmit: (data: Omit<Supplier, "id" | "vendorId" | "createdAt" | "updatedAt">) => void;
+  isLoading: boolean;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [country, setCountry] = useState("");
+  const [categories, setCategories] = useState("");
+  const [status, setStatus] = useState<Supplier["status"]>("active");
+  const [paymentTerms, setPaymentTerms] = useState("Net 30");
+  const [leadTime, setLeadTime] = useState("7");
+  const [minimumOrderQuantity, setMinimumOrderQuantity] = useState("100");
+  const [performanceScore, setPerformanceScore] = useState("0");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate required fields
+    if (!name) {
+      return;
+    }
+
+    // Create supplier object
+    const supplierData = {
+      name,
+      contactName,
+      contactEmail,
+      contactPhone,
+      address,
+      country,
+      categories,
+      status,
+      paymentTerms,
+      leadTime: parseInt(leadTime),
+      minimumOrderQuantity: parseInt(minimumOrderQuantity),
+      performanceScore: parseFloat(performanceScore),
+    };
+
+    onSubmit(supplierData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Supplier Name <span className="text-red-500">*</span></Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter supplier name"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contactName">Contact Person</Label>
+            <Input
+              id="contactName"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Enter contact person name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contactEmail">Contact Email</Label>
+            <Input
+              id="contactEmail"
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="contact@supplier.com"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contactPhone">Contact Phone</Label>
+            <Input
+              id="contactPhone"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              placeholder="+1 (555) 123-4567"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="address">Address</Label>
+            <Input
+              id="address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Enter supplier address"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="country">Country</Label>
+            <Input
+              id="country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="Enter country"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="categories">Categories (comma separated)</Label>
+            <Input
+              id="categories"
+              value={categories}
+              onChange={(e) => setCategories(e.target.value)}
+              placeholder="Electronics, Apparel, etc."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select value={status} onValueChange={(value) => setStatus(value as Supplier["status"])}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select supplier status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="probation">Probation</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="blacklisted">Blacklisted</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="paymentTerms">Payment Terms</Label>
+            <Select value={paymentTerms} onValueChange={setPaymentTerms}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment terms" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Net 30">Net 30</SelectItem>
+                <SelectItem value="Net 60">Net 60</SelectItem>
+                <SelectItem value="Net 90">Net 90</SelectItem>
+                <SelectItem value="Immediate">Immediate</SelectItem>
+                <SelectItem value="Cash on Delivery">Cash on Delivery</SelectItem>
+                <SelectItem value="Letter of Credit">Letter of Credit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="leadTime">Lead Time (days)</Label>
+            <Input
+              id="leadTime"
+              type="number"
+              min="0"
+              value={leadTime}
+              onChange={(e) => setLeadTime(e.target.value)}
+              placeholder="7"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="minimumOrderQuantity">Minimum Order Quantity</Label>
+            <Input
+              id="minimumOrderQuantity"
+              type="number"
+              min="0"
+              value={minimumOrderQuantity}
+              onChange={(e) => setMinimumOrderQuantity(e.target.value)}
+              placeholder="100"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="performanceScore">
+              Initial Performance Score (0-5)
+            </Label>
+            <Input
+              id="performanceScore"
+              type="number"
+              min="0"
+              max="5"
+              step="0.1"
+              value={performanceScore}
+              onChange={(e) => setPerformanceScore(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter className="gap-2 sm:gap-0">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <span className="mr-2">Creating supplier...</span>
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </>
+          ) : (
+            'Create Supplier'
+          )}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Orange map pin -->
+  <path d="M256 0C167.6 0 96 71.6 96 160c0 88.4 160 352 160 352s160-263.6 160-352C416 71.6 344.4 0 256 0z" fill="#F47458"/>
+  
+  <!-- Cream E letter -->
+  <path d="M317 232H206v-40h111v-32H206v-40h111v-32H174v176h143z" fill="#FFF8E7"/>
+</svg>

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'intro_screen.dart';
 import 'main_scaffold.dart';
+import '../services/user_scoped_prefs.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -11,6 +12,10 @@ class AuthGate extends StatelessWidget {
     if (user.isAnonymous) {
       await FirebaseAuth.instance.signOut();
     }
+  }
+
+  Future<void> _prepareSignedInUser() async {
+    await UserScopedPrefs.migrateLocalDataForCurrentUser();
   }
 
   @override
@@ -41,8 +46,18 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        // Fully signed-in user → enter app
-        return const MainScaffold();
+        // Fully signed-in user -> enter app after local data migration.
+        return FutureBuilder<void>(
+          future: _prepareSignedInUser(),
+          builder: (context, migrationSnap) {
+            if (migrationSnap.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return const MainScaffold();
+          },
+        );
       },
     );
   }

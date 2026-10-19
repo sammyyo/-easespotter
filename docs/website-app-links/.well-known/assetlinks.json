@@ -1,0 +1,26 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.easespotter.app",
+      "sha256_cert_fingerprints": [
+        "9D:DA:D0:9A:88:2C:D3:B4:E0:0E:28:0D:B1:EF:04:F4:17:5A:89:83:53:FC:27:60:B3:E2:2C:F5:B3:42:71:F1"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.samuel.easespotter",
+      "sha256_cert_fingerprints": [
+        "9D:DA:D0:9A:88:2C:D3:B4:E0:0E:28:0D:B1:EF:04:F4:17:5A:89:83:53:FC:27:60:B3:E2:2C:F5:B3:42:71:F1"
+      ]
+    }
+  }
+]

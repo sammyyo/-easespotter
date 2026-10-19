@@ -1,9 +1,11 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easespotter/helper/user_profile_service.dart';
 import 'package:easespotter/widgets/public_profile_widget.dart';
 import 'package:easespotter/widgets/app_bottom_nav.dart';
+
 import 'main_scaffold.dart';
 
 class PublicProfileScreen extends StatelessWidget {
@@ -12,11 +14,10 @@ class PublicProfileScreen extends StatelessWidget {
 
   // --- Keep your collaborators fetch as-is (reads public aggregate data)
   Future<List<Map<String, dynamic>>> _fetchTopCollaborators(String uid) async {
-    final query =
-        await FirebaseFirestore.instance
-            .collection('grocery_shares')
-            .where('creatorUid', isEqualTo: uid)
-            .get();
+    final query = await FirebaseFirestore.instance
+        .collection('grocery_shares')
+        .where('creatorUid', isEqualTo: uid)
+        .get();
 
     final Map<String, int> countMap = {};
     for (var doc in query.docs) {
@@ -27,17 +28,16 @@ class PublicProfileScreen extends StatelessWidget {
       }
     }
 
-    final sorted =
-        countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sorted = countMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final top = sorted.take(6).toList();
 
     final List<Map<String, dynamic>> result = [];
     for (final entry in top) {
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(entry.key)
-              .get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(entry.key)
+          .get();
       if (userDoc.exists && userDoc.data() != null) {
         final data = userDoc.data()!;
         result.add({
@@ -80,16 +80,12 @@ class PublicProfileScreen extends StatelessWidget {
           CircleAvatar(
             radius: 18,
             backgroundColor: Colors.white.withOpacity(0.85),
-            backgroundImage:
-                avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-            child:
-                avatarUrl.isEmpty
-                    ? Icon(
-                      Icons.person,
-                      size: 18,
-                      color: const Color(0xFF006677),
-                    )
-                    : null,
+            backgroundImage: avatarUrl.isNotEmpty
+                ? NetworkImage(avatarUrl)
+                : null,
+            child: avatarUrl.isEmpty
+                ? Icon(Icons.person, size: 18, color: const Color(0xFF006677))
+                : null,
           ),
           const SizedBox(height: 8),
           Text(
@@ -236,6 +232,7 @@ class PublicProfileScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: const Color(0xFFF6F7FB),
           appBar: AppBar(
+            actions: [SafetyMenu(uid: resolvedUid)],
             title: Text(title?.isNotEmpty == true ? title! : 'Profile'),
             centerTitle: true,
             backgroundColor: const Color(0xFF006677),
@@ -276,39 +273,38 @@ class PublicProfileScreen extends StatelessWidget {
               );
             },
           ),
-          bottomNavigationBar:
-              currentUser == null
-                  ? AppBottomNav(
-                    currentIndex: 3,
-                    avatarUrl: null,
-                    onTap: (index) {
-                      if (index == 3) return;
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => MainScaffold(initialIndex: index),
-                        ),
-                        (route) => false,
-                      );
-                    },
-                  )
-                  : StreamBuilder<UserProfile?>(
-                    stream: profileService.watch(currentUser.uid),
-                    builder: (context, meSnapshot) {
-                      return AppBottomNav(
-                        currentIndex: 3,
-                        avatarUrl: meSnapshot.data?.avatarUrl,
-                        onTap: (index) {
-                          if (index == 3) return;
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(
-                              builder: (_) => MainScaffold(initialIndex: index),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                      );
-                    },
-                  ),
+          bottomNavigationBar: currentUser == null
+              ? AppBottomNav(
+                  currentIndex: 3,
+                  avatarUrl: null,
+                  onTap: (index) {
+                    if (index == 3) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => MainScaffold(initialIndex: index),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                )
+              : StreamBuilder<UserProfile?>(
+                  stream: profileService.watch(currentUser.uid),
+                  builder: (context, meSnapshot) {
+                    return AppBottomNav(
+                      currentIndex: 3,
+                      avatarUrl: meSnapshot.data?.avatarUrl,
+                      onTap: (index) {
+                        if (index == 3) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => MainScaffold(initialIndex: index),
+                          ),
+                          (route) => false,
+                        );
+                      },
+                    );
+                  },
+                ),
         );
       },
     );

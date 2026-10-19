@@ -1,5 +1,8 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../shopping_layer/public_list_detail_screen.dart';
 import '../shopping_layer/recipe_detail_screen.dart';
 import '../shopping_layer/glowup_detail_screen.dart';
@@ -35,13 +38,10 @@ class ExploreTabScreen extends StatelessWidget {
               imageField: 'imageUrl',
               titleField: 'title',
               subtitleField: 'description',
-              onSeeAll:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AllPublicListsScreen(),
-                    ),
-                  ),
+              onSeeAll: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AllPublicListsScreen()),
+              ),
             ),
             _buildSection(
               context,
@@ -52,15 +52,14 @@ class ExploreTabScreen extends StatelessWidget {
               imageField: 'imageUrl',
               titleField: 'title',
               subtitleField: 'category',
-              onSeeAll:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AllRecipesScreen()),
-                  ),
+              onSeeAll: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AllRecipesScreen()),
+              ),
             ),
             _buildSection(
               context,
-              title: '✨ Featured Glow-Ups',
+              title: '✨ Featured Tastes',
               collection: 'glowups',
               orderBy: 'likedBy.length',
               onTapBuilder: (id, _) => GlowUpDetailScreen(glowUpId: id),
@@ -126,13 +125,12 @@ class ExploreTabScreen extends StatelessWidget {
         SizedBox(
           height: 220,
           child: StreamBuilder<QuerySnapshot>(
-            stream:
-                FirebaseFirestore.instance
-                    .collection(collection)
-                    .where('isPublic', isEqualTo: true)
-                    .orderBy(orderBy, descending: true)
-                    .limit(10)
-                    .snapshots(),
+            stream: FirebaseFirestore.instance
+                .collection(collection)
+                .where('isPublic', isEqualTo: true)
+                .orderBy(orderBy, descending: true)
+                .limit(10)
+                .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
@@ -153,77 +151,81 @@ class ExploreTabScreen extends StatelessWidget {
 
                   if (subtitleField != null) {
                     final raw = data[subtitleField];
-                    subtitleText =
-                        raw is List ? raw.join(', ') : raw?.toString();
+                    subtitleText = raw is List
+                        ? raw.join(', ')
+                        : raw?.toString();
                   }
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => onTapBuilder(doc.id, data),
+                  return SafetyContent(
+                    uid: SafetyService.ownerOf(data),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => onTapBuilder(doc.id, data),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    child: Container(
-                      width: 160,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (imageUrl != null &&
-                              imageUrl.toString().isNotEmpty)
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(12),
-                              ),
-                              child: Image.network(
-                                imageUrl,
-                                height: 100,
-                                width: 160,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  titleText,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (imageUrl != null &&
+                                imageUrl.toString().isNotEmpty)
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(12),
                                 ),
-                                if (subtitleText != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      subtitleText,
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                        fontSize: 13,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
+                                child: Image.network(
+                                  imageUrl,
+                                  height: 100,
+                                  width: 160,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    titleText,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
+                                    maxLines: 2,
                                   ),
-                              ],
+                                  if (subtitleText != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(
+                                        subtitleText,
+                                        style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 13,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   );

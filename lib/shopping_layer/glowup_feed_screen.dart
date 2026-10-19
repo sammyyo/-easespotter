@@ -1,8 +1,11 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+
 import 'glowup_detail_screen.dart';
 import '../widgets/share_to_connections_sheet.dart';
 import '../widgets/recipe_card/author_header.dart';
@@ -30,7 +33,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     GlowTag('Budget', 'budget', Icons.attach_money_rounded),
     GlowTag('Vegan', 'vegan', Icons.eco_rounded),
     GlowTag('Snacks', 'snacks', Icons.fastfood_rounded),
-    GlowTag('Glow-Up', 'glow-up', Icons.auto_awesome_rounded),
+    GlowTag('Tastes', 'glow-up', Icons.auto_awesome_rounded),
   ];
 
   String _selectedTag = 'All';
@@ -46,7 +49,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          'Glow-Up Feed',
+          'The Table',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
@@ -68,7 +71,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   debugPrint('Firestore stream error: ${snapshot.error}');
-                  return const Center(child: Text('Empty glow-ups feed.'));
+                  return const Center(child: Text('The Table is empty.'));
                 }
 
                 if (!snapshot.hasData) {
@@ -77,7 +80,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
 
                 final docs = snapshot.data!.docs;
                 if (docs.isEmpty) {
-                  return const Center(child: Text('No glow-ups found.'));
+                  return const Center(child: Text('No Tastes found.'));
                 }
 
                 return Padding(
@@ -107,10 +110,9 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         .collection('glowups')
         .where('isPublic', isEqualTo: true);
 
-    final filteredQuery =
-        _selectedTag != 'All'
-            ? baseQuery.where('tags', arrayContains: _selectedTag.toLowerCase())
-            : baseQuery;
+    final filteredQuery = _selectedTag != 'All'
+        ? baseQuery.where('tags', arrayContains: _selectedTag.toLowerCase())
+        : baseQuery;
 
     return filteredQuery.orderBy('createdAt', descending: true).snapshots();
   }
@@ -119,13 +121,13 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     required String docId,
     required String title,
   }) async {
-    final resolvedTitle = title.isNotEmpty ? title : 'Glow-Up Story';
+    final resolvedTitle = title.isNotEmpty ? title : 'Taste';
     final link = 'https://www.easespotter.com/glowup/$docId';
     final text = '$resolvedTitle\n$link';
 
     await showShareToConnectionsSheet(
       context,
-      title: 'Share Glow-Up Story',
+      title: 'Share Taste',
       shareText: text,
     );
   }
@@ -137,8 +139,8 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     final String imageUrl = (data['imageUrl'] ?? '') as String;
     final String title = (data['title'] ?? '') as String;
     final String description = (data['description'] ?? '') as String;
-    final String authorUid =
-        (data['authorUid'] ?? data['uid'] ?? '').toString();
+    final String authorUid = (data['authorUid'] ?? data['uid'] ?? '')
+        .toString();
     final bool isOwner = user != null && user.uid == authorUid;
 
     final List<String> likedBy = List<String>.from(
@@ -148,145 +150,152 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
     final bool isLiked = canReact && likedBy.contains(user.uid);
     final bool isBusy = _pending.contains(docId);
 
-    return GestureDetector(
-      key: ValueKey(docId),
-      onTap:
-          () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => GlowUpDetailScreen(glowUpId: docId),
-            ),
+    return SafetyContent(
+      uid: SafetyService.ownerOf(data),
+      showNotice: false,
+      child: GestureDetector(
+        key: ValueKey(docId),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GlowUpDetailScreen(glowUpId: docId),
           ),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        clipBehavior: Clip.antiAlias,
-        elevation: 4,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (authorUid.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
+        ),
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
+          elevation: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (authorUid.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    children: [
+                      Expanded(child: AuthorHeader(uid: authorUid)),
+                      if (isOwner)
+                        _GlowUpOwnerMenu(
+                          onDelete: () => _handleDeleteGlowUp(
+                            docId: docId,
+                            imageUrl: imageUrl,
+                            authorUid: authorUid,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+              if (imageUrl.isNotEmpty)
+                Stack(
                   children: [
-                    Expanded(child: AuthorHeader(uid: authorUid)),
-                    if (isOwner)
-                      _GlowUpOwnerMenu(
-                        onDelete:
-                            () => _handleDeleteGlowUp(
-                              docId: docId,
-                              imageUrl: imageUrl,
-                              authorUid: authorUid,
-                            ),
+                    Image.network(
+                      imageUrl,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 180,
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 180,
+                        color: Colors.grey.shade100,
+                        child: const Icon(Icons.broken_image, size: 48),
                       ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: 60,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black54],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      left: 10,
+                      right: 10,
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                          shadows: [
+                            Shadow(blurRadius: 2, color: Colors.black45),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-
-            if (imageUrl.isNotEmpty)
-              Stack(
-                children: [
-                  Image.network(
-                    imageUrl,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, progress) {
-                      if (progress == null) return child;
-                      return Container(
-                        height: 180,
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      );
-                    },
-                    errorBuilder:
-                        (context, error, stackTrace) => Container(
-                          height: 180,
-                          color: Colors.grey.shade100,
-                          child: const Icon(Icons.broken_image, size: 48),
-                        ),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 60,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black54],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 8,
-                    left: 10,
-                    right: 10,
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                        shadows: [Shadow(blurRadius: 2, color: Colors.black45)],
-                      ),
-                      maxLines: 2,
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      description,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    description,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked ? Colors.red : Colors.grey,
-                          size: 20,
-                        ),
-                        onPressed:
-                            (!canReact || isBusy)
-                                ? null
-                                : () {
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: isLiked ? Colors.red : Colors.grey,
+                            size: 20,
+                          ),
+                          onPressed: (!canReact || isBusy)
+                              ? null
+                              : () {
                                   HapticFeedback.selectionClick();
                                   _toggleLike(
                                     docId: docId,
                                     authorUid: authorUid,
                                   );
                                 },
-                        tooltip: canReact ? 'Like' : 'Sign in to react',
-                      ),
-                      Text('${likedBy.length}'),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        tooltip: 'Share',
-                        icon: const Icon(Icons.share, size: 20),
-                        onPressed:
-                            () => _shareGlowUp(docId: docId, title: title),
-                      ),
-                    ],
-                  ),
-                ],
+                          tooltip: canReact ? 'Like' : 'Sign in to react',
+                        ),
+                        Text('${likedBy.length}'),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Share',
+                          icon: const Icon(Icons.share, size: 20),
+                          onPressed: () =>
+                              _shareGlowUp(docId: docId, title: title),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -310,24 +319,23 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Delete Glow-Up story?'),
-            content: const Text(
-              'This will permanently remove the story and its comments.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Taste?'),
+        content: const Text(
+          'This will permanently remove the Taste and its comments.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
     if (confirmed != true || !mounted) return;
@@ -342,9 +350,8 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
       await deleteGlowUpCascade(glowUpId: docId, imageUrl: imageUrl);
       if (!mounted) return;
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Glow-Up story deleted.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Taste deleted.')));
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -405,7 +412,7 @@ class _GlowUpFeedScreenState extends State<GlowUpFeedScreen> {
         await notif.notifyUser(
           toUid: authorUid,
           type: "reaction",
-          message: "$myHandleOrName liked your glow-up",
+          message: "$myHandleOrName liked your Taste",
           itemType: "glowup",
           itemId: docId,
           actorUid: user.uid,
@@ -457,19 +464,18 @@ class _GlowUpOwnerMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'delete') onDelete();
       },
-      itemBuilder:
-          (_) => const [
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_forever_outlined, color: Colors.red),
-                  SizedBox(width: 10),
-                  Text('Delete'),
-                ],
-              ),
-            ),
-          ],
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_forever_outlined, color: Colors.red),
+              SizedBox(width: 10),
+              Text('Delete'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -510,34 +516,31 @@ class _TagFilterBar extends StatelessWidget {
                 avatar: Icon(
                   tag.icon,
                   size: 18,
-                  color:
-                      selected
-                          ? Colors.white
-                          : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withOpacity(0.7),
+                  color: selected
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.onSurface
+                            .withOpacity(0.7),
                 ),
                 label: Text(
                   tag.label,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color:
-                        selected
-                            ? Colors.white
-                            : Theme.of(context).colorScheme.onSurface,
+                    color: selected
+                        ? Colors.white
+                        : Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 selected: selected,
                 showCheckmark: false,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundColor: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest,
                 selectedColor: const Color(0xFF006677),
                 shape: StadiumBorder(
                   side: BorderSide(
-                    color:
-                        selected
-                            ? const Color(0xFF006677)
-                            : Theme.of(context).dividerColor,
+                    color: selected
+                        ? const Color(0xFF006677)
+                        : Theme.of(context).dividerColor,
                   ),
                 ),
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,

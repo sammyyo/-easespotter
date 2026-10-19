@@ -104,7 +104,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
 
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to post a reel.')),
+        const SnackBar(content: Text('Please sign in to post a bite.')),
       );
       return;
     }
@@ -165,13 +165,13 @@ class _NewReelScreenState extends State<NewReelScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Reel posted.')));
+      ).showSnackBar(const SnackBar(content: Text('Bite posted.')));
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not post reel: $e')));
+      ).showSnackBar(SnackBar(content: Text('Could not post bite: $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -338,7 +338,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
         title: const Text(
-          'New Reel',
+          'New Bite',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
@@ -355,7 +355,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                       maxLength: 60,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: InputDecoration(
-                        labelText: 'Reel title',
+                        labelText: 'Bite title',
                         counterText: '',
                         prefixIcon: const Icon(Icons.movie_creation_outlined),
                         filled: true,
@@ -408,7 +408,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                     const SizedBox(height: 14),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Make this Reel Public'),
+                      title: const Text('Make this Bite Public'),
                       value: _isPublic,
                       onChanged:
                           saving
@@ -420,7 +420,7 @@ class _NewReelScreenState extends State<NewReelScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.publish),
-                        label: const Text('Post Reel'),
+                        label: const Text('Post Bite'),
                         onPressed: saving ? null : _submitReel,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF006677),

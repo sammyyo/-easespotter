@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../screens/follow_list_screen.dart';
+import '../screens/profile_details_settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -970,6 +971,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 14),
 
+                  _sectionCard(
+                    child: ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: const Text('More about you'),
+                      subtitle: const Text('City, food interests, preferences and what you share'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _saving ? null : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfileDetailsSettingsScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   _sectionCard(
                     child: Column(
                       children: [

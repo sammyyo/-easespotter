@@ -110,7 +110,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Glow-Up submitted!')));
+      ).showSnackBar(const SnackBar(content: Text('Taste shared!')));
       Navigator.pop(context);
     } catch (e) {
       debugPrint('Glow-Up submission error: $e');
@@ -195,8 +195,8 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       maxLength: 60,
       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
-        labelText: 'Glow-Up title',
-        hintText: 'e.g. Pantry',
+        labelText: 'Taste title',
+        hintText: 'e.g. Sunday meal prep',
         filled: true,
         fillColor: Colors.white,
         counterText: '',
@@ -229,10 +229,10 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
       maxLines: 6,
       minLines: 4,
       decoration: InputDecoration(
-        labelText: 'Story / what changed',
+        labelText: 'What would you like to share?',
         alignLabelWithHint: true,
         hintText: 'Description…',
-        helperText: 'Tip: Focus on the transformation and 2–4 key details.',
+        helperText: 'Share a food, shopping, or cooking moment.',
         helperStyle: const TextStyle(fontSize: 12, color: Colors.black54),
         filled: true,
         fillColor: const Color(0xFFF8F7FF),
@@ -273,7 +273,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
-          'New Glow-Up Story',
+          'New Taste',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
@@ -287,7 +287,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
                   children: [
                     // Section label
                     Text(
-                      'Story details',
+                      'Taste details',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -344,7 +344,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
                     const SizedBox(height: 12),
 
                     SwitchListTile(
-                      title: const Text('Make this Glow-Up Public'),
+                      title: const Text('Make this Taste Public'),
                       value: _isPublic,
                       onChanged: (val) => setState(() => _isPublic = val),
                     ),
@@ -354,7 +354,7 @@ class _NewGlowUpScreenState extends State<NewGlowUpScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.check),
-                        label: const Text('Submit'),
+                        label: const Text('Share Taste'),
                         onPressed: _submitGlowUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF006677),

@@ -1,4 +1,7 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:easespotter/screens/grocery_list_screen.dart';
 import 'package:easespotter/services/user_scoped_prefs.dart';
+
 import '../widgets/attribution_tag.dart';
 
 class RecipeDetailScreen extends StatelessWidget {
@@ -65,21 +69,25 @@ class RecipeDetailScreen extends StatelessWidget {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         actions: [
+          PostSafetyMenu(collection: 'recipes', postId: recipeId),
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
             onPressed: () {
               final url = 'https://easespotter.com/recipes/$recipeId';
-              Share.share('Check out this recipe on EaseSpotter 🍽️:\n$url');
+              SharePlus.instance.share(
+                ShareParams(
+                  text: 'Check out this recipe on EaseSpotter 🍽️:\n$url',
+                ),
+              );
             },
           ),
         ],
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future:
-            FirebaseFirestore.instance
-                .collection('recipes')
-                .doc(recipeId)
-                .get(),
+        future: FirebaseFirestore.instance
+            .collection('recipes')
+            .doc(recipeId)
+            .get(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -98,12 +106,11 @@ class RecipeDetailScreen extends StatelessWidget {
             final user = FirebaseAuth.instance.currentUser;
             if (user == null) return {};
 
-            final snap =
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .collection('home_inventory')
-                    .get();
+            final snap = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .collection('home_inventory')
+                .get();
 
             return snap.docs
                 .map(
@@ -120,25 +127,24 @@ class RecipeDetailScreen extends StatelessWidget {
           }) async {
             return (await showDialog<bool>(
                   context: context,
-                  builder:
-                      (ctx) => AlertDialog(
-                        title: const Text('Already in your Home Inventory'),
-                        content: Text(
-                          alreadyHaveCount == 1
-                              ? 'You already have: ${alreadyHaveNames.first}\n\nAdd it to your Grocery List anyway?'
-                              : 'You already have $alreadyHaveCount items.\n\nAdd them to your Grocery List anyway?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Skip owned'),
-                          ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Add anyway'),
-                          ),
-                        ],
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Already in your Home Inventory'),
+                    content: Text(
+                      alreadyHaveCount == 1
+                          ? 'You already have: ${alreadyHaveNames.first}\n\nAdd it to your Grocery List anyway?'
+                          : 'You already have $alreadyHaveCount items.\n\nAdd them to your Grocery List anyway?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Skip owned'),
                       ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Add anyway'),
+                      ),
+                    ],
+                  ),
                 )) ??
                 false;
           }
@@ -151,13 +157,10 @@ class RecipeDetailScreen extends StatelessWidget {
               jsonDecode(storedJson),
             );
 
-            final existingNames =
-                existingList
-                    .map(
-                      (e) => (e['title'] ?? '').toString().trim().toLowerCase(),
-                    )
-                    .where((s) => s.isNotEmpty)
-                    .toSet();
+            final existingNames = existingList
+                .map((e) => (e['title'] ?? '').toString().trim().toLowerCase())
+                .where((s) => s.isNotEmpty)
+                .toSet();
 
             final inventoryNames = await getInventoryNamesLower();
 
@@ -212,144 +215,147 @@ class RecipeDetailScreen extends StatelessWidget {
 
             await Navigator.of(context).push(
               MaterialPageRoute(
-                builder:
-                    (_) => GroceryListScreen(
-                      initialViewIndex: 1,
-                      showBackButton: true,
-                      initialAddedCount: addedCount,
-                      initialRecipeTitle: title.toString(),
-                    ),
+                builder: (_) => GroceryListScreen(
+                  initialViewIndex: 1,
+                  showBackButton: true,
+                  initialAddedCount: addedCount,
+                  initialRecipeTitle: title.toString(),
+                ),
               ),
             );
           }
 
           final hasImage = imageUrl != null && imageUrl.toString().isNotEmpty;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (hasImage)
-                    ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(18),
-                        topRight: Radius.circular(18),
+          return SafetyContent(
+            uid: uid.toString(),
+            showNotice: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                elevation: 3,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (hasImage)
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(18),
+                          topRight: Radius.circular(18),
+                        ),
+                        child: Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 220,
+                        ),
                       ),
-                      child: Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 220,
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: IntrinsicWidth(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(40),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [AttributionTag(uid: uid)],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        /// TITLE SIZE REDUCED HERE
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        ),
-
-                        const SizedBox(height: 6),
-                        if (category != null)
-                          Text(
-                            category,
-                            style: const TextStyle(
-                              color: Color(0xFF006677),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        const SizedBox(height: 16),
-                        Text(
-                          description,
-                          style: const TextStyle(fontSize: 16, height: 1.4),
-                        ),
-
-                        if (ingredients.isNotEmpty) ...[
-                          const SizedBox(height: 18),
-                          const Text(
-                            'Ingredients',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ...ingredients.map(
-                            (i) => Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Text(
-                                '• ${(i['name'] ?? '').toString()}',
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  height: 1.3,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: IntrinsicWidth(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(40),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [AttributionTag(uid: uid)],
                                 ),
                               ),
                             ),
                           ),
-                        ],
+                          const SizedBox(height: 16),
 
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(
-                              Icons.playlist_add,
-                              color: Colors.white,
+                          /// TITLE SIZE REDUCED HERE
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              height: 1.3,
                             ),
-                            label: const Text(
-                              "Make This → Add to Grocery List",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF006677),
-                              minimumSize: const Size(double.infinity, 54),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          ),
+
+                          const SizedBox(height: 6),
+                          if (category != null)
+                            Text(
+                              category,
+                              style: const TextStyle(
+                                color: Color(0xFF006677),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            onPressed: addIngredientsToGroceryList,
+                          const SizedBox(height: 16),
+                          Text(
+                            description,
+                            style: const TextStyle(fontSize: 16, height: 1.4),
                           ),
-                        ),
-                      ],
+
+                          if (ingredients.isNotEmpty) ...[
+                            const SizedBox(height: 18),
+                            const Text(
+                              'Ingredients',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ...ingredients.map(
+                              (i) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  '• ${(i['name'] ?? '').toString()}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(
+                                Icons.playlist_add,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                "Make This → Add to Grocery List",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF006677),
+                                minimumSize: const Size(double.infinity, 54),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: addIngredientsToGroceryList,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

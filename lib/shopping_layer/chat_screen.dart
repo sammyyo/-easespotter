@@ -1,3 +1,5 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -115,16 +117,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final clean = uids.where((u) => u.trim().isNotEmpty).toSet().toList();
     if (clean.isEmpty) return {};
 
-    final futures =
-        clean.map((uid) async {
-          final doc =
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .get();
-          final data = doc.data() ?? <String, dynamic>{};
-          return MapEntry(uid, data);
-        }).toList();
+    final futures = clean.map((uid) async {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final data = doc.data() ?? <String, dynamic>{};
+      return MapEntry(uid, data);
+    }).toList();
 
     final entries = await Future.wait(futures);
     return Map<String, Map<String, dynamic>>.fromEntries(entries);
@@ -169,30 +169,23 @@ class _ChatScreenState extends State<ChatScreen> {
           final displayName = (data['displayName'] as String?)?.trim();
           final handle = (data['handle'] as String?)?.trim();
 
-          final label =
-              (displayName?.isNotEmpty == true)
-                  ? displayName!
-                  : (handle?.isNotEmpty == true)
-                  ? handle!
-                  : 'User';
+          final label = (displayName?.isNotEmpty == true)
+              ? displayName!
+              : (handle?.isNotEmpty == true)
+              ? handle!
+              : 'User';
 
           return Tooltip(
             message: "$emoji  $label",
             child: CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey.shade200,
-              backgroundImage:
-                  (avatarUrl != null && avatarUrl.isNotEmpty)
-                      ? NetworkImage(avatarUrl)
-                      : null,
-              child:
-                  (avatarUrl == null || avatarUrl.isEmpty)
-                      ? const Icon(
-                        Icons.person,
-                        size: 18,
-                        color: Colors.black54,
-                      )
-                      : null,
+              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: (avatarUrl == null || avatarUrl.isEmpty)
+                  ? const Icon(Icons.person, size: 18, color: Colors.black54)
+                  : null,
             ),
           );
         },
@@ -215,10 +208,9 @@ class _ChatScreenState extends State<ChatScreen> {
         radius: 12,
         backgroundColor: Colors.grey.shade200,
         backgroundImage: url.isNotEmpty ? NetworkImage(url) : null,
-        child:
-            url.isEmpty
-                ? const Icon(Icons.person, size: 14, color: Colors.black54)
-                : null,
+        child: url.isEmpty
+            ? const Icon(Icons.person, size: 14, color: Colors.black54)
+            : null,
       ),
     );
   }
@@ -230,8 +222,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final counts = _reactionCounts(msg);
     if (counts.isEmpty) return;
 
-    final entries =
-        counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final my = _myReaction(msg);
 
     // emoji -> [uids]
@@ -286,10 +278,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
                       final rawUids = byEmoji[emoji] ?? const <String>[];
                       // ✅ If I reacted with this emoji, hide my uid from the row to avoid duplicates
-                      final uids =
-                          (my == emoji && _myUid != null)
-                              ? rawUids.where((id) => id != _myUid).toList()
-                              : rawUids;
+                      final uids = (my == emoji && _myUid != null)
+                          ? rawUids.where((id) => id != _myUid).toList()
+                          : rawUids;
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
@@ -423,8 +414,8 @@ class _ChatScreenState extends State<ChatScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap:
-              () => _openReactionDetailsSheet(msg: msg, messageId: messageId),
+          onTap: () =>
+              _openReactionDetailsSheet(msg: msg, messageId: messageId),
           child: _buildWhatsAppReactionChip(msg),
         ),
       ),
@@ -522,21 +513,20 @@ class _ChatScreenState extends State<ChatScreen> {
   String _weekday(int w) =>
       const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][w - 1];
 
-  String _month(int m) =>
-      const [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ][m - 1];
+  String _month(int m) => const [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][m - 1];
 
   String _dayLabel(DateTime dt) {
     final now = DateTime.now();
@@ -652,20 +642,16 @@ class _ChatScreenState extends State<ChatScreen> {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color:
-                                current == e
-                                    ? const Color(
-                                      0xFF006677,
-                                    ).withValues(alpha: 0.12)
-                                    : Colors.transparent,
-                            border:
-                                current == e
-                                    ? Border.all(
-                                      color: const Color(
-                                        0xFF006677,
-                                      ).withValues(alpha: 0.35),
-                                    )
-                                    : null,
+                            color: current == e
+                                ? const Color(0xFF006677)
+                                      .withValues(alpha: 0.12)
+                                : Colors.transparent,
+                            border: current == e
+                                ? Border.all(
+                                    color: const Color(0xFF006677)
+                                        .withValues(alpha: 0.35),
+                                  )
+                                : null,
                           ),
                           child: Text(
                             e,
@@ -727,9 +713,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Reaction failed: $e")));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Reaction failed: $e")));
     }
   }
 
@@ -738,8 +723,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final counts = _reactionCounts(msg);
     if (counts.isEmpty) return const SizedBox.shrink();
 
-    final entries =
-        counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final topEmoji = entries.first.key;
     final total = entries.fold<int>(0, (s, e) => s + e.value);
     final showCount = total > 1;
@@ -852,11 +837,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadProfiles() async {
     try {
-      final otherDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(widget.otherUid)
-              .get();
+      final otherDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.otherUid)
+          .get();
       if (mounted && otherDoc.exists) {
         setState(() => _otherAvatarUrl = otherDoc.data()?['avatarUrl']);
       }
@@ -865,11 +849,10 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final me = FirebaseAuth.instance.currentUser;
       if (me != null) {
-        final myDoc =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(me.uid)
-                .get();
+        final myDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(me.uid)
+            .get();
         if (mounted && myDoc.exists) {
           setState(() => _myAvatarUrl = myDoc.data()?['avatarUrl']);
         }
@@ -947,8 +930,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (convoData == null) return false;
 
     final typing = (convoData['typing'] as Map?)?.cast<String, dynamic>();
-    final updatedAt =
-        (convoData['typingUpdatedAt'] as Map?)?.cast<String, dynamic>();
+    final updatedAt = (convoData['typingUpdatedAt'] as Map?)
+        ?.cast<String, dynamic>();
 
     final isTyping = typing?[widget.otherUid] == true;
     if (!isTyping) return false;
@@ -1001,9 +984,8 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -1031,6 +1013,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [SafetyMenu(uid: widget.otherUid)],
         backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -1039,18 +1022,15 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundImage:
-                  _otherAvatarUrl != null
-                      ? NetworkImage(_otherAvatarUrl!)
-                      : null,
-              backgroundColor:
-                  _otherAvatarUrl == null
-                      ? Colors.white.withOpacity(0.25)
-                      : null,
-              child:
-                  _otherAvatarUrl == null
-                      ? const Icon(Icons.person, size: 16, color: Colors.white)
-                      : null,
+              backgroundImage: _otherAvatarUrl != null
+                  ? NetworkImage(_otherAvatarUrl!)
+                  : null,
+              backgroundColor: _otherAvatarUrl == null
+                  ? Colors.white.withOpacity(0.25)
+                  : null,
+              child: _otherAvatarUrl == null
+                  ? const Icon(Icons.person, size: 16, color: Colors.white)
+                  : null,
             ),
             const SizedBox(width: 10),
             Flexible(
@@ -1066,457 +1046,461 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          if (_stickyDayLabel.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+      body: SafetyContent(
+        uid: widget.otherUid,
+        showNotice: true,
+        child: Column(
+          children: [
+            if (_stickyDayLabel.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(color: Colors.grey.shade200),
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _stickyDayLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                ),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _stickyDayLabel,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _messaging.messagesStream(widget.conversationId),
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Center(child: Text("Error: ${snap.error}"));
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _messaging.messagesStream(widget.conversationId),
+                builder: (context, snap) {
+                  if (snap.hasError) {
+                    return Center(child: Text("Error: ${snap.error}"));
+                  }
+                  if (!snap.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final docs = snap.data!.docs;
+                  final docs = snap.data!.docs;
 
-                _dayHeaderKeys.clear();
-                _dayKeysInOrder = [];
+                  _dayHeaderKeys.clear();
+                  _dayKeysInOrder = [];
 
-                _debouncedMarkSeen();
+                  _debouncedMarkSeen();
 
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _scheduleStickyUpdate(),
-                );
+                  WidgetsBinding.instance.addPostFrameCallback(
+                    (_) => _scheduleStickyUpdate(),
+                  );
 
-                return NotificationListener<ScrollNotification>(
-                  onNotification: (_) {
-                    _scheduleStickyUpdate();
-                    return false;
-                  },
-                  child: ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    itemCount: docs.length,
-                    itemBuilder: (context, i) {
-                      final m = docs[i].data();
-                      final prev = i > 0 ? docs[i - 1].data() : null;
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: (_) {
+                      _scheduleStickyUpdate();
+                      return false;
+                    },
+                    child: ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      itemCount: docs.length,
+                      itemBuilder: (context, i) {
+                        final m = docs[i].data();
+                        final prev = i > 0 ? docs[i - 1].data() : null;
 
-                      final text = (m['text'] as String?) ?? '';
-                      final senderId = (m['senderId'] as String?) ?? '';
-                      final messageId = docs[i].id;
+                        final text = (m['text'] as String?) ?? '';
+                        final senderId = (m['senderId'] as String?) ?? '';
+                        final messageId = docs[i].id;
 
-                      final uid = _myUid;
-                      final isMe = uid != null && senderId == uid;
+                        final uid = _myUid;
+                        final isMe = uid != null && senderId == uid;
 
-                      final ts = m['createdAt'] as Timestamp?;
-                      final prevTs = prev?['createdAt'] as Timestamp?;
-                      final dt = ts?.toDate();
-                      final prevDt = prevTs?.toDate();
+                        final ts = m['createdAt'] as Timestamp?;
+                        final prevTs = prev?['createdAt'] as Timestamp?;
+                        final dt = ts?.toDate();
+                        final prevDt = prevTs?.toDate();
 
-                      final showDayHeader =
-                          dt != null &&
-                          (prevDt == null || !_isSameDay(dt, prevDt));
-                      final timeLabel = _formatMessageTime(ts);
+                        final showDayHeader =
+                            dt != null &&
+                            (prevDt == null || !_isSameDay(dt, prevDt));
+                        final timeLabel = _formatMessageTime(ts);
 
-                      final dayKey = dt != null ? _dayKey(dt) : null;
-                      if (showDayHeader && dayKey != null) {
-                        _dayHeaderKeys[dayKey] = GlobalKey();
-                        _dayKeysInOrder.add(dayKey);
-                      }
+                        final dayKey = dt != null ? _dayKey(dt) : null;
+                        if (showDayHeader && dayKey != null) {
+                          _dayHeaderKeys[dayKey] = GlobalKey();
+                          _dayKeysInOrder.add(dayKey);
+                        }
 
-                      final myReaction = _myReaction(m);
+                        final myReaction = _myReaction(m);
 
-                      final bubbleColor =
-                          isMe ? Colors.blue.shade600 : Colors.grey.shade200;
-                      final bubbleTextColor =
-                          isMe ? Colors.white : Colors.black87;
-                      final metaColor =
-                          isMe ? Colors.white70 : Colors.grey.shade600;
+                        final bubbleColor = isMe
+                            ? Colors.blue.shade600
+                            : Colors.grey.shade200;
+                        final bubbleTextColor = isMe
+                            ? Colors.white
+                            : Colors.black87;
+                        final metaColor = isMe
+                            ? Colors.white70
+                            : Colors.grey.shade600;
 
-                      final replyTo =
-                          (m['replyTo'] as Map?)?.cast<String, dynamic>();
-                      final replyText = (replyTo?['text'] as String?)?.trim();
-                      final replySender =
-                          (replyTo?['senderId'] as String?)?.trim();
-                      final hasReply =
-                          (replyText != null && replyText.isNotEmpty);
+                        final replyTo = (m['replyTo'] as Map?)
+                            ?.cast<String, dynamic>();
+                        final replyText = (replyTo?['text'] as String?)?.trim();
+                        final replySender = (replyTo?['senderId'] as String?)
+                            ?.trim();
+                        final hasReply =
+                            (replyText != null && replyText.isNotEmpty);
 
-                      Widget bubble = Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
-                            constraints: BoxConstraints(
-                              maxWidth:
-                                  MediaQuery.of(context).size.width * 0.78,
-                            ),
-                            decoration: BoxDecoration(
-                              color: bubbleColor,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (hasReply) ...[
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isMe
-                                              ? Colors.white.withOpacity(0.16)
-                                              : Colors.grey.shade300
-                                                  .withOpacity(0.65),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          (replySender == _myUid)
-                                              ? "You"
-                                              : "Reply",
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w900,
-                                            color:
-                                                isMe
-                                                    ? Colors.white
-                                                    : Colors.black87,
+                        Widget bubble = Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.78,
+                              ),
+                              decoration: BoxDecoration(
+                                color: bubbleColor,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (hasReply) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isMe
+                                            ? Colors.white.withOpacity(0.16)
+                                            : Colors.grey.shade300.withOpacity(
+                                                0.65,
+                                              ),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            (replySender == _myUid)
+                                                ? "You"
+                                                : "Reply",
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              color: isMe
+                                                  ? Colors.white
+                                                  : Colors.black87,
+                                            ),
                                           ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            replyText,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isMe
+                                                  ? Colors.white70
+                                                  : Colors.black87,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      text,
+                                      style: TextStyle(
+                                        color: bubbleTextColor,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        timeLabel,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: metaColor,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          replyText,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color:
-                                                isMe
-                                                    ? Colors.white70
-                                                    : Colors.black87,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                      ),
+                                      if (isMe) ...[
+                                        const SizedBox(width: 6),
+                                        _buildSeenTicks(
+                                          isMe: isMe,
+                                          msg: m,
+                                          color: metaColor,
                                         ),
                                       ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    text,
-                                    style: TextStyle(
-                                      color: bubbleTextColor,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      timeLabel,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: metaColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    if (isMe) ...[
-                                      const SizedBox(width: 6),
-                                      _buildSeenTicks(
-                                        isMe: isMe,
-                                        msg: m,
-                                        color: metaColor,
-                                      ),
                                     ],
-                                  ],
-                                ),
-                              ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          Positioned(
-                            right: isMe ? 8 : null,
-                            left: isMe ? null : 8,
-                            bottom: -26,
-                            child: _animatedReactionChip(
-                              m,
-                              messageId: messageId,
+                            Positioned(
+                              right: isMe ? 8 : null,
+                              left: isMe ? null : 8,
+                              bottom: -26,
+                              child: _animatedReactionChip(
+                                m,
+                                messageId: messageId,
+                              ),
                             ),
-                          ),
-                        ],
-                      );
+                          ],
+                        );
 
-                      bubble = GestureDetector(
-                        onLongPress:
-                            () => _showMessageActions(
-                              messageId: messageId,
-                              text: text,
-                              senderId: senderId,
-                              isMe: isMe,
-                              myReaction: myReaction,
-                            ),
-                        child: bubble,
-                      );
-
-                      bubble = Dismissible(
-                        key: ValueKey("msg_$messageId"),
-                        direction:
-                            isMe
-                                ? DismissDirection.endToStart
-                                : DismissDirection.startToEnd,
-                        confirmDismiss: (_) async {
-                          _startReplyTo(
+                        bubble = GestureDetector(
+                          onLongPress: () => _showMessageActions(
                             messageId: messageId,
                             text: text,
                             senderId: senderId,
-                          );
-                          return false;
-                        },
-                        background: Container(
-                          alignment:
-                              isMe
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          child: Icon(Icons.reply, color: Colors.grey.shade600),
-                        ),
-                        child: bubble,
-                      );
+                            isMe: isMe,
+                            myReaction: myReaction,
+                          ),
+                          child: bubble,
+                        );
 
-                      return Column(
-                        children: [
-                          if (showDayHeader && dayKey != null)
-                            Padding(
-                              key: _dayHeaderKeys[dayKey],
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade300,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    _dayLabel(dt),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
+                        bubble = Dismissible(
+                          key: ValueKey("msg_$messageId"),
+                          direction: isMe
+                              ? DismissDirection.endToStart
+                              : DismissDirection.startToEnd,
+                          confirmDismiss: (_) async {
+                            _startReplyTo(
+                              messageId: messageId,
+                              text: text,
+                              senderId: senderId,
+                            );
+                            return false;
+                          },
+                          background: Container(
+                            alignment: isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            child: Icon(
+                              Icons.reply,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          child: bubble,
+                        );
+
+                        return Column(
+                          children: [
+                            if (showDayHeader && dayKey != null)
+                              Padding(
+                                key: _dayHeaderKeys[dayKey],
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade300,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      _dayLabel(dt),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              mainAxisAlignment:
-                                  isMe
-                                      ? MainAxisAlignment.end
-                                      : MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                if (!isMe) ...[
-                                  CircleAvatar(
-                                    radius: 14,
-                                    backgroundImage:
-                                        _otherAvatarUrl != null
-                                            ? NetworkImage(_otherAvatarUrl!)
-                                            : null,
-                                    child:
-                                        _otherAvatarUrl == null
-                                            ? const Icon(Icons.person, size: 14)
-                                            : null,
-                                  ),
-                                  const SizedBox(width: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment: isMe
+                                    ? MainAxisAlignment.end
+                                    : MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (!isMe) ...[
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundImage: _otherAvatarUrl != null
+                                          ? NetworkImage(_otherAvatarUrl!)
+                                          : null,
+                                      child: _otherAvatarUrl == null
+                                          ? const Icon(Icons.person, size: 14)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  Flexible(child: bubble),
                                 ],
-                                Flexible(child: bubble),
-                              ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                      );
-                    },
+                            const SizedBox(height: 10),
+                          ],
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Typing indicator
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: _convoRef.snapshots(),
+              builder: (context, snap) {
+                final data = snap.data?.data();
+                final isTyping = _otherIsTyping(data);
+                if (!isTyping) return const SizedBox.shrink();
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "Typing${_typingDots()}",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 );
               },
             ),
-          ),
 
-          // Typing indicator
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: _convoRef.snapshots(),
-            builder: (context, snap) {
-              final data = snap.data?.data();
-              final isTyping = _otherIsTyping(data);
-              if (!isTyping) return const SizedBox.shrink();
-
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Typing${_typingDots()}",
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            // Reply preview bar
+            if (_replyToMessageId != null &&
+                (_replyToText ?? '').trim().isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
                 ),
-              );
-            },
-          ),
-
-          // Reply preview bar
-          if (_replyToMessageId != null &&
-              (_replyToText ?? '').trim().isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF006677),
-                      borderRadius: BorderRadius.circular(999),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF006677),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          (_replyToSenderId == _myUid)
-                              ? "Replying to you"
-                              : "Replying",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            (_replyToSenderId == _myUid)
+                                ? "Replying to you"
+                                : "Replying",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _replyToText!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey.shade800,
-                            fontSize: 12,
+                          const SizedBox(height: 2),
+                          Text(
+                            _replyToText!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: _clearReply,
-                    icon: const Icon(Icons.close),
-                    splashRadius: 18,
-                  ),
-                ],
+                    IconButton(
+                      onPressed: _clearReply,
+                      icon: const Icon(Icons.close),
+                      splashRadius: 18,
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: InputDecoration(
-                        hintText: "Message…",
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(6.0),
-                          child: CircleAvatar(
-                            radius: 14,
-                            backgroundImage:
-                                _myAvatarUrl != null
-                                    ? NetworkImage(_myAvatarUrl!)
-                                    : null,
-                            child:
-                                _myAvatarUrl == null
-                                    ? const Icon(Icons.person, size: 14)
-                                    : null,
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          hintText: "Message…",
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(6.0),
+                            child: CircleAvatar(
+                              radius: 14,
+                              backgroundImage: _myAvatarUrl != null
+                                  ? NetworkImage(_myAvatarUrl!)
+                                  : null,
+                              child: _myAvatarUrl == null
+                                  ? const Icon(Icons.person, size: 14)
+                                  : null,
+                            ),
                           ),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(onPressed: _send, icon: const Icon(Icons.send)),
-                ],
+                    const SizedBox(width: 8),
+                    IconButton(onPressed: _send, icon: const Icon(Icons.send)),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

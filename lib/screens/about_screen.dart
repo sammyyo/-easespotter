@@ -29,7 +29,7 @@ class AboutScreen extends StatelessWidget {
           padding: EdgeInsets.all(20),
           child: Text(
             'EaseSpotter helps you discover stores, track your finds, and share '
-            'your glow-ups with a community that loves smart shopping. We are '
+            'your Tastes with a community that loves smart shopping. We are '
             'building a simple, human way to explore products and connect with '
             'people who care about great deals and great taste.',
             style: TextStyle(

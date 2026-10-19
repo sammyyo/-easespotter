@@ -2,17 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSCameraUsageDescription</key>
-    <string>EaseSpotter uses the camera to scan barcodes, QR codes, and support product discovery features.</string>
-
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>EaseSpotter uses your photo library so you can choose receipt images for grocery list scanning.</string>
-
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>EaseSpotter uses your location to help show relevant nearby stores and shopping information.</string>
-
-    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>EaseSpotter uses location access to support nearby store discovery and location-based shopping features.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -40,14 +29,45 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn</string>
+				<string>com.googleusercontent.apps.171701293716-kcf00mnf9drqre0cl5rnjnunq7pva3gr</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>171701293716-kcf00mnf9drqre0cl5rnjnunq7pva3gr.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>EaseSpotter uses the camera to scan barcodes, QR codes, and support product discovery features.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EaseSpotter uses location access to support nearby store discovery and location-based shopping features.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EaseSpotter uses your location to help show relevant nearby stores and shopping information.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EaseSpotter uses your photo library so you can choose receipt images for grocery list scanning.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

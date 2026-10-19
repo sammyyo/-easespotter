@@ -1,4 +1,7 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +12,7 @@ import 'package:easespotter/shopping_layer/glowup_feed_screen.dart';
 import 'package:easespotter/shopping_layer/profile_reels_screen.dart';
 import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
 import 'package:easespotter/widgets/public_profile_widget.dart';
+
 import '../shopping_layer/notification_feed_screen.dart';
 import '../widgets/recipe_card/recipe_card.dart';
 import '../shopping_layer/inbox_screen.dart';
@@ -32,14 +36,17 @@ class SocialProfileScreen extends StatefulWidget {
   ) async {
     final hint = <String, dynamic>{...?initialHint};
     try {
-      final snap =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final data = snap.data();
       if (data != null) {
         final displayName = (data['displayName'] ?? '').toString().trim();
         final avatarUrl = (data['avatarUrl'] ?? '').toString().trim();
-        final handle =
-            (data['handle'] ?? data['socialHandle'] ?? '').toString().trim();
+        final handle = (data['handle'] ?? data['socialHandle'] ?? '')
+            .toString()
+            .trim();
 
         if ((hint['displayName'] ?? '').toString().trim().isEmpty &&
             displayName.isNotEmpty) {
@@ -104,12 +111,11 @@ class SocialProfileScreen extends StatefulWidget {
     return PageRouteBuilder<void>(
       transitionDuration: Duration.zero,
       reverseTransitionDuration: Duration.zero,
-      pageBuilder:
-          (_, __, ___) => SocialProfileScreen(
-            viewedUid: viewedUid,
-            initialProfileHint: initialProfileHint,
-            onToggleToSettings: onToggleToSettings,
-          ),
+      pageBuilder: (_, __, ___) => SocialProfileScreen(
+        viewedUid: viewedUid,
+        initialProfileHint: initialProfileHint,
+        onToggleToSettings: onToggleToSettings,
+      ),
     );
   }
 
@@ -232,17 +238,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     if (authUid == null || resolvedUid.isEmpty) return;
 
     try {
-      final snap =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(authUid)
-              .get();
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(authUid)
+          .get();
       if (!mounted) return;
       final following = List<String>.from(snap.data()?['following'] ?? []);
       setState(() {
         _myFollowingCache = following;
-        _isFollowing =
-            authUid == resolvedUid ? false : following.contains(resolvedUid);
+        _isFollowing = authUid == resolvedUid
+            ? false
+            : following.contains(resolvedUid);
       });
     } catch (_) {
       // silent
@@ -283,16 +289,16 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
               _myFollowingCache = [..._myFollowingCache, resolvedUid];
             }
           } else {
-            _myFollowingCache =
-                _myFollowingCache.where((u) => u != resolvedUid).toList();
+            _myFollowingCache = _myFollowingCache
+                .where((u) => u != resolvedUid)
+                .toList();
           }
         });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -330,8 +336,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       if (!mounted) return;
       setState(() {
         if (isFollowing) {
-          _myFollowingCache =
-              _myFollowingCache.where((u) => u != otherUid).toList();
+          _myFollowingCache = _myFollowingCache
+              .where((u) => u != otherUid)
+              .toList();
         } else if (!_myFollowingCache.contains(otherUid)) {
           _myFollowingCache = [..._myFollowingCache, otherUid];
         }
@@ -339,9 +346,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
@@ -354,11 +360,10 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   }) async {
     Map<String, dynamic> collaboratorSnapshot = {};
     try {
-      final userSnap =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(otherUid)
-              .get();
+      final userSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(otherUid)
+          .get();
       if (userSnap.exists) {
         final data = userSnap.data() ?? {};
         collaboratorSnapshot = {
@@ -398,10 +403,7 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       builder: (ctx) {
         Widget item(int rank) {
           return ListTile(
-            leading: const Icon(
-              Icons.star_rounded,
-              color: Color(0xFF006677),
-            ),
+            leading: const Icon(Icons.star_rounded, color: Color(0xFF006677)),
             title: Text(
               'Add to Shopping Circle (#$rank)',
               style: const TextStyle(fontWeight: FontWeight.w800),
@@ -454,21 +456,19 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
 
   Future<Set<String>> _storeIdsForUser(String uid) async {
     try {
-      final snap =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('followedStores')
-              .limit(40)
-              .get();
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('followedStores')
+          .limit(40)
+          .get();
 
       return snap.docs
           .map((doc) {
@@ -485,65 +485,62 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   }
 
   Future<List<_PeopleSuggestion>> _loadPeopleSuggestions(String uid) async {
-    final precomputed =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('recommendations')
-            .orderBy('score', descending: true)
-            .limit(20)
-            .get();
+    final precomputed = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('recommendations')
+        .orderBy('score', descending: true)
+        .limit(20)
+        .get();
 
     if (precomputed.docs.isNotEmpty) {
       final suggestions = <_PeopleSuggestion>[];
       for (final doc in precomputed.docs) {
         final data = doc.data();
         final suggestedUid = (data['uid'] ?? doc.id).toString();
-        final userDoc =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(suggestedUid)
-                .get();
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(suggestedUid)
+            .get();
         final userData = userDoc.data() ?? data;
         if (!isSuggestableUserProfile(userData)) continue;
         suggestions.add(
           _PeopleSuggestion(
             uid: suggestedUid,
-            displayName:
-                (userData['displayName'] ?? data['displayName'] ?? '')
-                    .toString(),
+            displayName: (userData['displayName'] ?? data['displayName'] ?? '')
+                .toString(),
             handle:
                 (userData['handle'] ??
                         userData['socialHandle'] ??
                         data['handle'] ??
                         '')
                     .toString(),
-            avatarUrl:
-                (userData['avatarUrl'] ?? data['avatarUrl'] ?? '').toString(),
+            avatarUrl: (userData['avatarUrl'] ?? data['avatarUrl'] ?? '')
+                .toString(),
             score: (data['score'] is int) ? data['score'] as int : 0,
-            reasons:
-                (data['reasons'] is List)
-                    ? List<String>.from(data['reasons'])
-                    : const ['Suggested profile'],
+            reasons: (data['reasons'] is List)
+                ? List<String>.from(data['reasons'])
+                : const ['Suggested profile'],
           ),
         );
       }
       return suggestions;
     }
 
-    final topSnap =
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('top_collaborators')
-            .limit(20)
-            .get();
+    final topSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('top_collaborators')
+        .limit(20)
+        .get();
     final topCollaboratorIds = topSnap.docs.map((doc) => doc.id).toSet();
     final excluded = <String>{uid, ...topCollaboratorIds, ..._myFollowingCache};
     final myStoreIds = await _storeIdsForUser(uid);
 
-    final usersSnap =
-        await FirebaseFirestore.instance.collection('users').limit(80).get();
+    final usersSnap = await FirebaseFirestore.instance
+        .collection('users')
+        .limit(80)
+        .get();
     final candidates = <_PeopleSuggestion>[];
 
     for (final doc in usersSnap.docs) {
@@ -567,8 +564,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       if (handle.isNotEmpty) score += 1;
       if (displayName.isNotEmpty) score += 1;
 
-      final candidateStoreIds =
-          myStoreIds.isEmpty ? <String>{} : await _storeIdsForUser(doc.id);
+      final candidateStoreIds = myStoreIds.isEmpty
+          ? <String>{}
+          : await _storeIdsForUser(doc.id);
       final sharedStores = myStoreIds.intersection(candidateStoreIds).length;
       if (sharedStores > 0) {
         score += 3 + sharedStores.clamp(0, 3);
@@ -760,19 +758,17 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _ProfileContentAction(
-            tooltip: 'Reels',
+            tooltip: 'Bites',
             icon: Icons.video_collection_outlined,
-            onTap:
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (_) => ProfileReelsScreen(
-                          uid: uid,
-                          isOwnerViewing: isOwnerViewing,
-                        ),
-                  ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileReelsScreen(
+                  uid: uid,
+                  isOwnerViewing: isOwnerViewing,
                 ),
+              ),
+            ),
           ),
           _ProfileContentAction(
             tooltip: 'Recipes',
@@ -781,13 +777,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           _ProfileContentAction(
             tooltip: 'Reviews',
             icon: Icons.rate_review_outlined,
-            onTap:
-                () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _ProfileReviewsScreen(uid: uid),
-                  ),
-                ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _ProfileReviewsScreen(uid: uid),
+              ),
+            ),
           ),
         ],
       ),
@@ -825,14 +820,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   Future<void> _warmUsersBatch(List<String> uids) async {
     if (!mounted) return;
 
-    final refs =
-        uids
-            .where((u) => u.trim().isNotEmpty)
-            .map(
-              (u) =>
-                  FirebaseFirestore.instance.collection('users').doc(u.trim()),
-            )
-            .toList();
+    final refs = uids
+        .where((u) => u.trim().isNotEmpty)
+        .map(
+          (u) => FirebaseFirestore.instance.collection('users').doc(u.trim()),
+        )
+        .toList();
 
     if (refs.isEmpty) return;
 
@@ -930,145 +923,133 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       backgroundColor: const Color(0xFF006677),
       automaticallyImplyLeading: false,
       titleSpacing: 0,
-      title:
-          _showSearch
-              ? Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Container(
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.20),
-                      width: 1,
-                    ),
+      title: _showSearch
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.20),
+                    width: 1,
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search, color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          autofocus: true,
-                          onChanged: _onSearchChanged,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        onChanged: _onSearchChanged,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        cursorColor: Colors.white,
+                        decoration: InputDecoration(
+                          hintText: "Search people, recipes...",
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.75),
+                            fontWeight: FontWeight.w500,
                           ),
-                          cursorColor: Colors.white,
-                          decoration: InputDecoration(
-                            hintText: "Search people, recipes...",
-                            hintStyle: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontWeight: FontWeight.w500,
-                            ),
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
+                          border: InputBorder.none,
+                          isDense: true,
                         ),
                       ),
-                      if (_query.isNotEmpty)
-                        GestureDetector(
-                          onTap: _clearSearch,
-                          child: const Padding(
-                            padding: EdgeInsets.all(6),
-                            child: Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
+                    ),
+                    if (_query.isNotEmpty)
                       GestureDetector(
-                        onTap: _toggleSearch,
+                        onTap: _clearSearch,
                         child: const Padding(
                           padding: EdgeInsets.all(6),
                           child: Icon(
-                            Icons.search_off,
+                            Icons.close,
                             color: Colors.white,
                             size: 18,
                           ),
                         ),
                       ),
-                    ],
+                    GestureDetector(
+                      onTap: _toggleSearch,
+                      child: const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: Icon(
+                          Icons.search_off,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.explore, color: Colors.white),
+                  tooltip: 'Explore Feed',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CommunityRecipesScreen(),
+                    ),
                   ),
                 ),
-              )
-              : Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.explore, color: Colors.white),
-                    tooltip: 'Explore Feed',
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CommunityRecipesScreen(),
-                          ),
-                        ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.local_fire_department_outlined,
+                    color: Colors.white,
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.local_fire_department_outlined,
-                      color: Colors.white,
+                  tooltip: 'The Table',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GlowUpFeedScreen()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.video_collection_outlined,
+                    color: Colors.white,
+                  ),
+                  tooltip: 'Bites',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReelsFeedScreen()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.forum_outlined, color: Colors.white),
+                  tooltip: 'Inbox',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const InboxScreen()),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.search, color: Colors.white),
+                  tooltip: 'Search',
+                  onPressed: _toggleSearch,
+                ),
+                IconButton(
+                  icon: _buildNotificationIcon(),
+                  tooltip: 'Notifications',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationCenterScreen(),
                     ),
-                    tooltip: 'Glow-Up Feed',
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const GlowUpFeedScreen(),
-                          ),
-                        ),
                   ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.video_collection_outlined,
-                      color: Colors.white,
-                    ),
-                    tooltip: 'Reels',
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ReelsFeedScreen(),
-                          ),
-                        ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.forum_outlined, color: Colors.white),
-                    tooltip: 'Inbox',
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const InboxScreen(),
-                          ),
-                        ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search, color: Colors.white),
-                    tooltip: 'Search',
-                    onPressed: _toggleSearch,
-                  ),
-                  IconButton(
-                    icon: _buildNotificationIcon(),
-                    tooltip: 'Notifications',
-                    onPressed:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationCenterScreen(),
-                          ),
-                        ),
-                  ),
-                ],
-              ),
+                ),
+              ],
+            ),
       iconTheme: const IconThemeData(color: Colors.white),
     );
   }
@@ -1128,26 +1109,21 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
   >
   _prefetchProfileContent(String uid) async {
     try {
-      final topFuture =
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(uid)
-              .collection('top_collaborators')
-              .orderBy('rank')
-              .limit(6)
-              .get();
-      final recipeFuture =
-          FirebaseFirestore.instance
-              .collection('recipes')
-              .where('uid', isEqualTo: uid)
-              .where('isPublic', isEqualTo: true)
-              .orderBy('serverCreatedAt', descending: true)
-              .get();
+      final topFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('top_collaborators')
+          .orderBy('rank')
+          .limit(6)
+          .get();
+      final recipeFuture = FirebaseFirestore.instance
+          .collection('recipes')
+          .where('uid', isEqualTo: uid)
+          .where('isPublic', isEqualTo: true)
+          .orderBy('serverCreatedAt', descending: true)
+          .get();
       final results = await Future.wait([topFuture, recipeFuture]);
-      return (
-        (results[0]).docs,
-        (results[1] as QuerySnapshot).docs,
-      );
+      return ((results[0]).docs, (results[1] as QuerySnapshot).docs);
     } catch (_) {
       return (
         <QueryDocumentSnapshot<Map<String, dynamic>>>[],
@@ -1162,14 +1138,13 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       return const Icon(Icons.notifications, color: Colors.white);
     }
 
-    final stream =
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('notifications')
-            .where('isRead', isEqualTo: false)
-            .limit(1)
-            .snapshots();
+    final stream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .limit(1)
+        .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -1205,20 +1180,23 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     final q = rawQuery.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
     if (q.isEmpty) return [];
 
-    final snap =
-        await FirebaseFirestore.instance.collection('users').limit(120).get();
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .limit(120)
+        .get();
 
     return snap.docs
         .where((doc) {
           final data = doc.data();
-          final displayName =
-              (data['displayName'] ?? '').toString().toLowerCase();
-          final displayNameLower =
-              (data['displayNameLower'] ?? '').toString().toLowerCase();
-          final handle =
-              (data['handle'] ?? data['socialHandle'] ?? '')
-                  .toString()
-                  .toLowerCase();
+          final displayName = (data['displayName'] ?? '')
+              .toString()
+              .toLowerCase();
+          final displayNameLower = (data['displayNameLower'] ?? '')
+              .toString()
+              .toLowerCase();
+          final handle = (data['handle'] ?? data['socialHandle'] ?? '')
+              .toString()
+              .toLowerCase();
           final handleLower =
               (data['handleLower'] ?? data['socialHandleLower'] ?? '')
                   .toString()
@@ -1260,16 +1238,15 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         ),
         title: Text(displayName.isNotEmpty ? displayName : 'Unknown'),
         subtitle: handle.isNotEmpty ? Text(handle) : null,
-        trailing:
-            FirebaseAuth.instance.currentUser?.uid == _getResolvedUid()
-                ? TextButton(
-                  onPressed: () => _showAddToTopSheet(doc.id),
-                  child: const Text(
-                    'Add',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                )
-                : null,
+        trailing: FirebaseAuth.instance.currentUser?.uid == _getResolvedUid()
+            ? TextButton(
+                onPressed: () => _showAddToTopSheet(doc.id),
+                child: const Text(
+                  'Add',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              )
+            : null,
         onTap: () {
           _openSocialProfile(
             doc.id,
@@ -1330,14 +1307,13 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
     final movedRef = _topRef(profileUid, movedUid);
 
     try {
-      final querySnap =
-          await db
-              .collection('users')
-              .doc(profileUid)
-              .collection('top_collaborators')
-              .where('rank', isEqualTo: newRank)
-              .limit(1)
-              .get();
+      final querySnap = await db
+          .collection('users')
+          .doc(profileUid)
+          .collection('top_collaborators')
+          .where('rank', isEqualTo: newRank)
+          .limit(1)
+          .get();
 
       final DocumentReference<Map<String, dynamic>>? occupiedRef =
           querySnap.docs.isNotEmpty ? querySnap.docs.first.reference : null;
@@ -1363,9 +1339,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     }
   }
@@ -1392,13 +1367,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 color: isSelected ? const Color(0xFF006677) : Colors.black87,
               ),
             ),
-            trailing:
-                isSelected
-                    ? const Icon(
-                      Icons.check_circle,
-                      color: Color(0xFF006677),
-                    )
-                    : const Icon(Icons.swap_vert, color: Colors.black38),
+            trailing: isSelected
+                ? const Icon(Icons.check_circle, color: Color(0xFF006677))
+                : const Icon(Icons.swap_vert, color: Colors.black38),
             onTap: () => Navigator.pop(ctx, rank),
           );
         }
@@ -1458,14 +1429,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
         authUid != null && authUid.isNotEmpty && authUid != otherUid;
 
     final u = _userCache[otherUid] ?? {};
-    final avatarUrl =
-        (collaboratorData['avatarUrl'] ?? u['avatarUrl'] ?? '')
-            .toString()
-            .trim();
-    final name =
-        (collaboratorData['displayName'] ?? u['displayName'] ?? '')
-            .toString()
-            .trim();
+    final avatarUrl = (collaboratorData['avatarUrl'] ?? u['avatarUrl'] ?? '')
+        .toString()
+        .trim();
+    final name = (collaboratorData['displayName'] ?? u['displayName'] ?? '')
+        .toString()
+        .trim();
     final handleRaw =
         (collaboratorData['handle'] ??
                 collaboratorData['socialHandle'] ??
@@ -1476,18 +1445,18 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
             .trim();
     final handle = handleRaw.replaceAll('@', '');
 
-    final isFollowing =
-        canFollow ? _myFollowingCache.contains(otherUid) : false;
+    final isFollowing = canFollow
+        ? _myFollowingCache.contains(otherUid)
+        : false;
 
     return GestureDetector(
-      onLongPress:
-          isOwnerViewing
-              ? () => _showReorderSheet(
-                profileUid: profileUid,
-                otherUid: otherUid,
-                currentRank: currentRank,
-              )
-              : null,
+      onLongPress: isOwnerViewing
+          ? () => _showReorderSheet(
+              profileUid: profileUid,
+              otherUid: otherUid,
+              currentRank: currentRank,
+            )
+          : null,
       child: Container(
         decoration: BoxDecoration(
           color: _cardBg,
@@ -1570,9 +1539,8 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                 child: ElevatedButton(
                   onPressed: null,
                   style: ElevatedButton.styleFrom(
-                    disabledBackgroundColor: const Color(
-                      0xFF006677,
-                    ).withOpacity(0.35),
+                    disabledBackgroundColor: const Color(0xFF006677)
+                        .withOpacity(0.35),
                     disabledForegroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -1636,12 +1604,12 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           if (snap.hasError) {
             return isOwnerViewing
                 ? const Padding(
-                  padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
-                  child: Text(
-                    'Shopping Circle couldn’t load (rules/index).',
-                    style: TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
-                )
+                    padding: EdgeInsets.fromLTRB(10, 10, 10, 0),
+                    child: Text(
+                      'Shopping Circle couldn’t load (rules/index).',
+                      style: TextStyle(color: Colors.black54, fontSize: 12),
+                    ),
+                  )
                 : const SizedBox.shrink();
           }
 
@@ -1659,14 +1627,16 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
           if (docs.isEmpty) return const SizedBox.shrink();
 
           // stable order
-          final sorted =
-              docs.toList()..sort((a, b) {
-                final ar =
-                    (a.data()['rank'] is int) ? a.data()['rank'] as int : 999;
-                final br =
-                    (b.data()['rank'] is int) ? b.data()['rank'] as int : 999;
-                return ar.compareTo(br);
-              });
+          final sorted = docs.toList()
+            ..sort((a, b) {
+              final ar = (a.data()['rank'] is int)
+                  ? a.data()['rank'] as int
+                  : 999;
+              final br = (b.data()['rank'] is int)
+                  ? b.data()['rank'] as int
+                  : 999;
+              return ar.compareTo(br);
+            });
 
           final otherUids = sorted.map((d) => d.id).toList();
 
@@ -1719,10 +1689,9 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
                   itemBuilder: (context, i) {
                     final d = sorted[i];
                     final otherUid = d.id;
-                    final rank =
-                        (d.data()['rank'] is int)
-                            ? d.data()['rank'] as int
-                            : (i + 1);
+                    final rank = (d.data()['rank'] is int)
+                        ? d.data()['rank'] as int
+                        : (i + 1);
 
                     return KeyedSubtree(
                       key: ValueKey('top_collab_$otherUid'),
@@ -1765,173 +1734,177 @@ class _SocialProfileScreenState extends State<SocialProfileScreen>
       _warmQueuedThisFrame = false;
       _peopleSuggestionsFuture = null;
       _peopleSuggestionsUid = null;
-      _profileRecipesStream =
-          FirebaseFirestore.instance
-              .collection('recipes')
-              .where('uid', isEqualTo: resolvedUid)
-              .where('isPublic', isEqualTo: true)
-              .orderBy('serverCreatedAt', descending: true)
-              .snapshots();
+      _profileRecipesStream = FirebaseFirestore.instance
+          .collection('recipes')
+          .where('uid', isEqualTo: resolvedUid)
+          .where('isPublic', isEqualTo: true)
+          .orderBy('serverCreatedAt', descending: true)
+          .snapshots();
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          _buildSliverToolbar(),
-          if (_showSearch) ...[
-            if (_query.isEmpty)
-              _searchEmptyState()
-            else ...[
-              SliverToBoxAdapter(
-                child: FutureBuilder<
-                  List<QueryDocumentSnapshot<Map<String, dynamic>>>
-                >(
-                  future: _peopleSearch(_query),
-                  builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionHeader("People"),
-                        ..._peopleTilesFromDocs(snap.data!),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _recipesStream(_query),
-                  builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.docs.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionHeader("Recipes"),
-                        ...snap.data!.docs.map((doc) {
-                          final d = doc.data();
-                          return ListTile(
-                            leading: const Icon(Icons.fastfood),
-                            title: Text((d['title'] ?? 'Untitled').toString()),
-                            subtitle: Text(
-                              (d['description'] ?? '').toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onTap: () {},
+      body: SafetyContent(
+        uid: resolvedUid,
+        showNotice: true,
+        child: CustomScrollView(
+          slivers: [
+            _buildSliverToolbar(),
+            if (_showSearch) ...[
+              if (_query.isEmpty)
+                _searchEmptyState()
+              else ...[
+                SliverToBoxAdapter(
+                  child:
+                      FutureBuilder<
+                        List<QueryDocumentSnapshot<Map<String, dynamic>>>
+                      >(
+                        future: _peopleSearch(_query),
+                        builder: (context, snap) {
+                          if (!snap.hasData || snap.data!.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _sectionHeader("People"),
+                              ..._peopleTilesFromDocs(snap.data!),
+                            ],
                           );
-                        }),
-                      ],
-                    );
-                  },
+                        },
+                      ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 40)),
-            ],
-          ] else ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: PublicProfileWidget(
-                  key: ValueKey(resolvedUid),
-                  uid: resolvedUid,
-                  initialProfileHint:
-                      _activeProfileHint ?? widget.initialProfileHint,
-                  showTopCollaborators: false,
+                SliverToBoxAdapter(
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _recipesStream(_query),
+                    builder: (context, snap) {
+                      if (!snap.hasData || snap.data!.docs.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _sectionHeader("Recipes"),
+                          ...snap.data!.docs.map((doc) {
+                            final d = doc.data();
+                            return ListTile(
+                              leading: const Icon(Icons.fastfood),
+                              title: Text(
+                                (d['title'] ?? 'Untitled').toString(),
+                              ),
+                              subtitle: Text(
+                                (d['description'] ?? '').toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () {},
+                            );
+                          }),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _profileContentStrip(
-                uid: resolvedUid,
-                isOwnerViewing: isMe,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(5, 14, 5, 0),
-                child: _topCollaboratorsSectionCurated(
-                  resolvedUid,
-                  isOwnerViewing: isMe,
-                ),
-              ),
-            ),
-            if (isMe && _shouldShowPeopleSuggestions(resolvedUid))
+                const SliverToBoxAdapter(child: SizedBox(height: 40)),
+              ],
+            ] else ...[
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: _peopleSuggestionsSection(resolvedUid),
+                  child: PublicProfileWidget(
+                    key: ValueKey(resolvedUid),
+                    uid: resolvedUid,
+                    initialProfileHint:
+                        _activeProfileHint ?? widget.initialProfileHint,
+                    showTopCollaborators: false,
+                  ),
                 ),
               ),
-            if (_isLoading) const SliverToBoxAdapter(child: SizedBox.shrink()),
-            StreamBuilder<QuerySnapshot>(
-              stream: _profileRecipesStream,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  _cachedRecipeDocs = snapshot.data!.docs;
-                  _recipeCacheByUid[resolvedUid] = snapshot.data!.docs;
-                }
-                if (!snapshot.hasData && _cachedRecipeDocs.isEmpty) {
-                  return const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: SizedBox(height: 2),
-                    ),
-                  );
-                }
+              SliverToBoxAdapter(
+                child: _profileContentStrip(
+                  uid: resolvedUid,
+                  isOwnerViewing: isMe,
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(5, 14, 5, 0),
+                  child: _topCollaboratorsSectionCurated(
+                    resolvedUid,
+                    isOwnerViewing: isMe,
+                  ),
+                ),
+              ),
+              if (isMe && _shouldShowPeopleSuggestions(resolvedUid))
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: _peopleSuggestionsSection(resolvedUid),
+                  ),
+                ),
+              if (_isLoading)
+                const SliverToBoxAdapter(child: SizedBox.shrink()),
+              StreamBuilder<QuerySnapshot>(
+                stream: _profileRecipesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    _cachedRecipeDocs = snapshot.data!.docs;
+                    _recipeCacheByUid[resolvedUid] = snapshot.data!.docs;
+                  }
+                  if (!snapshot.hasData && _cachedRecipeDocs.isEmpty) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: SizedBox(height: 2),
+                      ),
+                    );
+                  }
 
-                if (_cachedRecipeDocs.isEmpty) {
-                  return SliverToBoxAdapter(
-                    child:
-                        isMe
-                            ? const Padding(
+                  if (_cachedRecipeDocs.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: isMe
+                          ? const Padding(
                               padding: EdgeInsets.all(16),
                               child: Text('No posts yet.'),
                             )
-                            : const SizedBox.shrink(),
-                  );
-                }
-
-                final docs = _cachedRecipeDocs;
-                final filtered =
-                    docs
-                        .where(
-                          (d) =>
-                              _matchesRecipe(d.data() as Map<String, dynamic>),
-                        )
-                        .toList();
-
-                if (filtered.isEmpty) {
-                  return const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text("No results."),
-                    ),
-                  );
-                }
-
-                return SliverList(
-                  delegate: SliverChildBuilderDelegate((ctx, i) {
-                    final d = filtered[i].data() as Map<String, dynamic>;
-                    return RecipeCard(
-                      title: d['title'] ?? '',
-                      description: d['description'] ?? '',
-                      uid: d['uid'] ?? '',
-                      recipeId: filtered[i].id,
-                      upvotedBy: List<String>.from(d['upvotedBy'] ?? []),
-                      imageUrl: d['imageUrl'],
-                      category: d['category'],
+                          : const SizedBox.shrink(),
                     );
-                  }, childCount: filtered.length),
-                );
-              },
-            ),
+                  }
+
+                  final docs = _cachedRecipeDocs;
+                  final filtered = docs
+                      .where(
+                        (d) => _matchesRecipe(d.data() as Map<String, dynamic>),
+                      )
+                      .toList();
+
+                  if (filtered.isEmpty) {
+                    return const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text("No results."),
+                      ),
+                    );
+                  }
+
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((ctx, i) {
+                      final d = filtered[i].data() as Map<String, dynamic>;
+                      return RecipeCard(
+                        title: d['title'] ?? '',
+                        description: d['description'] ?? '',
+                        uid: d['uid'] ?? '',
+                        recipeId: filtered[i].id,
+                        upvotedBy: List<String>.from(d['upvotedBy'] ?? []),
+                        imageUrl: d['imageUrl'],
+                        category: d['category'],
+                      );
+                    }, childCount: filtered.length),
+                  );
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -2128,15 +2101,13 @@ class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
       await batch.commit();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Review deleted')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Review deleted')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
   }
@@ -2209,19 +2180,19 @@ class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
 
                   final reviewId = reviewDoc.id;
                   final storeId = (data['storeId'] ?? '').toString().trim();
-                  final rating =
-                      (data['rating'] ?? 0) is int ? data['rating'] as int : 0;
+                  final rating = (data['rating'] ?? 0) is int
+                      ? data['rating'] as int
+                      : 0;
                   final wentWell = (data['wentWell'] ?? '').toString();
                   final reviewUserId = (data['userId'] ?? '').toString().trim();
 
                   final canDelete = authUid != null && authUid == reviewUserId;
 
                   return FutureBuilder<DocumentSnapshot>(
-                    future:
-                        FirebaseFirestore.instance
-                            .collection('stores')
-                            .doc(storeId)
-                            .get(),
+                    future: FirebaseFirestore.instance
+                        .collection('stores')
+                        .doc(storeId)
+                        .get(),
                     builder: (context, storeSnap) {
                       final storeData =
                           storeSnap.data?.data() as Map<String, dynamic>?;
@@ -2264,16 +2235,15 @@ class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
                                         width: 24,
                                         height: 24,
                                         fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (_, __, ___) => Text(
-                                              storeName.isNotEmpty
-                                                  ? storeName[0].toUpperCase()
-                                                  : '?',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 11,
-                                              ),
-                                            ),
+                                        errorBuilder: (_, __, ___) => Text(
+                                          storeName.isNotEmpty
+                                              ? storeName[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -2376,21 +2346,20 @@ class _StoreReviewsPreviewState extends State<_StoreReviewsPreview> {
                           DismissDirection.endToStart: 0.35,
                         },
                         background: _deleteBackground(deleteKey),
-                        confirmDismiss:
-                            (_) => _confirmReviewDismiss(deleteKey, storeName),
+                        confirmDismiss: (_) =>
+                            _confirmReviewDismiss(deleteKey, storeName),
                         onUpdate: (details) {
                           final current = _deleteDragProgress[deleteKey] ?? 0;
                           if (details.progress > current) {
                             _deleteDragProgress[deleteKey] = details.progress;
                           }
                         },
-                        onDismissed:
-                            (_) => _deleteReview(
-                              context,
-                              reviewId: reviewId,
-                              storeId: storeId,
-                              userId: reviewUserId,
-                            ),
+                        onDismissed: (_) => _deleteReview(
+                          context,
+                          reviewId: reviewId,
+                          storeId: storeId,
+                          userId: reviewUserId,
+                        ),
                         child: reviewCard,
                       );
                     },

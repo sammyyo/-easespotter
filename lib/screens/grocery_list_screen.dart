@@ -1,4 +1,9 @@
 import 'dart:convert';
+import 'dart:async';
+
+import '../services/grocery_draft_store.dart';
+
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -61,6 +66,15 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
   List<Map<String, dynamic>> _collaborations = [];
   String? _activeCollabCode;
+  String? _activeCollabId;
+  int _revision = 0;
+  bool _collabBusy = true;
+  bool _savingCollaboration = false;
+  List<Map<String, dynamic>>? _pendingSave;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _collabSubscription;
+  StreamSubscription<User?>? _authSubscription;
+  late final String? _sessionUid;
 
   bool _viewingFromRecipe = false;
   bool _showOptions = true;
@@ -80,45 +94,96 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     _viewingFromRecipe = _selectedViewIndex == 1;
 
     // Controller hook so other screens can force tab switch + refresh
-    GroceryListScreenController.switchTabAndRefresh = ({
-      required int tabIndex,
-      int? addedCount,
-      String? recipeTitle,
-    }) async {
-      if (!mounted) return;
+    GroceryListScreenController.switchTabAndRefresh =
+        ({required int tabIndex, int? addedCount, String? recipeTitle}) async {
+          if (!mounted) return;
 
-      setState(() {
-        _selectedViewIndex = tabIndex;
-        _viewingFromRecipe = tabIndex == 1;
-      });
+          setState(() {
+            _selectedViewIndex = tabIndex;
+            _viewingFromRecipe = tabIndex == 1;
+          });
 
-      await _loadGroceryList();
+          await _loadGroceryList();
 
-      if (!mounted) return;
+          if (!mounted) return;
 
-      // Optional: show a nice confirmation snack when coming from RecipeDetail
-      if (addedCount != null) {
-        final msg =
-            addedCount == 0
+          // Optional: show a nice confirmation snack when coming from RecipeDetail
+          if (addedCount != null) {
+            final msg = addedCount == 0
                 ? "Nothing new was added."
                 : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
-        );
-      }
-    };
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+            );
+          }
+        };
 
-    _loadGroceryList();
-    _loadFavoriteLists();
-    _loadCurrency();
-    _loadCollaborations();
+    _sessionUid = FirebaseAuth.instance.currentUser?.uid;
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user?.uid != _sessionUid) {
+        _collabSubscription?.cancel();
+        _activeCollabId = null;
+        _activeCollabCode = null;
+        _pendingSave = null;
+        if (mounted) {
+          setState(() {
+            _groceryItems = [];
+            _collaborations = [];
+          });
+        }
+      }
+    });
+    _initializeLists();
     _scrollController = ScrollController();
     _scrollController.addListener(_handleScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showInitialRecipeSnack();
-      _joinInitialShareCodeIfNeeded();
     });
+  }
+
+  void _setCollabBusy(bool value) {
+    if (mounted) setState(() => _collabBusy = value);
+  }
+
+  Future<void> _initializeLists() async {
+    try {
+      if (_sessionUid != null &&
+          await GroceryDraftStore(_sessionUid).recover()) {
+        _message('Interrupted edits were recovered in Favorite Lists.');
+      }
+      await _loadGroceryList();
+      await _loadFavoriteLists();
+      await _loadCurrency();
+      await _loadCollaborations();
+    } catch (e) {
+      _message(
+        'Some saved lists could not be loaded. Please reopen this screen.',
+      );
+    } finally {
+      _setCollabBusy(false);
+    }
+    if (!_sameSession) return;
+    if (widget.initialShareCode != null) {
+      _joinInitialShareCodeIfNeeded();
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      if (!_sameSession) return;
+      final id = prefs.getString(
+        UserScopedPrefs.key('active_grocery_collaboration'),
+      );
+      if (id != null) await _joinCollaboration('', shareId: id);
+    }
+  }
+
+  bool get _sameSession =>
+      mounted && FirebaseAuth.instance.currentUser?.uid == _sessionUid;
+
+  void _message(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   void _showInitialRecipeSnack() {
@@ -126,10 +191,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (!mounted || addedCount == null) return;
 
     final recipeTitle = widget.initialRecipeTitle;
-    final msg =
-        addedCount == 0
-            ? "Nothing new was added."
-            : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
+    final msg = addedCount == 0
+        ? "Nothing new was added."
+        : "Added $addedCount item${addedCount == 1 ? '' : 's'}${recipeTitle != null && recipeTitle.trim().isNotEmpty ? " from “$recipeTitle”" : ''}.";
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
@@ -141,6 +205,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     if (GroceryListScreenController.switchTabAndRefresh != null) {
       GroceryListScreenController.switchTabAndRefresh = null;
     }
+    _collabSubscription?.cancel();
+    _authSubscription?.cancel();
     _controller.dispose();
     for (final c in _priceControllers.values) {
       c.dispose();
@@ -152,7 +218,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   Future<void> _loadCollaborations() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(UserScopedPrefs.key('collaborations'));
-    if (saved != null) {
+    if (saved != null && mounted) {
       final List<dynamic> decoded = jsonDecode(saved);
       setState(() {
         _collaborations = List<Map<String, dynamic>>.from(decoded);
@@ -174,21 +240,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   String _shareLinkForCode(String code) =>
       'https://www.easespotter.com/share/$code';
 
-  String _collaborationCodeFromInput(String input) {
-    final trimmed = input.trim();
-    if (trimmed.isEmpty) return '';
-
-    final uri = Uri.tryParse(trimmed);
-    final host = uri?.host.toLowerCase();
-    if (uri != null &&
-        (host == 'www.easespotter.com' || host == 'easespotter.com') &&
-        uri.pathSegments.length >= 2 &&
-        uri.pathSegments.first.toLowerCase() == 'share') {
-      return uri.pathSegments[1].trim().toUpperCase();
-    }
-
-    return trimmed.toUpperCase();
-  }
+  String _collaborationCodeFromInput(String input) =>
+      ShareService.parseCode(input);
 
   void _joinInitialShareCodeIfNeeded() {
     final code = widget.initialShareCode?.trim();
@@ -199,148 +252,133 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   }
 
   Future<void> _startNewCollaboration() async {
+    if (_collabBusy ||
+        _savingCollaboration ||
+        _currentSignedInUid(showMessage: true) == null) {
+      return;
+    }
+    _setCollabBusy(true);
     try {
-      final uid = _currentSignedInUid(showMessage: true);
-      if (uid == null) {
-        return;
-      }
-
-      final code = await _shareService.shareGroceryList(
-        _groceryItems,
-        creatorUid: uid,
-      );
-
-      final newCollab = {'code': code, 'docId': code};
-
-      setState(() {
-        _collaborations.add(newCollab);
-        _activeCollabCode = code;
-      });
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        UserScopedPrefs.key('collaborations'),
-        jsonEncode(_collaborations),
-      );
-
-      _listenToCollaboration(code);
-
-      if (!mounted) return;
-      _showCollaborationInviteDialog(code);
+      final data = await _shareService.call('create', {'list': _groceryItems});
+      if (!_sameSession) return;
+      await _activateCollaboration(data);
+      if (mounted) _showCollaborationInviteDialog(data['code'] as String);
     } catch (e) {
-      debugPrint('Error starting collaboration: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to start collaboration.')),
-      );
+      _message(_errorMessage(e));
+    } finally {
+      _setCollabBusy(false);
     }
   }
+
+  String _errorMessage(Object e) => e is FirebaseFunctionsException
+      ? (e.message ?? 'Collaboration is unavailable. Please try again.')
+      : 'Could not connect. Please try again.';
 
   void _showCollaborationInviteDialog(String code) {
     final link = _shareLinkForCode(code);
 
     showDialog(
       context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Invite Collaborators',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF006677),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Share this invite link. Friends who already have EaseSpotter can join directly; new users can open the link first.',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  SelectableText(
-                    link,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Code: $code',
-                    style: const TextStyle(
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: link));
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: Colors.teal,
-                          behavior: SnackBarBehavior.floating,
-                          content: Row(
-                            children: const [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text('Invite link copied to clipboard!'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.copy),
-                    label: const Text(
-                      'Copy Invite Link',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF006677),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      await SharePlus.instance.share(
-                        ShareParams(
-                          text: 'Join my EaseSpotter grocery list:\n$link',
-                          subject: 'EaseSpotter Grocery List Collaboration',
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text(
-                      'Share Invite Link',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Invite Collaborators',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF006677),
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
+              const SizedBox(height: 10),
+              const Text(
+                'Invites expire after seven days. Friends need EaseSpotter installed; they can open this link or paste it into the collaboration screen after signing in.',
+                style: TextStyle(fontSize: 16, color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SelectableText(
+                link,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.black87, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Code: $code',
+                style: const TextStyle(
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: link));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: Colors.teal,
+                      behavior: SnackBarBehavior.floating,
+                      content: Row(
+                        children: const [
+                          Icon(Icons.check_circle, color: Colors.white),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text('Invite link copied to clipboard!'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text(
+                  'Copy Invite Link',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF006677),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await SharePlus.instance.share(
+                    ShareParams(
+                      text: 'Join my EaseSpotter grocery list:\n$link',
+                      subject: 'EaseSpotter Grocery List Collaboration',
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.ios_share),
+                label: const Text(
+                  'Share Invite Link',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
     );
   }
 
   Future<void> _joinCollaborationFromInput(String input) async {
     final code = _collaborationCodeFromInput(input);
-    if (code.isEmpty) return;
+    if (code.isEmpty) {
+      _message('Enter a valid invitation code or EaseSpotter link.');
+      return;
+    }
 
     await _joinCollaboration(code);
   }
@@ -354,139 +392,300 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     }
   }
 
-  void _listenToCollaboration(String code) {
-    FirebaseFirestore.instance
-        .collection('grocery_shares')
-        .where('code', isEqualTo: code)
-        .limit(1)
-        .snapshots()
-        .listen((snapshot) {
-          if (snapshot.docs.isEmpty) return;
+  List<Map<String, dynamic>> _items(dynamic list) =>
+      (list as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
-          final doc = snapshot.docs.first;
-          final updatedBy = doc['updatedBy'];
-          final currentUser = FirebaseAuth.instance.currentUser?.uid;
-
-          if (updatedBy != null && updatedBy != currentUser) {
-            final list = List<Map<String, dynamic>>.from(doc['list']);
-            if (!mounted) return;
-            setState(() {
-              _groceryItems = list;
-            });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('List updated by a collaborator'),
-                backgroundColor: Colors.teal,
-              ),
-            );
-          }
-        });
-  }
-
-  Future<void> _joinCollaboration(String code) async {
-    final uid = _currentSignedInUid(showMessage: true);
-    if (uid == null) return;
-
-    try {
-      final query =
-          await FirebaseFirestore.instance
-              .collection('grocery_shares')
-              .where('code', isEqualTo: code)
-              .limit(1)
-              .get();
-
-      if (!mounted) return;
-
-      if (query.docs.isNotEmpty) {
-        final doc = query.docs.first;
-        final list = List<Map<String, dynamic>>.from(doc['list']);
-
-        await _joinGroceryShareDocument(doc.reference);
-
-        if (!mounted) return;
-        setState(() {
-          _groceryItems = list;
-          _activeCollabCode = code;
-          if (!_collaborations.any((c) => c['code'] == code)) {
-            _collaborations.add({'code': code, 'docId': doc.id});
-          }
-        });
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          UserScopedPrefs.key('grocery_list'),
-          jsonEncode(list),
-        );
-        await prefs.setString(
-          UserScopedPrefs.key('collaborations'),
-          jsonEncode(_collaborations),
-        );
-
-        _listenToCollaboration(code);
+  Future<void> _persistCollaborations() async {
+    final key = UserScopedPrefs.key('collaborations');
+    final prefs = await SharedPreferences.getInstance();
+    if (_sameSession) {
+      await prefs.setString(key, jsonEncode(_collaborations));
+      final activeKey = UserScopedPrefs.key('active_grocery_collaboration');
+      if (_activeCollabId == null) {
+        await prefs.remove(activeKey);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid code. Collaboration not found.'),
-          ),
-        );
+        await prefs.setString(activeKey, _activeCollabId!);
       }
-    } catch (e) {
-      debugPrint('Error joining collaboration: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to join collaboration.')),
-      );
     }
   }
 
-  Future<void> _joinGroceryShareDocument(
-    DocumentReference<Map<String, dynamic>> reference,
-  ) async {
-    final uid = _currentSignedInUid(showMessage: true);
-    if (uid == null) return;
+  Future<void> _applyList(List<Map<String, dynamic>> list) async {
+    if (!_sameSession) return;
+    for (final controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    _priceControllers.clear();
+    setState(() {
+      _groceryItems = list;
+      for (var i = 0; i < list.length; i++) {
+        _priceControllers[i] = TextEditingController(
+          text: (_parseMoney(list[i]['price']) ?? 0).toStringAsFixed(2),
+        );
+      }
+    });
+    final key = UserScopedPrefs.key('grocery_list');
+    final encoded = jsonEncode(list);
+    final prefs = await SharedPreferences.getInstance();
+    if (_sameSession) await prefs.setString(key, encoded);
+  }
 
-    await reference.set({
-      'collaborators': FieldValue.arrayUnion([uid]),
-      'participants': FieldValue.arrayUnion([uid]),
-      'participantMap.$uid': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  Future<void> _activateCollaboration(Map<String, dynamic> data) async {
+    await _collabSubscription?.cancel();
+    if (!_sameSession) return;
+    _activeCollabId = data['docId'] as String;
+    _activeCollabCode = data['code'] as String;
+    _revision = (data['revision'] as num).toInt();
+    _collaborations.removeWhere((c) => c['docId'] == _activeCollabId);
+    _collaborations.add({
+      'docId': _activeCollabId,
+      'code': _activeCollabCode,
+      'ownerUid': data['ownerUid'],
+    });
+    await _applyList(_items(data['list']));
+    await _persistCollaborations();
+    if (_sameSession) _listenToCollaboration(_activeCollabId!);
+  }
+
+  void _listenToCollaboration(String id) {
+    _collabSubscription?.cancel();
+    _collabSubscription = FirebaseFirestore.instance
+        .collection('grocery_shares')
+        .doc(id)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!_sameSession ||
+                _activeCollabId != id ||
+                _savingCollaboration ||
+                _pendingSave != null) {
+              return;
+            }
+            final data = snapshot.data();
+            if (data == null) {
+              _disconnectCollaboration('This collaboration has ended.');
+              return;
+            }
+            final revision = (data['revision'] as num?)?.toInt() ?? 0;
+            if (revision > _revision) {
+              _revision = revision;
+              _applyList(_items(data['list'] ?? []));
+            }
+            _activeCollabCode = data['code'] as String? ?? id;
+            for (final c in _collaborations) {
+              if (c['docId'] == id) c['code'] = _activeCollabCode;
+            }
+          },
+          onError: (Object error) {
+            if (_sameSession && _activeCollabId == id) {
+              _disconnectCollaboration(
+                'Access to this collaboration is unavailable. Your local list is kept.',
+              );
+            }
+          },
+        );
+  }
+
+  void _disconnectCollaboration(String message) {
+    _collabSubscription?.cancel();
+    if (mounted) {
+      setState(() {
+        _activeCollabId = null;
+        _activeCollabCode = null;
+      });
+    }
+    _persistCollaborations();
+    _message(message);
+  }
+
+  Future<void> _joinCollaboration(String code, {String? shareId}) async {
+    if (_collabBusy || _savingCollaboration) {
+      _message('Please wait for the current changes to finish.');
+      return;
+    }
+    if (_currentSignedInUid() == null) {
+      await ShareService.rememberInvite(code);
+      if (mounted) Navigator.of(context).pushNamed('/login');
+      return;
+    }
+    _setCollabBusy(true);
+    try {
+      final data = await _shareService.call(
+        shareId == null ? 'join' : 'open',
+        shareId == null ? {'code': code} : {'shareId': shareId},
+      );
+      if (_sameSession) await _activateCollaboration(data);
+    } catch (e) {
+      if (e is FirebaseFunctionsException &&
+          e.code == 'not-found' &&
+          shareId != null &&
+          _sameSession) {
+        setState(
+          () => _collaborations.removeWhere((c) => c['docId'] == shareId),
+        );
+        if (_activeCollabId == shareId) {
+          _activeCollabId = null;
+          _activeCollabCode = null;
+          await _collabSubscription?.cancel();
+        }
+        await _persistCollaborations();
+      }
+      _message(_errorMessage(e));
+    } finally {
+      _setCollabBusy(false);
+    }
+  }
+
+  Future<void> _leaveCollaboration(Map<String, dynamic> collab) async {
+    if (_collabBusy || _savingCollaboration) {
+      _message('Please wait for saving to finish.');
+      return;
+    }
+    _setCollabBusy(true);
+    try {
+      final owner = collab['ownerUid'] == _sessionUid;
+      final unknownOwner = collab['ownerUid'] == null;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            owner ? 'End collaboration for everyone?' : 'Leave collaboration?',
+          ),
+          content: Text(
+            (owner || unknownOwner)
+                ? 'If you own this list, everyone will lose access. Local copies already saved on devices remain.'
+                : 'You will lose access to the shared list. Your local copy will remain.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(owner ? 'End collaboration' : 'Leave'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !_sameSession) return;
+      await _shareService.call('leave', {'shareId': collab['docId']});
+      if (!_sameSession) return;
+      if (_activeCollabId == collab['docId']) {
+        _disconnectCollaboration('Collaboration left.');
+      }
+      setState(
+        () => _collaborations.removeWhere((c) => c['docId'] == collab['docId']),
+      );
+      await _persistCollaborations();
+    } catch (e) {
+      _message(_errorMessage(e));
+    } finally {
+      _setCollabBusy(false);
+    }
+  }
+
+  Future<void> _showSavedInvite(Map<String, dynamic> collab) async {
+    if (_collabBusy || _savingCollaboration) return;
+    _setCollabBusy(true);
+    try {
+      final data = await _shareService.call('open', {
+        'shareId': collab['docId'],
+      });
+      if (!_sameSession) return;
+      setState(() {
+        collab['code'] = data['code'];
+        collab['ownerUid'] = data['ownerUid'];
+      });
+      await _persistCollaborations();
+      if (mounted) _showCollaborationInviteDialog(data['code'] as String);
+    } catch (e) {
+      _message(_errorMessage(e));
+    } finally {
+      _setCollabBusy(false);
+    }
+  }
+
+  Future<void> _renewInvite(Map<String, dynamic> collab) async {
+    if (_collabBusy || _savingCollaboration) return;
+    _setCollabBusy(true);
+    try {
+      final data = await _shareService.call('renew', {
+        'shareId': collab['docId'],
+      });
+      if (!_sameSession) return;
+      setState(() {
+        collab['code'] = data['code'];
+        if (_activeCollabId == collab['docId']) {
+          _activeCollabCode = data['code'] as String;
+        }
+      });
+      await _persistCollaborations();
+      if (mounted) _showCollaborationInviteDialog(data['code'] as String);
+    } catch (e) {
+      _message(_errorMessage(e));
+    } finally {
+      _setCollabBusy(false);
+    }
   }
 
   Future<void> _updateCollaboration() async {
-    if (_activeCollabCode == null) return;
-    final uid = _currentSignedInUid();
-    if (uid == null) return;
-
-    final query =
-        await FirebaseFirestore.instance
-            .collection('grocery_shares')
-            .where('code', isEqualTo: _activeCollabCode)
-            .limit(1)
-            .get();
-
-    if (query.docs.isNotEmpty) {
-      final doc = query.docs.first;
-      final collaborators = List<String>.from(doc['collaborators'] ?? []);
-      if (!collaborators.contains(uid)) {
-        collaborators.add(uid);
+    final id = _activeCollabId;
+    final uid = _sessionUid;
+    if (id == null || uid == null || !_sameSession) return;
+    _pendingSave = _items(jsonDecode(jsonEncode(_groceryItems)));
+    if (_savingCollaboration) return;
+    setState(() => _savingCollaboration = true);
+    final drafts = GroceryDraftStore(uid);
+    bool sameAccount() => FirebaseAuth.instance.currentUser?.uid == uid;
+    try {
+      while (_pendingSave != null && sameAccount() && _activeCollabId == id) {
+        final list = _pendingSave!;
+        _pendingSave = null;
+        await drafts.save(list);
+        try {
+          final data = await _shareService.call('update', {
+            'shareId': id,
+            'revision': _revision,
+            'list': list,
+          });
+          if (!sameAccount()) return;
+          _revision = (data['revision'] as num).toInt();
+          if (_pendingSave == null) await drafts.clear();
+        } catch (e) {
+          // Capture the latest keyboard edit as well as the failed request.
+          await drafts.save(_pendingSave ?? list);
+          _pendingSave = null;
+          await drafts.recover();
+          if (_sameSession) {
+            await _loadFavoriteLists();
+            _disconnectCollaboration(
+              'Could not sync your edits. They are preserved in Favorite Lists. Reopen the collaboration to get its latest version.',
+            );
+          }
+          return;
+        }
       }
-      await doc.reference.update({
-        'list': _groceryItems,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'updatedBy': uid,
-        'collaborators': collaborators,
-        'participants': FieldValue.arrayUnion([uid]),
-        'participantMap.$uid': true,
-      });
+    } catch (e) {
+      // A local storage failure must not silently discard the on-screen list.
+      if (_sameSession) {
+        _disconnectCollaboration(
+          'Saving failed. Keep this screen open and save your list again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingCollaboration = false);
+      } else {
+        _savingCollaboration = false;
+      }
+      if (_sameSession && _activeCollabId == id) _listenToCollaboration(id);
     }
   }
 
   Future<void> _loadCurrency() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('selected_currency');
-    if (saved != null) {
+    if (saved != null && mounted) {
       setState(() {
         _selectedCurrency = saved;
       });
@@ -498,10 +697,13 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     final String? listJson = prefs.getString(
       UserScopedPrefs.key('grocery_list'),
     );
-    if (listJson != null) {
+    if (listJson != null && mounted) {
       final decoded = List<Map<String, dynamic>>.from(jsonDecode(listJson));
 
       _groceryItems = [];
+      for (final controller in _priceControllers.values) {
+        controller.dispose();
+      }
       _priceControllers.clear();
 
       for (int i = 0; i < decoded.length; i++) {
@@ -532,12 +734,12 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   }
 
   Future<void> _saveGroceryList() async {
+    final saving = _updateCollaboration();
+    final encoded = jsonEncode(_groceryItems);
+    final key = UserScopedPrefs.key('grocery_list');
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      UserScopedPrefs.key('grocery_list'),
-      jsonEncode(_groceryItems),
-    );
-    await _updateCollaboration();
+    await prefs.setString(key, encoded);
+    await saving;
   }
 
   double? _parseMoney(dynamic value) {
@@ -556,7 +758,7 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     final String? favJson = prefs.getString(
       UserScopedPrefs.key('favorite_lists'),
     );
-    if (favJson != null) {
+    if (favJson != null && mounted) {
       setState(() {
         _favoriteLists = List<Map<String, dynamic>>.from(jsonDecode(favJson));
       });
@@ -599,11 +801,10 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
   Future<void> _openReceiptScanner() async {
     final added = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder:
-            (_) => const QRScannerScreen(
-              initialMode: ScanMode.receipt,
-              returnAfterReceiptAdd: true,
-            ),
+        builder: (_) => const QRScannerScreen(
+          initialMode: ScanMode.receipt,
+          returnAfterReceiptAdd: true,
+        ),
       ),
     );
 
@@ -616,10 +817,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     double total = 0.0;
     for (final item in _groceryItems) {
       final lineTotal = (item['price'] ?? 0);
-      total +=
-          (lineTotal is num)
-              ? lineTotal.toDouble()
-              : double.tryParse(lineTotal.toString()) ?? 0.0;
+      total += (lineTotal is num)
+          ? lineTotal.toDouble()
+          : double.tryParse(lineTotal.toString()) ?? 0.0;
     }
     return total;
   }
@@ -629,8 +829,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     for (int i = 0; i < _groceryItems.length; i++) {
       final item = _groceryItems[i];
       final source = item['source'] ?? 'manual';
-      final include =
-          _viewingFromRecipe ? source == 'recipe' : source != 'recipe';
+      final include = _viewingFromRecipe
+          ? source == 'recipe'
+          : source != 'recipe';
       if (!include) continue;
 
       final liveInputValue = _parseMoney(_priceControllers[i]?.text);
@@ -640,10 +841,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       }
 
       final lineTotal = (item['price'] ?? 0);
-      total +=
-          (lineTotal is num)
-              ? lineTotal.toDouble()
-              : double.tryParse(lineTotal.toString()) ?? 0.0;
+      total += (lineTotal is num)
+          ? lineTotal.toDouble()
+          : double.tryParse(lineTotal.toString()) ?? 0.0;
     }
     return total;
   }
@@ -686,10 +886,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     int selected = 1;
     final c = TextEditingController(text: '1');
 
-    final subtitle =
-        existingQty == null
-            ? 'How many do you want to add to Home Inventory?'
-            : 'Already in Home Inventory (Qty: ${existingQty.toString()}).\n\nHow many more do you want to add?';
+    final subtitle = existingQty == null
+        ? 'How many do you want to add to Home Inventory?'
+        : 'Already in Home Inventory (Qty: ${existingQty.toString()}).\n\nHow many more do you want to add?';
 
     return showDialog<int>(
       context: context,
@@ -894,8 +1093,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
       _groceryItems[index]['unitPrice'] = unit;
       _groceryItems[index]['price'] = parsed;
       if (normalizeText) {
-        _priceControllers[index]?.text =
-            parsed == 0 ? '' : parsed.toStringAsFixed(2);
+        _priceControllers[index]?.text = parsed == 0
+            ? ''
+            : parsed.toStringAsFixed(2);
       }
     });
     _saveGroceryList();
@@ -909,84 +1109,80 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     showDialog(
       context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text(
-              'Save as Favorite List',
-              style: TextStyle(fontSize: 18),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Save as Favorite List',
+          style: TextStyle(fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(hintText: 'Enter list title'),
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    hintText: 'Enter list title',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: storeController,
-                  decoration: const InputDecoration(
-                    hintText: 'Enter store name (optional)',
-                  ),
-                ),
-              ],
+            const SizedBox(height: 10),
+            TextField(
+              controller: storeController,
+              decoration: const InputDecoration(
+                hintText: 'Enter store name (optional)',
+              ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final title = titleController.text.trim();
-                  final store = storeController.text.trim();
-
-                  if (title.isNotEmpty) {
-                    final prefs = await SharedPreferences.getInstance();
-                    final String? favJson = prefs.getString(
-                      UserScopedPrefs.key('favorite_lists'),
-                    );
-                    List<Map<String, dynamic>> currentFavorites = [];
-
-                    if (favJson != null) {
-                      currentFavorites = List<Map<String, dynamic>>.from(
-                        jsonDecode(favJson),
-                      );
-                    }
-
-                    currentFavorites.add({
-                      'title': title,
-                      'store': store,
-                      'items': List<Map<String, dynamic>>.from(_groceryItems),
-                    });
-
-                    await prefs.setString(
-                      UserScopedPrefs.key('favorite_lists'),
-                      jsonEncode(currentFavorites),
-                    );
-
-                    setState(() {
-                      _favoriteLists = currentFavorites;
-                    });
-
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text('Save'),
-              ),
-            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () async {
+              final title = titleController.text.trim();
+              final store = storeController.text.trim();
+
+              if (title.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                final String? favJson = prefs.getString(
+                  UserScopedPrefs.key('favorite_lists'),
+                );
+                List<Map<String, dynamic>> currentFavorites = [];
+
+                if (favJson != null && mounted) {
+                  currentFavorites = List<Map<String, dynamic>>.from(
+                    jsonDecode(favJson),
+                  );
+                }
+
+                currentFavorites.add({
+                  'title': title,
+                  'store': store,
+                  'items': List<Map<String, dynamic>>.from(_groceryItems),
+                });
+
+                await prefs.setString(
+                  UserScopedPrefs.key('favorite_lists'),
+                  jsonEncode(currentFavorites),
+                );
+
+                setState(() {
+                  _favoriteLists = currentFavorites;
+                });
+
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
   String _suggestFavoriteStoreName() {
-    final receiptStores =
-        _groceryItems
-            .map((item) => item['storeName']?.toString().trim() ?? '')
-            .where((store) => store.isNotEmpty)
-            .toSet();
+    final receiptStores = _groceryItems
+        .map((item) => item['storeName']?.toString().trim() ?? '')
+        .where((store) => store.isNotEmpty)
+        .toSet();
 
     if (receiptStores.length == 1) return receiptStores.first;
     return '';
@@ -1007,36 +1203,30 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     String newCategory = _groceryItems[index]['category'];
     showDialog(
       context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Change Category'),
-            content: DropdownButtonFormField<String>(
-              value: newCategory,
-              items:
-                  _categories
-                      .map(
-                        (cat) => DropdownMenuItem(value: cat, child: Text(cat)),
-                      )
-                      .toList(),
-              onChanged: (value) => newCategory = value!,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(
-                    () => _groceryItems[index]['category'] = newCategory,
-                  );
-                  _saveGroceryList();
-                  Navigator.pop(context);
-                },
-                child: const Text('Save'),
-              ),
-            ],
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change Category'),
+        content: DropdownButtonFormField<String>(
+          value: newCategory,
+          items: _categories
+              .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+              .toList(),
+          onChanged: (value) => newCategory = value!,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() => _groceryItems[index]['category'] = newCategory);
+              _saveGroceryList();
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1045,270 +1235,148 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
 
     showDialog(
       context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text(
-              'Collaborate on Grocery List',
-              style: TextStyle(fontSize: 18),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_collaborations.isNotEmpty) ...[
-                    const Text(
-                      'Your Collaborations:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-                    ..._collaborations.map((collab) {
-                      final isActive = _activeCollabCode == collab['code'];
-                      final code = collab['code'].toString();
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Collaborate on Grocery List',
+          style: TextStyle(fontSize: 18),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_collaborations.isNotEmpty) ...[
+                const Text(
+                  'Your Collaborations:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 10),
+                ..._collaborations.map((collab) {
+                  final isActive = _activeCollabId == collab['docId'];
+                  final code = collab['code'].toString();
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isActive ? 'Code: $code (Active)' : 'Code: $code',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            Text(
-                              isActive ? 'Code: $code (Active)' : 'Code: $code',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                            if (!isActive)
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(dialogContext);
+                                  _joinCollaboration(
+                                    code,
+                                    shareId: collab['docId'] as String,
+                                  );
+                                },
+                                child: const Text('Switch'),
                               ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.ios_share,
+                                color: Colors.teal,
+                              ),
+                              tooltip: 'Share invite link',
+                              onPressed: () {
+                                Navigator.pop(dialogContext);
+                                _showSavedInvite(collab);
+                              },
                             ),
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!isActive)
-                                  ElevatedButton(
-                                    onPressed: () => _joinCollaboration(code),
-                                    child: const Text('Switch'),
-                                  ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.ios_share,
-                                    color: Colors.teal,
-                                  ),
-                                  tooltip: 'Share invite link',
-                                  onPressed:
-                                      () =>
-                                          _showCollaborationInviteDialog(code),
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  tooltip: 'Leave this collaboration',
-                                  onPressed: () async {
-                                    setState(() {
-                                      _collaborations.removeWhere(
-                                        (c) => c['code'] == code,
-                                      );
-                                      if (_activeCollabCode == code) {
-                                        _activeCollabCode = null;
-                                      }
-                                    });
-
-                                    final prefs =
-                                        await SharedPreferences.getInstance();
-                                    await prefs.setString(
-                                      UserScopedPrefs.key('collaborations'),
-                                      jsonEncode(_collaborations),
-                                    );
-
-                                    if (!dialogContext.mounted) return;
-                                    Navigator.of(dialogContext).pop();
-                                    _onGroupIconPressed();
-
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Left the collaboration'),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
+                            if (collab['ownerUid'] == _sessionUid ||
+                                collab['ownerUid'] == null)
+                              IconButton(
+                                icon: const Icon(Icons.refresh),
+                                tooltip: 'Replace invite (owner only)',
+                                onPressed: () {
+                                  Navigator.pop(dialogContext);
+                                  _renewInvite(collab);
+                                },
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Leave this collaboration',
+                              onPressed: () {
+                                Navigator.pop(dialogContext);
+                                _leaveCollaboration(collab);
+                              },
                             ),
                           ],
                         ),
-                      );
-                    }),
-                    const Divider(thickness: 1),
-                  ],
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Start New Collaboration'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF006677),
-                      foregroundColor: Colors.white,
+                      ],
                     ),
-                    onPressed: () {
-                      Navigator.pop(dialogContext);
-                      _startNewCollaboration();
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  const Text('Or enter a code or invite link to join:'),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: codeController,
-                    decoration: const InputDecoration(
-                      hintText:
-                          'Code or https://www.easespotter.com/share/ABC123',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                child: const Text('Join'),
+                  );
+                }),
+                const Divider(thickness: 1),
+              ],
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Start New Collaboration'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF006677),
+                  foregroundColor: Colors.white,
+                ),
                 onPressed: () {
-                  final invite = codeController.text.trim();
                   Navigator.pop(dialogContext);
-                  if (invite.isNotEmpty) _joinCollaborationFromInput(invite);
+                  _startNewCollaboration();
                 },
+              ),
+              const SizedBox(height: 20),
+              const Text('Or enter a code or invite link to join:'),
+              const SizedBox(height: 10),
+              TextField(
+                controller: codeController,
+                decoration: const InputDecoration(
+                  hintText: 'Code or https://www.easespotter.com/share/ABC123',
+                ),
               ),
             ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            child: const Text('Join'),
+            onPressed: () {
+              final invite = codeController.text.trim();
+              Navigator.pop(dialogContext);
+              if (invite.isNotEmpty) _joinCollaborationFromInput(invite);
+            },
+          ),
+        ],
+      ),
     );
   }
 
   int get _uncheckedItemCount =>
       _groceryItems.where((item) => item['checked'] == false).length;
 
-  void _shareGroceryList() async {
+  void _shareGroceryList() {
     if (_groceryItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your grocery list is empty!')),
-      );
+      _message('Your grocery list is empty!');
       return;
     }
-
-    late final String link;
-    try {
-      final uid = _currentSignedInUid(showMessage: true);
-      if (uid == null) {
-        return;
-      }
-
-      final code = await _shareService.shareGroceryList(
-        _groceryItems,
-        creatorUid: uid,
-      );
-      link = _shareLinkForCode(code);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create share link: $e')),
-      );
-      return;
+    if (_activeCollabCode != null) {
+      _showCollaborationInviteDialog(_activeCollabCode!);
+    } else {
+      _startNewCollaboration();
     }
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Share Your Grocery List',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF006677),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Send it easily to friends or family!',
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  SelectableText(
-                    link,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.black87, fontSize: 16),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: link));
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: Colors.teal,
-                          behavior: SnackBarBehavior.floating,
-                          content: Row(
-                            children: const [
-                              Icon(Icons.check_circle, color: Colors.white),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text('Link copied to clipboard!'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.copy),
-                    label: const Text(
-                      'Copy Link',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF006677),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      await SharePlus.instance.share(
-                        ShareParams(
-                          text: 'Here is my EaseSpotter grocery list:\n$link',
-                          subject: 'EaseSpotter Grocery List',
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.ios_share),
-                    label: const Text(
-                      'Share Link',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-    );
   }
 
   List<Map<String, dynamic>> get _visibleItems {
@@ -1400,47 +1468,37 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
         right,
         overlaySize.height - top,
       ),
-      items:
-          _categories.asMap().entries.map((entry) {
-            final i = entry.key;
-            final cat = entry.value;
-            final isLast = i == _categories.length - 1;
-            final isSelected = cat == _selectedCategory;
+      items: _categories.asMap().entries.map((entry) {
+        final i = entry.key;
+        final cat = entry.value;
+        final isLast = i == _categories.length - 1;
+        final isSelected = cat == _selectedCategory;
 
-            return PopupMenuItem<String>(
-              value: cat,
-              padding: EdgeInsets.zero,
-              child: Container(
-                width: popupWidth,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                      isSelected ? const Color(0xFFE6F4F6) : Colors.transparent,
-                  border:
-                      isLast
-                          ? null
-                          : const Border(
-                            bottom: BorderSide(
-                              color: Color(0xFFE6E6E6),
-                              width: 1,
-                            ),
-                          ),
-                ),
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color:
-                        isSelected ? const Color(0xFF006677) : Colors.black87,
-                  ),
-                ),
+        return PopupMenuItem<String>(
+          value: cat,
+          padding: EdgeInsets.zero,
+          child: Container(
+            width: popupWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFFE6F4F6) : Colors.transparent,
+              border: isLast
+                  ? null
+                  : const Border(
+                      bottom: BorderSide(color: Color(0xFFE6E6E6), width: 1),
+                    ),
+            ),
+            child: Text(
+              cat,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? const Color(0xFF006677) : Colors.black87,
               ),
-            );
-          }).toList(),
+            ),
+          ),
+        );
+      }).toList(),
     );
 
     if (selected != null && selected != _selectedCategory) {
@@ -1523,8 +1581,9 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    decoration:
-                        item['checked'] ? TextDecoration.lineThrough : null,
+                    decoration: item['checked']
+                        ? TextDecoration.lineThrough
+                        : null,
                   ),
                 ),
                 if (source == 'store' && loc.isNotEmpty) ...[
@@ -1570,8 +1629,8 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
                     labelText: 'Price',
                     isDense: true,
                   ),
-                  onChanged:
-                      (val) => _updatePrice(index, val, normalizeText: false),
+                  onChanged: (val) =>
+                      _updatePrice(index, val, normalizeText: false),
                   onFieldSubmitted: (val) => _updatePrice(index, val),
                 ),
               ],
@@ -1588,40 +1647,39 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
               ),
               elevation: 8,
               color: Colors.white,
-              itemBuilder:
-                  (context) => const [
-                    PopupMenuItem(
-                      value: 'brought',
-                      child: Row(
-                        children: [
-                          Icon(Icons.kitchen, color: Color(0xFF006677)),
-                          SizedBox(width: 10),
-                          Text('Brought home'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'move',
-                      child: Row(
-                        children: [
-                          Icon(Icons.swap_horiz, color: Color(0xFF006677)),
-                          SizedBox(width: 10),
-                          Text('Change Category'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, color: Colors.red),
-                          SizedBox(width: 10),
-                          Text('Delete'),
-                        ],
-                      ),
-                    ),
-                  ],
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'brought',
+                  child: Row(
+                    children: [
+                      Icon(Icons.kitchen, color: Color(0xFF006677)),
+                      SizedBox(width: 10),
+                      Text('Brought home'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'move',
+                  child: Row(
+                    children: [
+                      Icon(Icons.swap_horiz, color: Color(0xFF006677)),
+                      SizedBox(width: 10),
+                      Text('Change Category'),
+                    ],
+                  ),
+                ),
+                PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 10),
+                      Text('Delete'),
+                    ],
+                  ),
+                ),
+              ],
               icon: const Icon(Icons.more_vert, color: Colors.grey),
             ),
           );
@@ -1679,240 +1737,265 @@ class _GroceryListScreenState extends State<GroceryListScreen> {
     final groupedItems = _groupItemsByCategory();
     final groupedRecipeItems = _groupRecipeItemsByRecipeThenCategory();
 
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        leading:
-            widget.showBackButton
+    return PopScope(
+      canPop: !_collabBusy && !_savingCollaboration,
+      child: AbsorbPointer(
+        absorbing: _collabBusy,
+        child: Scaffold(
+          appBar: AppBar(
+            centerTitle: true,
+            leading: widget.showBackButton
                 ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).maybePop(),
-                )
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  )
                 : null,
-        title: const Text(
-          'Grocery List',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-        ),
-        backgroundColor: const Color(0xFF006677),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.favorite_border),
-            onPressed: _saveAsFavorite,
-          ),
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: _openFavoritesScreen,
-          ),
-          IconButton(
-            icon: const Icon(Icons.group),
-            onPressed: _onGroupIconPressed,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            AnimatedOpacity(
-              opacity: _showHeader ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 250),
-                offset: _showHeader ? Offset.zero : const Offset(0, -0.06),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildPillToggle()),
-                    const SizedBox(width: 10),
-                    _HeaderIconButton(
-                      icon:
-                          _showOptions ? Icons.expand_less : Icons.expand_more,
-                      tooltip: 'Show/Hide Options',
-                      onPressed:
-                          () => setState(() => _showOptions = !_showOptions),
-                    ),
-                  ],
-                ),
+            title: const Text(
+              'Grocery List',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            if (_showOptions)
-              Column(
-                children: [
-                  TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(
-                      hintText: 'Enter item name...',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  _buildCategoryDropdown(),
-
-                  const SizedBox(height: 15),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _GroceryActionButton(
-                          icon: Icons.add,
-                          label: 'Add',
-                          color: Colors.teal,
-                          onPressed: _addItem,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _GroceryActionButton(
-                          icon: Icons.receipt_long,
-                          label: 'Receipt',
-                          color: const Color(0xFF006677),
-                          onPressed: _openReceiptScanner,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _GroceryActionButton(
-                          icon: Icons.share,
-                          label: 'Share',
-                          color: Colors.teal,
-                          onPressed: _shareGroceryList,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                ],
+            backgroundColor: const Color(0xFF006677),
+            iconTheme: const IconThemeData(color: Colors.white),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.favorite_border),
+                onPressed: _saveAsFavorite,
               ),
-
-            Row(
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              IconButton(
+                icon: const Icon(Icons.list),
+                onPressed: _openFavoritesScreen,
+              ),
+              IconButton(
+                icon: const Icon(Icons.group),
+                onPressed: _onGroupIconPressed,
+              ),
+            ],
+          ),
+          body: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   children: [
-                    const Icon(
-                      Icons.shopping_cart_outlined,
-                      color: Color(0xFF006677),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_uncheckedItemCount',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Color(0xFF006677),
+                    AnimatedOpacity(
+                      opacity: _showHeader ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: AnimatedSlide(
+                        duration: const Duration(milliseconds: 250),
+                        offset: _showHeader
+                            ? Offset.zero
+                            : const Offset(0, -0.06),
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildPillToggle()),
+                            const SizedBox(width: 10),
+                            _HeaderIconButton(
+                              icon: _showOptions
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                              tooltip: 'Show/Hide Options',
+                              onPressed: () =>
+                                  setState(() => _showOptions = !_showOptions),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
 
-                const SizedBox(width: 10),
+                    const SizedBox(height: 10),
 
-                Expanded(
-                  child: Text(
-                    'Estimated Total: $_selectedCurrency ${_calculateVisibleTotal().toStringAsFixed(2)}',
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Color(0xFF006677),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+                    if (_showOptions)
+                      Column(
+                        children: [
+                          TextField(
+                            controller: _controller,
+                            decoration: InputDecoration(
+                              hintText: 'Enter item name...',
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 15,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 15),
 
-            const SizedBox(height: 10),
+                          _buildCategoryDropdown(),
 
-            Expanded(
-              child: ListView(
-                controller: _scrollController,
-                children:
-                    !_viewingFromRecipe
-                        ? groupedItems.entries.map((entry) {
-                          final category = entry.key;
-                          final items = entry.value;
-
-                          return _buildCategorySection(category, items);
-                        }).toList()
-                        : groupedRecipeItems.entries.map((recipeEntry) {
-                          final recipeKey = recipeEntry.key;
-                          final byCategory = recipeEntry.value;
-
-                          final firstItem =
-                              byCategory.values.isNotEmpty &&
-                                      byCategory.values.first.isNotEmpty
-                                  ? byCategory.values.first.first
-                                  : <String, dynamic>{};
-
-                          final recipeLabel = _recipeGroupLabel(firstItem);
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 15),
+                          Row(
                             children: [
-                              const SizedBox(height: 18),
-
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE6F4F6),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF006677,
-                                    ).withOpacity(0.12),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.restaurant_menu,
-                                      color: Color(0xFF006677),
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        recipeLabel,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF006677),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
+                              Expanded(
+                                child: _GroceryActionButton(
+                                  icon: Icons.add,
+                                  label: 'Add',
+                                  color: Colors.teal,
+                                  onPressed: _addItem,
                                 ),
                               ),
-
-                              ...byCategory.entries.map((catEntry) {
-                                final category = catEntry.key;
-                                final items = catEntry.value;
-                                return _buildCategorySection(category, items);
-                              }),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _GroceryActionButton(
+                                  icon: Icons.receipt_long,
+                                  label: 'Receipt',
+                                  color: const Color(0xFF006677),
+                                  onPressed: _openReceiptScanner,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _GroceryActionButton(
+                                  icon: Icons.share,
+                                  label: 'Share',
+                                  color: Colors.teal,
+                                  onPressed: _shareGroceryList,
+                                ),
+                              ),
                             ],
-                          );
-                        }).toList(),
+                          ),
+                          const SizedBox(height: 15),
+                        ],
+                      ),
+
+                    Row(
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.shopping_cart_outlined,
+                              color: Color(0xFF006677),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$_uncheckedItemCount',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Color(0xFF006677),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(width: 10),
+
+                        Expanded(
+                          child: Text(
+                            'Estimated Total: $_selectedCurrency ${_calculateVisibleTotal().toStringAsFixed(2)}',
+                            textAlign: TextAlign.right,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF006677),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Expanded(
+                      child: ListView(
+                        controller: _scrollController,
+                        children: !_viewingFromRecipe
+                            ? groupedItems.entries.map((entry) {
+                                final category = entry.key;
+                                final items = entry.value;
+
+                                return _buildCategorySection(category, items);
+                              }).toList()
+                            : groupedRecipeItems.entries.map((recipeEntry) {
+                                final recipeKey = recipeEntry.key;
+                                final byCategory = recipeEntry.value;
+
+                                final firstItem =
+                                    byCategory.values.isNotEmpty &&
+                                        byCategory.values.first.isNotEmpty
+                                    ? byCategory.values.first.first
+                                    : <String, dynamic>{};
+
+                                final recipeLabel = _recipeGroupLabel(
+                                  firstItem,
+                                );
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 18),
+
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE6F4F6),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFF006677)
+                                              .withOpacity(0.12),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.restaurant_menu,
+                                            color: Color(0xFF006677),
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              recipeLabel,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF006677),
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    ...byCategory.entries.map((catEntry) {
+                                      final category = catEntry.key;
+                                      final items = catEntry.value;
+                                      return _buildCategorySection(
+                                        category,
+                                        items,
+                                      );
+                                    }),
+                                  ],
+                                );
+                              }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (_collabBusy || _savingCollaboration)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: LinearProgressIndicator(),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -2022,9 +2105,8 @@ class _PillButtonState extends State<_PillButton> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final selectedBg = const Color(
-      0xFF006677,
-    ).withOpacity(isDark ? 0.35 : 0.12);
+    final selectedBg = const Color(0xFF006677)
+        .withOpacity(isDark ? 0.35 : 0.12);
     final selectedText = isDark ? Colors.white : const Color(0xFF006677);
     final unselectedText = isDark ? Colors.white70 : Colors.grey.shade700;
 
@@ -2079,15 +2161,13 @@ class _QtyChip extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color:
-                selected
-                    ? const Color(0xFF006677)
-                    : Colors.black.withOpacity(0.12),
+            color: selected
+                ? const Color(0xFF006677)
+                : Colors.black.withOpacity(0.12),
           ),
-          color:
-              selected
-                  ? const Color(0xFF006677).withOpacity(0.12)
-                  : Colors.transparent,
+          color: selected
+              ? const Color(0xFF006677).withOpacity(0.12)
+              : Colors.transparent,
         ),
         child: Text(
           label,

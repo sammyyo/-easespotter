@@ -29,7 +29,7 @@ class MyGlowUpsGrid extends StatelessWidget {
         if (docs.isEmpty) {
           return const Padding(
             padding: EdgeInsets.only(top: 20),
-            child: Text('You haven’t shared any Glow-Up stories yet.'),
+            child: Text('You haven’t shared any Tastes yet.'),
           );
         }
 
@@ -39,7 +39,7 @@ class MyGlowUpsGrid extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'My Glow-Ups',
+                'My Tastes',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 12),

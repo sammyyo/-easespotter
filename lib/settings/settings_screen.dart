@@ -1,6 +1,8 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/presence_service.dart';
 import '../screens/intro_screen.dart';
 
@@ -55,30 +57,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder:
-          (context) => Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Select Currency',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                ..._currencies.map((code) {
-                  return ListTile(
-                    leading: Text(
-                      _currencyFlags[code] ?? '',
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                    title: Text('$code  (${_currencySymbols[code]})'),
-                    onTap: () => Navigator.pop(context, code),
-                  );
-                }),
-              ],
+      builder: (context) => Padding(
+        padding: const EdgeInsets.only(top: 16, bottom: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select Currency',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-          ),
+            const Divider(),
+            ..._currencies.map((code) {
+              return ListTile(
+                leading: Text(
+                  _currencyFlags[code] ?? '',
+                  style: const TextStyle(fontSize: 24),
+                ),
+                title: Text('$code  (${_currencySymbols[code]})'),
+                onTap: () => Navigator.pop(context, code),
+              );
+            }),
+          ],
+        ),
+      ),
     );
 
     if (selected != null && selected != _selectedCurrency) {
@@ -99,25 +100,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _confirmLogout() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Log out?'),
-            content: const Text('You will need to sign in again to continue.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text(
-                  'Log out',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You will need to sign in again to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
 
     if (ok == true) {
@@ -142,9 +139,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
       {
         'icon': Icons.lock,
-        'title': 'Privacy',
-        'subtitle': 'Privacy preferences',
-        'onTap': () {},
+        'title': 'Blocked users',
+        'subtitle': 'Manage blocked accounts',
+        'onTap': () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const BlockedUsersScreen())),
       },
       {
         'icon': Icons.info_outline,

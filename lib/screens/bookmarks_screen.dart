@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/services/bookmark_service.dart';
 import 'package:easespotter/screens/product_details_screen.dart';
 import 'package:easespotter/services/currency_formatting.dart';
+import 'package:easespotter/services/stock_display.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 import 'package:easespotter/widgets/product_image_view.dart';
@@ -26,8 +27,6 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
   bool _searchOpen = false;
   final TextEditingController _searchController = TextEditingController();
 
-  // Track if user tapped UNDO for a given deletion
-  bool _didUndoLastDelete = false;
   final Set<String> _armedDeleteKeys = {};
   final Map<String, double> _deleteDragProgress = {};
 
@@ -109,29 +108,37 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     setState(() => _bookmarks.removeAt(originalIndex));
     _armedDeleteKeys.remove(key);
     _deleteDragProgress.remove(key);
-    _didUndoLastDelete = false;
+    var didUndo = false;
+    await _bookmarkService.removeBookmark(item);
 
-    final snackBarController = ScaffoldMessenger.of(context).showSnackBar(
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final messenger = ScaffoldMessenger.of(context);
+    ScaffoldFeatureController<SnackBar, SnackBarClosedReason>?
+    snackBarController;
+    snackBarController = messenger.showSnackBar(
       SnackBar(
         content: Text('“${item['name']}” removed'),
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'UNDO',
-          onPressed: () {
-            _didUndoLastDelete = true;
-            setState(() => _bookmarks.insert(originalIndex, item));
+          onPressed: () async {
+            didUndo = true;
+            final insertIndex = originalIndex.clamp(0, _bookmarks.length);
+            setState(() => _bookmarks.insert(insertIndex, item));
+            await _bookmarkService.saveBookmarks(_bookmarks);
+            snackBarController?.close();
           },
         ),
       ),
     );
 
-    await snackBarController.closed;
-
-    if (!_didUndoLastDelete) {
-      await _bookmarkService.removeBookmark(item);
+    Future<void>.delayed(const Duration(seconds: 4), () async {
+      if (!mounted || didUndo) return;
+      snackBarController?.close();
       await _loadBookmarks();
-    }
+    });
   }
 
   String _bookmarkKey(Map<String, dynamic> item) {
@@ -456,14 +463,26 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       if (product == null) continue;
 
       final imageUrl = _imageUrlFromItem(product);
-      if (imageUrl.isEmpty) continue;
-      if (imageUrl == _imageUrlFromItem(item)) continue;
+      if (imageUrl.isNotEmpty && imageUrl != _imageUrlFromItem(item)) {
+        item['imageUrl'] = imageUrl;
+        item['image'] = imageUrl;
+        item['productImageUrl'] = imageUrl;
+        item['thumbnailUrl'] = imageUrl;
+        updated = true;
+      }
 
-      item['imageUrl'] = imageUrl;
-      item['image'] = imageUrl;
-      item['productImageUrl'] = imageUrl;
-      item['thumbnailUrl'] = imageUrl;
-      updated = true;
+      for (final key in const [
+        'stock',
+        'currentStock',
+        'inStock',
+        'showStockCount',
+        'stockDisplayThreshold',
+      ]) {
+        if (!product.containsKey(key)) continue;
+        if (item[key] == product[key]) continue;
+        item[key] = product[key];
+        updated = true;
+      }
     }
 
     if (!updated || !mounted) return;
@@ -531,16 +550,36 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     Map<String, dynamic> bookmark,
     List<Map<String, dynamic>> products,
   ) {
+    final bookmarkId = _clean(bookmark['id'] ?? bookmark['productId']);
+    if (bookmarkId.isNotEmpty) {
+      for (final product in products) {
+        final productId = _clean(product['id'] ?? product['productId']);
+        if (productId == bookmarkId) return product;
+      }
+    }
+
+    final bookmarkBarcode = _clean(bookmark['barcode']);
+    if (bookmarkBarcode.isNotEmpty) {
+      for (final product in products) {
+        final productBarcode = _clean(product['barcode']);
+        if (productBarcode == bookmarkBarcode) return product;
+      }
+    }
+
     final bookmarkName = _clean(bookmark['name']);
     if (bookmarkName.isEmpty) return null;
 
-    final bookmarkPrice = _clean(bookmark['price']);
+    final bookmarkPrice = _cleanPrice(
+      bookmark['price'] ?? bookmark['unitPrice'],
+    );
     final bookmarkLocation = _clean(bookmark['location']);
 
     for (final product in products) {
       if (_clean(product['name']) != bookmarkName) continue;
 
-      final productPrice = _clean(product['price']);
+      final productPrice = _cleanPrice(
+        product['price'] ?? product['unitPrice'],
+      );
       if (bookmarkPrice.isNotEmpty &&
           productPrice.isNotEmpty &&
           bookmarkPrice != productPrice) {
@@ -579,6 +618,16 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     return (value ?? '').toString().trim().toLowerCase();
   }
 
+  String _cleanPrice(dynamic value) {
+    final raw = (value ?? '').toString().trim().toLowerCase();
+    if (raw.isEmpty || raw == 'null') return '';
+    final cleaned = raw
+        .replaceAll(RegExp(r'[^0-9.,-]'), '')
+        .replaceAll(',', '.');
+    final parsed = double.tryParse(cleaned);
+    return parsed == null ? cleaned : parsed.toStringAsFixed(2);
+  }
+
   Widget _bookmarkTile(Map<String, dynamic> item) {
     final name = (item['name'] ?? '').toString();
     final location = (item['location'] ?? '').toString();
@@ -586,6 +635,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     final price = CurrencyFormatting.formatPrice(
       item['price'] ?? item['unitPrice'],
       productData: item,
+    );
+    final stockText = StockDisplay.textFor(item);
+    debugPrint(
+      'Bookmark stock render: $name stock=${item['stock']} currentStock=${item['currentStock']} inStock=${item['inStock']} showStockCount=${item['showStockCount']} label=$stockText',
     );
     final logoUrl = _logoUrlFromItem(item);
     final keyStr = _bookmarkKey(item);
@@ -700,6 +753,31 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     ),
                                   ),
                                 ),
+                              if (stockText != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        stockText == 'Out of stock'
+                                            ? const Color(0xFFFFEBEE)
+                                            : const Color(0xFFEFF7F5),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    stockText,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color:
+                                          stockText == 'Out of stock'
+                                              ? Colors.red.shade700
+                                              : Colors.teal.shade700,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -754,10 +832,10 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.06)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
@@ -816,7 +894,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               child: Divider(
                 height: 1,
                 thickness: 1,
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
               ),
             ),
             for (final item in items) _bookmarkTile(item),
@@ -862,7 +940,9 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                   cursorColor: Colors.white,
                   decoration: InputDecoration(
                     hintText: 'Search bookmarks...',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.75)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
                     border: InputBorder.none,
                   ),
                 )

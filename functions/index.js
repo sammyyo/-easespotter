@@ -17,6 +17,21 @@ const db = getFirestore();
 // --- Helpers ---
 
 /**
+ * Check whether either user has blocked the other.
+ * @param {string} a First user.
+ * @param {string} b Second user.
+ * @return {Promise<boolean>} Whether contact is blocked.
+ */
+async function contactBlocked(a, b) {
+  if (!a || !b || a === b) return false;
+  const docs = await db.getAll(
+      db.doc(`users/${a}/blockedUsers/${b}`),
+      db.doc(`users/${b}/blockedUsers/${a}`),
+  );
+  return docs.some((doc) => doc.exists);
+}
+
+/**
  * Create a short preview of text.
  * @param {string} text - The message text.
  * @param {number} max - Maximum length.
@@ -66,6 +81,7 @@ async function getActorInfo(uid) {
  */
 async function sendNotification(recipientUid, payload) {
   if (!recipientUid) return;
+  if (await contactBlocked(recipientUid, payload.actorUid)) return;
   try {
     await db.collection("users")
         .doc(recipientUid)
@@ -263,7 +279,10 @@ exports.onMessageCreateNotifyRecipient = onDocumentCreated(
       }
 
       // Filter out sender
-      const recipients = participants.filter((uid) => uid !== senderId);
+      const candidates = participants.filter((uid) => uid !== senderId);
+      const permitted = await Promise.all(candidates.map(async (uid) =>
+        (await contactBlocked(uid, senderId)) ? null : uid));
+      const recipients = permitted.filter((uid) => uid !== null);
       if (recipients.length === 0) return;
 
       // Get Sender Info
@@ -332,7 +351,7 @@ exports.onGlowUpComment = onDocumentCreated(
         actorAvatarUrl: actor.avatarUrl,
         itemType: "glowup",
         itemId: glowUpId,
-        message: `${actor.name} commented on your glow-up: "${textPreview}"`,
+        message: `${actor.name} commented on your Taste: "${textPreview}"`,
       });
     },
 );
@@ -348,7 +367,7 @@ exports.onRecipeComment = onDocumentCreated(
 
       const comment = snap.data();
       const recipeId = event.params.recipeId;
-      const authorUid = comment.uid;
+      const authorUid = comment.userId || comment.uid;
 
       const recipeSnap = await db.collection("recipes").doc(recipeId).get();
       if (!recipeSnap.exists) return;
@@ -359,7 +378,7 @@ exports.onRecipeComment = onDocumentCreated(
       if (!ownerUid || ownerUid === authorUid) return;
 
       const actor = await getActorInfo(authorUid);
-      const textPreview = preview(comment.text, 50);
+      const textPreview = preview(comment.content || comment.text, 50);
 
       await sendNotification(ownerUid, {
         type: "comment",
@@ -425,7 +444,7 @@ exports.onReelComment = onDocumentCreated(
         actorAvatarUrl: actor.avatarUrl,
         itemType: "reel",
         itemId: reelId,
-        message: `${actor.name} commented on your reel: "${textPreview}"`,
+        message: `${actor.name} commented on your bite: "${textPreview}"`,
       });
     },
 );
@@ -497,6 +516,8 @@ exports.onGlowUpReaction = onDocumentUpdated(
 
       for (const actorUid of addedUids) {
         if (actorUid === ownerUid) continue;
+        // eslint-disable-next-line no-await-in-loop
+        if (await contactBlocked(actorUid, ownerUid)) continue;
 
         // eslint-disable-next-line no-await-in-loop
         const actor = await getActorInfo(actorUid);
@@ -513,7 +534,7 @@ exports.onGlowUpReaction = onDocumentUpdated(
           actorAvatarUrl: actor.avatarUrl,
           itemType: "glowup",
           itemId: event.params.glowUpId,
-          message: `${actor.name} liked your glow-up`,
+          message: `${actor.name} liked your Taste`,
           createdAt: FieldValue.serverTimestamp(),
           isRead: false,
         });
@@ -551,6 +572,8 @@ exports.onReelReaction = onDocumentUpdated(
 
       for (const actorUid of addedUids) {
         if (actorUid === ownerUid) continue;
+        // eslint-disable-next-line no-await-in-loop
+        if (await contactBlocked(actorUid, ownerUid)) continue;
 
         // eslint-disable-next-line no-await-in-loop
         const actor = await getActorInfo(actorUid);
@@ -566,7 +589,7 @@ exports.onReelReaction = onDocumentUpdated(
           actorAvatarUrl: actor.avatarUrl,
           itemType: "reel",
           itemId: event.params.reelId,
-          message: `${actor.name} liked your reel`,
+          message: `${actor.name} liked your bite`,
           createdAt: FieldValue.serverTimestamp(),
           isRead: false,
         });
@@ -607,4 +630,12 @@ exports.onReelViewCreated = onDocumentCreated(
         updatedAt: FieldValue.serverTimestamp(),
       }, {merge: true});
     },
+);
+
+// Grocery list invites and writes are validated server-side.
+const {onCall} = require("firebase-functions/v2/https");
+const {handleGroceryCollaboration} = require("./grocery_collaboration");
+exports.groceryCollaboration = onCall(
+    {region: "us-central1", timeoutSeconds: 30, maxInstances: 20},
+    (request) => handleGroceryCollaboration(db, request),
 );

@@ -7,6 +7,58 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:171701293716:android:5490e9216a38db49731a81",
+        "android_client_info": {
+          "package_name": "com.easespotter.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "171701293716-86cntl4u5ju1jlhmrqjc2adhmdv92im4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.easespotter.app",
+            "certificate_hash": "df694d7110b7a116c287ab5960ae5c80477f9c05"
+          }
+        },
+        {
+          "client_id": "171701293716-g0qss982lvmgik887su8pn8hhtb3nuh7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.easespotter.app",
+            "certificate_hash": "b52fa756077969cee65b0e5871ee362c6fb97592"
+          }
+        },
+        {
+          "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1lXnFfGfr2ff6iDvwIYNlpukA-Ubn168"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.samuel.easespotter"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:171701293716:android:e28725cc2e2bd44b731a81",
         "android_client_info": {
           "package_name": "com.example.easespotter"
@@ -39,10 +91,46 @@
               "client_type": 3
             },
             {
-              "client_id": "171701293716-g0mr4tbrl1c8n4bpk0ci1vnivlf29fd1.apps.googleusercontent.com",
+              "client_id": "171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.easespotter"
+                "bundle_id": "com.samuel.easespotter"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:171701293716:android:0bea5701bbd5546c731a81",
+        "android_client_info": {
+          "package_name": "com.samuel.easespotter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1lXnFfGfr2ff6iDvwIYNlpukA-Ubn168"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "171701293716-u0huit1kubtgkmiqjpn74c4thsmvfrbp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "171701293716-5rbghq9b1o9f37bgsnsvj3l0v4u47thn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.samuel.easespotter"
               }
             }
           ]

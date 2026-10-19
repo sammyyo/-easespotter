@@ -1,3 +1,5 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -29,20 +31,18 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
   }
 
   Future<void> _loadReactions() async {
-    final doc =
-        await FirebaseFirestore.instance
-            .collection('glowups')
-            .doc(widget.glowUpId)
-            .get();
+    final doc = await FirebaseFirestore.instance
+        .collection('glowups')
+        .doc(widget.glowUpId)
+        .get();
 
     if (!doc.exists) return;
     final data = doc.data();
     if (data == null) return;
 
-    final List<String> serverLikedBy =
-        (data['likedBy'] is Iterable)
-            ? List<String>.from(data['likedBy'])
-            : <String>[];
+    final List<String> serverLikedBy = (data['likedBy'] is Iterable)
+        ? List<String>.from(data['likedBy'])
+        : <String>[];
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (mounted) {
@@ -135,27 +135,29 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        actions: [
+          PostSafetyMenu(collection: 'glowups', postId: widget.glowUpId),
+        ],
         backgroundColor: const Color(0xFF006677),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
         systemOverlayStyle: SystemUiOverlayStyle.light,
         title: const Text(
-          'Glow-Up Story',
+          'Taste',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future:
-            FirebaseFirestore.instance
-                .collection('glowups')
-                .doc(widget.glowUpId)
-                .get(),
+        future: FirebaseFirestore.instance
+            .collection('glowups')
+            .doc(widget.glowUpId)
+            .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('This Glow-Up was not found.'));
+            return const Center(child: Text('This Taste was not found.'));
           }
 
           final raw = snapshot.data!.data() as Map<String, dynamic>? ?? {};
@@ -164,166 +166,167 @@ class _GlowUpDetailScreenState extends State<GlowUpDetailScreen> {
           final description = (raw['description'] ?? '').toString();
           final authorUid = (raw['authorUid'] ?? '').toString();
           final hotness = (raw['hotness'] ?? 0) as int;
-          final createdAt =
-              (raw['createdAt'] is Timestamp)
-                  ? (raw['createdAt'] as Timestamp).toDate()
-                  : null;
+          final createdAt = (raw['createdAt'] is Timestamp)
+              ? (raw['createdAt'] as Timestamp).toDate()
+              : null;
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (imageUrl.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(imageUrl, fit: BoxFit.cover),
-                  ),
-                const SizedBox(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(40),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [AttributionTag(uid: authorUid)],
-                      ),
+          return SafetyContent(
+            uid: SafetyService.ownerOf(raw),
+            showNotice: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (imageUrl.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(imageUrl, fit: BoxFit.cover),
                     ),
-                    const Spacer(),
-                    if (createdAt != null)
-                      Text(
-                        _timeAgo(createdAt),
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
+                  const SizedBox(height: 20),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [AttributionTag(uid: authorUid)],
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  title.isEmpty ? 'Untitled Glow-Up' : title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                      const Spacer(),
+                      if (createdAt != null)
+                        Text(
+                          _timeAgo(createdAt),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  description.isEmpty
-                      ? 'No description provided.'
-                      : description,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(-8, 0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: isLiked ? 'Unlike' : 'Like',
-                            splashRadius: 20,
-                            icon: AnimatedScale(
-                              scale: isLiked ? 1.15 : 1.0,
-                              duration: const Duration(milliseconds: 150),
-                              child: Icon(
-                                isLiked
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: isLiked ? Colors.red : Colors.grey,
+                  const SizedBox(height: 10),
+                  Text(
+                    title.isEmpty ? 'Untitled Taste' : title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    description.isEmpty
+                        ? 'No description provided.'
+                        : description,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Transform.translate(
+                        offset: const Offset(-8, 0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: isLiked ? 'Unlike' : 'Like',
+                              splashRadius: 20,
+                              icon: AnimatedScale(
+                                scale: isLiked ? 1.15 : 1.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: Icon(
+                                  isLiked
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: isLiked ? Colors.red : Colors.grey,
+                                ),
+                              ),
+                              onPressed: _toggleLike,
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              transitionBuilder: (child, anim) =>
+                                  ScaleTransition(scale: anim, child: child),
+                              child: Text(
+                                '${likedBy.length}',
+                                key: ValueKey<int>(likedBy.length),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                            onPressed: _toggleLike,
-                          ),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 180),
-                            transitionBuilder:
-                                (child, anim) =>
-                                    ScaleTransition(scale: anim, child: child),
+                            if (likedBy.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              AvatarStack(uids: likedBy, size: 22, overlap: 10),
+                            ],
+                            if (hotness > 0) ...[
+                              const SizedBox(width: 12),
+                              const FaIcon(
+                                FontAwesomeIcons.fire,
+                                color: Colors.orange,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                hotness.toString(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Comments',
+                        splashRadius: 20,
+                        icon: const FaIcon(
+                          FontAwesomeIcons.comment,
+                          size: 20,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () => _openCommentsSheet(authorUid),
+                      ),
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .doc('glowups/${widget.glowUpId}')
+                            .collection('comments')
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData || snapshot.data!.size == 0) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(left: 4.0),
                             child: Text(
-                              '${likedBy.length}',
-                              key: ValueKey<int>(likedBy.length),
+                              snapshot.data!.size.toString(),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                          if (likedBy.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            AvatarStack(uids: likedBy, size: 22, overlap: 10),
-                          ],
-                          if (hotness > 0) ...[
-                            const SizedBox(width: 12),
-                            const Icon(
-                              FontAwesomeIcons.fire,
-                              color: Colors.orange,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              hotness.toString(),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
+                          );
+                        },
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Comments',
-                      splashRadius: 20,
-                      icon: const FaIcon(
-                        FontAwesomeIcons.comment,
-                        size: 20,
-                        color: Colors.grey,
+                      IconButton(
+                        tooltip: 'Share',
+                        splashRadius: 20,
+                        icon: const FaIcon(FontAwesomeIcons.share, size: 20),
+                        onPressed: _shareGlowUp,
                       ),
-                      onPressed: () => _openCommentsSheet(authorUid),
-                    ),
-                    StreamBuilder<QuerySnapshot>(
-                      stream:
-                          FirebaseFirestore.instance
-                              .doc('glowups/${widget.glowUpId}')
-                              .collection('comments')
-                              .snapshots(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData || snapshot.data!.size == 0) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(left: 4.0),
-                          child: Text(
-                            snapshot.data!.size.toString(),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      tooltip: 'Share',
-                      splashRadius: 20,
-                      icon: const FaIcon(FontAwesomeIcons.share, size: 20),
-                      onPressed: _shareGlowUp,
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -473,11 +476,10 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                     ),
                   ),
                   TextButton(
-                    onPressed:
-                        () => setState(() {
-                          replyingToCommentId = null;
-                          replyingToName = null;
-                        }),
+                    onPressed: () => setState(() {
+                      replyingToCommentId = null;
+                      replyingToName = null;
+                    }),
                     child: const Text('Cancel'),
                   ),
                 ],
@@ -501,10 +503,9 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest
                           .withValues(
-                            alpha:
-                                theme.brightness == Brightness.dark
-                                    ? 0.35
-                                    : 0.6,
+                            alpha: theme.brightness == Brightness.dark
+                                ? 0.35
+                                : 0.6,
                           ),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
@@ -529,10 +530,9 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                             minLines: 1,
                             maxLines: 4,
                             decoration: InputDecoration(
-                              hintText:
-                                  replyingToCommentId == null
-                                      ? 'Leave a comment...'
-                                      : 'Write a reply...',
+                              hintText: replyingToCommentId == null
+                                  ? 'Leave a comment...'
+                                  : 'Write a reply...',
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
@@ -549,17 +549,13 @@ class _GlowUpCommentsSheetState extends State<_GlowUpCommentsSheet> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: sending ? null : send,
-                  icon:
-                      sending
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : Icon(
-                            Icons.send,
-                            color: Theme.of(context).primaryColor,
-                          ),
+                  icon: sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.send, color: Theme.of(context).primaryColor),
                 ),
               ],
             ),

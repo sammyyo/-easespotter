@@ -1,7 +1,9 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+
 import './profile/profile_cache.dart';
 import '../screens/social_profile_screen.dart';
 
@@ -220,20 +222,18 @@ class _CommentTileState extends State<_CommentTile>
                       Expanded(
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor:
-                                understood
-                                    ? Colors.red
-                                    : Colors.red.withOpacity(0.5),
+                            backgroundColor: understood
+                                ? Colors.red
+                                : Colors.red.withOpacity(0.5),
                             foregroundColor: Colors.white,
                           ),
-                          onPressed:
-                              understood
-                                  ? () async {
-                                    HapticFeedback.mediumImpact();
-                                    Navigator.of(ctx).pop();
-                                    await widget.commentDoc.reference.delete();
-                                  }
-                                  : null,
+                          onPressed: understood
+                              ? () async {
+                                  HapticFeedback.mediumImpact();
+                                  Navigator.of(ctx).pop();
+                                  await widget.commentDoc.reference.delete();
+                                }
+                              : null,
                           child: const Text('Delete'),
                         ),
                       ),
@@ -253,7 +253,7 @@ class _CommentTileState extends State<_CommentTile>
     super.build(context);
 
     final data = widget.commentDoc.data() as Map<String, dynamic>;
-    final uid = (data['userId'] ?? data['uid'] ?? '').toString();
+    final uid = (data['uid'] ?? data['userId'] ?? '').toString();
     final text = (data['text'] ?? '').toString();
     final timeLabel = _timeLabelFromTs(data['createdAt']);
     final upvotedBy = List<String>.from(data['upvotedBy'] ?? []);
@@ -269,8 +269,9 @@ class _CommentTileState extends State<_CommentTile>
     const gap = 10.0;
     const leftIndent = avatarSize + gap;
 
-    final repliesStream =
-        widget.commentDoc.reference.collection('replies').snapshots();
+    final repliesStream = widget.commentDoc.reference
+        .collection('replies')
+        .snapshots();
 
     final commentBody = StreamBuilder<UserProfile>(
       stream: FirebaseFirestore.instance
@@ -320,24 +321,25 @@ class _CommentTileState extends State<_CommentTile>
                         children: [
                           CircleAvatar(
                             radius: avatarRadius,
-                            backgroundColor: Theme.of(
-                              context,
-                            ).colorScheme.secondary.withOpacity(0.12),
-                            backgroundImage:
-                                hasImage ? NetworkImage(p.avatarUrl) : null,
-                            child:
-                                hasImage
-                                    ? null
-                                    : Text(
-                                      (name.trim().isNotEmpty
-                                              ? name.trim().characters.first
-                                              : 'U')
-                                          .toUpperCase(),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .secondary
+                                .withOpacity(0.12),
+                            backgroundImage: hasImage
+                                ? NetworkImage(p.avatarUrl)
+                                : null,
+                            child: hasImage
+                                ? null
+                                : Text(
+                                    (name.trim().isNotEmpty
+                                            ? name.trim().characters.first
+                                            : 'U')
+                                        .toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                     ),
+                                  ),
                           ),
                           const SizedBox(width: gap),
                           ConstrainedBox(
@@ -439,8 +441,8 @@ class _CommentTileState extends State<_CommentTile>
                           minimumSize: const Size(0, 0),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        onPressed:
-                            () => setState(() => _showReplies = !_showReplies),
+                        onPressed: () =>
+                            setState(() => _showReplies = !_showReplies),
                         child: Text(
                           _showReplies
                               ? 'Hide replies ($count)'
@@ -464,27 +466,28 @@ class _CommentTileState extends State<_CommentTile>
       },
     );
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onLongPress:
-          canDelete
-              ? () => _showDeleteSheet(
+    return SafetyContent(
+      uid: uid,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: canDelete
+            ? () => _showDeleteSheet(
                 context,
                 widget.parentPath,
                 widget.commentDoc.id,
               )
-              : null,
-      onSecondaryTapDown:
-          canDelete
-              ? (_) => _showDeleteSheet(
+            : null,
+        onSecondaryTapDown: canDelete
+            ? (_) => _showDeleteSheet(
                 context,
                 widget.parentPath,
                 widget.commentDoc.id,
               )
-              : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: commentBody,
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: commentBody,
+        ),
       ),
     );
   }
@@ -504,14 +507,13 @@ class _RepliesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream =
-        FirebaseFirestore.instance
-            .doc(parentPath)
-            .collection('comments')
-            .doc(commentId)
-            .collection('replies')
-            .orderBy('createdAt', descending: false)
-            .snapshots();
+    final stream = FirebaseFirestore.instance
+        .doc(parentPath)
+        .collection('comments')
+        .doc(commentId)
+        .collection('replies')
+        .orderBy('createdAt', descending: false)
+        .snapshots();
 
     final replyIndent = parentLeftIndent + 24;
 
@@ -523,18 +525,17 @@ class _RepliesList extends StatelessWidget {
         return Padding(
           padding: EdgeInsets.only(left: parentLeftIndent),
           child: Column(
-            children:
-                docs.map((doc) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 6),
-                    child: _ReplyTile(
-                      parentPath: parentPath,
-                      commentId: commentId,
-                      replyDoc: doc,
-                      leftIndent: replyIndent,
-                    ),
-                  );
-                }).toList(),
+            children: docs.map((doc) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 6),
+                child: _ReplyTile(
+                  parentPath: parentPath,
+                  commentId: commentId,
+                  replyDoc: doc,
+                  leftIndent: replyIndent,
+                ),
+              );
+            }).toList(),
           ),
         );
       },
@@ -604,61 +605,63 @@ class _ReplyTile extends StatelessWidget {
 
     final cached = ProfileCache.peek(uid);
 
-    return StreamBuilder<UserProfile>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .snapshots()
-          .map((d) => UserProfile.fromDoc(uid, d.data())),
-      initialData: cached,
-      builder: (context, snapshot) {
-        final p =
-            snapshot.data ??
-            UserProfile(uid: uid, displayName: '', avatarUrl: '');
-        if (snapshot.hasData) ProfileCache.putMany([p]);
+    return SafetyContent(
+      uid: uid.toString(),
+      child: StreamBuilder<UserProfile>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .snapshots()
+            .map((d) => UserProfile.fromDoc(uid, d.data())),
+        initialData: cached,
+        builder: (context, snapshot) {
+          final p =
+              snapshot.data ??
+              UserProfile(uid: uid, displayName: '', avatarUrl: '');
+          if (snapshot.hasData) ProfileCache.putMany([p]);
 
-        final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
-        final hasImage = p.avatarUrl.isNotEmpty;
+          final name = p.displayName.isNotEmpty ? p.displayName : 'Someone';
+          final hasImage = p.avatarUrl.isNotEmpty;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // HEADER (avatar + name + time + like)
-            SizedBox(
-              height: avatarSize,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // ✅ Wrap Reply Avatar/Name in InkWell
-                  InkWell(
-                    onTap: () async {
-                      if (uid.isNotEmpty) {
-                        await SocialProfileScreen.open(
-                          context,
-                          viewedUid: uid,
-                          initialProfileHint: {
-                            'displayName': name,
-                            'avatarUrl': p.avatarUrl,
-                          },
-                        );
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4.0,
-                        vertical: 2.0,
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: avatarRadius,
-                            backgroundImage:
-                                hasImage ? NetworkImage(p.avatarUrl) : null,
-                            child:
-                                hasImage
-                                    ? null
-                                    : Text(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // HEADER (avatar + name + time + like)
+              SizedBox(
+                height: avatarSize,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // ✅ Wrap Reply Avatar/Name in InkWell
+                    InkWell(
+                      onTap: () async {
+                        if (uid.isNotEmpty) {
+                          await SocialProfileScreen.open(
+                            context,
+                            viewedUid: uid,
+                            initialProfileHint: {
+                              'displayName': name,
+                              'avatarUrl': p.avatarUrl,
+                            },
+                          );
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4.0,
+                          vertical: 2.0,
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: avatarRadius,
+                              backgroundImage: hasImage
+                                  ? NetworkImage(p.avatarUrl)
+                                  : null,
+                              child: hasImage
+                                  ? null
+                                  : Text(
                                       (name.trim().isNotEmpty
                                               ? name.trim().characters.first
                                               : 'U')
@@ -668,69 +671,69 @@ class _ReplyTile extends StatelessWidget {
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                          ),
-                          const SizedBox(width: gap),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 130),
-                            child: Text(
-                              name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: gap),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 130),
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    timeLabel,
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodySmall?.color,
-                      fontSize: 11,
+                    const SizedBox(width: 6),
+                    Text(
+                      timeLabel,
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
 
-                  const Spacer(),
-                  // LIKE BUTTON + COUNT FOR REPLY
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: isLiked ? 'Unlike' : 'Like',
-                    icon: Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                      color: isLiked ? Colors.red : Colors.grey,
-                      size: 16,
+                    const Spacer(),
+                    // LIKE BUTTON + COUNT FOR REPLY
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: isLiked ? 'Unlike' : 'Like',
+                      icon: Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        color: isLiked ? Colors.red : Colors.grey,
+                        size: 16,
+                      ),
+                      onPressed: currentUser == null
+                          ? null
+                          : () => _toggleReplyLike(isLiked),
                     ),
-                    onPressed:
-                        currentUser == null
-                            ? null
-                            : () => _toggleReplyLike(isLiked),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$likeCount',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(width: 4),
+                    Text(
+                      '$likeCount',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // BODY TEXT (indented under name, not under avatar)
-            Padding(
-              padding: EdgeInsets.only(left: avatarSize + gap),
-              child: Text(text),
-            ),
-          ],
-        );
-      },
+              // BODY TEXT (indented under name, not under avatar)
+              Padding(
+                padding: EdgeInsets.only(left: avatarSize + gap),
+                child: Text(text),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

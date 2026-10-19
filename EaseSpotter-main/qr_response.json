@@ -1,0 +1,168 @@
+{
+  "success": true,
+  "data": {
+    "totalProducts": 8,
+    "timestamp": "2025-05-05T19:36:39.865Z",
+    "vendorId": 1,
+    "vendorName": "ShafN",
+    "logoUrl": "https://easespotter.com/logos/vendor-1.png",
+    "productsByCategory": {
+      "Soda": [
+        {
+          "id": 7,
+          "name": "Coca Cola",
+          "price": "2.50",
+          "location": {
+            "aisle": "15",
+            "shelf": "98"
+          },
+          "vendor": "ShafN"
+        },
+        {
+          "id": 9,
+          "name": "Coca Cola",
+          "price": "250.00",
+          "location": {
+            "aisle": "15",
+            "shelf": "98"
+          },
+          "vendor": "ShafN"
+        }
+      ],
+      "Cloths": [
+        {
+          "id": 13,
+          "name": "Gucci Bag",
+          "price": "1.49",
+          "location": {
+            "aisle": "22",
+            "shelf": "90"
+          },
+          "vendor": "ShafN"
+        }
+      ],
+      "Eletronic": [
+        {
+          "id": 6,
+          "name": "phone",
+          "price": "1.29",
+          "location": {
+            "aisle": "4",
+            "shelf": "10"
+          },
+          "vendor": "ShafN"
+        },
+        {
+          "id": 8,
+          "name": "washing machine",
+          "price": "348.89",
+          "location": {
+            "aisle": "4",
+            "shelf": "7"
+          },
+          "vendor": "ShafN"
+        },
+        {
+          "id": 10,
+          "name": "iphone 16 pro",
+          "price": "968.90",
+          "location": {
+            "aisle": "4",
+            "shelf": "80"
+          },
+          "vendor": "ShafN"
+        }
+      ],
+      "milk": [
+        {
+          "id": 5,
+          "name": "Milk",
+          "price": "0.04",
+          "location": {
+            "aisle": "4",
+            "shelf": "666"
+          },
+          "vendor": "ShafN"
+        }
+      ],
+      "Books": [
+        {
+          "id": 14,
+          "name": "Good to Great",
+          "price": "29.99",
+          "location": {
+            "aisle": "8",
+            "shelf": "15"
+          },
+          "vendor": "ShafN"
+        }
+      ]
+    },
+    "productsByAisle": {
+      "4": [
+        {
+          "id": 6,
+          "name": "phone",
+          "price": "1.29",
+          "shelf": "10",
+          "category": "Eletronic"
+        },
+        {
+          "id": 5,
+          "name": "Milk",
+          "price": "0.04",
+          "shelf": "666",
+          "category": "milk"
+        },
+        {
+          "id": 8,
+          "name": "washing machine",
+          "price": "348.89",
+          "shelf": "7",
+          "category": "Eletronic"
+        },
+        {
+          "id": 10,
+          "name": "iphone 16 pro",
+          "price": "968.90",
+          "shelf": "80",
+          "category": "Eletronic"
+        }
+      ],
+      "8": [
+        {
+          "id": 14,
+          "name": "Good to Great",
+          "price": "29.99",
+          "shelf": "15",
+          "category": "Books"
+        }
+      ],
+      "15": [
+        {
+          "id": 7,
+          "name": "Coca Cola",
+          "price": "2.50",
+          "shelf": "98",
+          "category": "Soda"
+        },
+        {
+          "id": 9,
+          "name": "Coca Cola",
+          "price": "250.00",
+          "shelf": "98",
+          "category": "Soda"
+        }
+      ],
+      "22": [
+        {
+          "id": 13,
+          "name": "Gucci Bag",
+          "price": "1.49",
+          "shelf": "90",
+          "category": "Cloths"
+        }
+      ]
+    }
+  }
+}

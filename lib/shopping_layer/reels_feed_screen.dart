@@ -1,3 +1,6 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,8 +21,9 @@ import 'recipe_detail_screen.dart';
 enum _ReelFeedMode { reels, following }
 
 bool _isRecipeReelData(Map<String, dynamic> data) {
-  final type =
-      (data['type'] ?? data['reelType'] ?? '').toString().toLowerCase();
+  final type = (data['type'] ?? data['reelType'] ?? '')
+      .toString()
+      .toLowerCase();
   final recipeId = (data['recipeId'] ?? '').toString().trim();
   return type == 'recipe' || recipeId.isNotEmpty;
 }
@@ -95,8 +99,10 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const [];
 
-    final snap =
-        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
     final raw = snap.data()?['following'];
     if (raw is! List) return const [];
 
@@ -146,10 +152,9 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
     }
 
     _pageController?.dispose();
-    final initialIndex =
-        widget.initialReelId == null
-            ? 0
-            : docs.indexWhere((doc) => doc.id == widget.initialReelId);
+    final initialIndex = widget.initialReelId == null
+        ? 0
+        : docs.indexWhere((doc) => doc.id == widget.initialReelId);
     _controllerKey = key;
     _activePageIndex = initialIndex < 0 ? 0 : initialIndex;
     _pageController = PageController(initialPage: _activePageIndex);
@@ -167,28 +172,25 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
-      body:
-          _mode == _ReelFeedMode.following
-              ? FutureBuilder<List<String>>(
-                future: _followingUids(),
-                builder: (context, snapshot) {
-                  final following = snapshot.data ?? const [];
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: const Color(0xFF006677),
-                      ),
-                    );
-                  }
-                  if (following.isEmpty) {
-                    return _emptyState('No following reels yet.');
-                  }
-                  return _feedStream(
-                    stream: _reelsStream(followingUids: following),
+      body: _mode == _ReelFeedMode.following
+          ? FutureBuilder<List<String>>(
+              future: _followingUids(),
+              builder: (context, snapshot) {
+                final following = snapshot.data ?? const [];
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF006677)),
                   );
-                },
-              )
-              : _feedStream(stream: _reelsStream()),
+                }
+                if (following.isEmpty) {
+                  return _emptyState('No following bites yet.');
+                }
+                return _feedStream(
+                  stream: _reelsStream(followingUids: following),
+                );
+              },
+            )
+          : _feedStream(stream: _reelsStream()),
     );
   }
 
@@ -200,7 +202,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: const Color(0xFF006677)),
+            child: CircularProgressIndicator(color: Color(0xFF006677)),
           );
         }
 
@@ -208,8 +210,8 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
         if (docs.isEmpty) {
           return _emptyState(
             _mode == _ReelFeedMode.following
-                ? 'No following reels yet.'
-                : 'No reels yet.',
+                ? 'No following bites yet.'
+                : 'No bites yet.',
           );
         }
 
@@ -224,10 +226,14 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
               },
               itemBuilder: (context, index) {
                 final doc = docs[index];
-                return _ReelPage(
-                  reelId: doc.id,
-                  data: doc.data(),
-                  isActive: index == _activePageIndex,
+                return SafetyContent(
+                  uid: SafetyService.ownerOf(doc.data()),
+                  showNotice: true,
+                  child: _ReelPage(
+                    reelId: doc.id,
+                    data: doc.data(),
+                    isActive: index == _activePageIndex,
+                  ),
                 );
               },
             ),
@@ -261,7 +267,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                           _ReelTabLabel(label: 'Explore', onTap: _openExplore),
                           const SizedBox(width: 24),
                           _ReelTabLabel(
-                            label: 'Reels',
+                            label: 'Bites',
                             selected: _mode == _ReelFeedMode.reels,
                             onTap: _showReels,
                           ),
@@ -276,7 +282,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                       Align(
                         alignment: Alignment.centerRight,
                         child: _TopOverlayButton(
-                          tooltip: 'New Reel',
+                          tooltip: 'New Bite',
                           icon: Icons.add_circle_outline,
                           onPressed: () {
                             Navigator.push(
@@ -332,7 +338,7 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> {
                   ),
                   child: const Icon(
                     Icons.video_collection_outlined,
-                    color: const Color(0xFF006677),
+                    color: Color(0xFF006677),
                     size: 34,
                   ),
                 ),
@@ -470,8 +476,8 @@ class _ReelPageState extends State<_ReelPage> {
 
   bool get _isOwner {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final ownerUid =
-        (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+    final ownerUid = (widget.data['uid'] ?? widget.data['authorUid'] ?? '')
+        .toString();
     return uid != null && uid == ownerUid;
   }
 
@@ -534,8 +540,8 @@ class _ReelPageState extends State<_ReelPage> {
 
   Future<void> _recordView() async {
     final viewerUid = FirebaseAuth.instance.currentUser?.uid;
-    final ownerUid =
-        (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+    final ownerUid = (widget.data['uid'] ?? widget.data['authorUid'] ?? '')
+        .toString();
     if (viewerUid == null ||
         viewerUid.isEmpty ||
         ownerUid.isEmpty ||
@@ -579,20 +585,19 @@ class _ReelPageState extends State<_ReelPage> {
     final isLiked = likedBy.contains(uid);
 
     await ref.update({
-      'likedBy':
-          isLiked
-              ? FieldValue.arrayRemove([uid])
-              : FieldValue.arrayUnion([uid]),
+      'likedBy': isLiked
+          ? FieldValue.arrayRemove([uid])
+          : FieldValue.arrayUnion([uid]),
       'likesCount': FieldValue.increment(isLiked ? -1 : 1),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
   Future<void> _shareReel() async {
-    final title = (widget.data['title'] ?? 'Reel').toString();
+    final title = (widget.data['title'] ?? 'Bite').toString();
     final link = 'https://www.easespotter.com/reels/${widget.reelId}';
     await SharePlus.instance.share(
-      ShareParams(text: 'Check out this EaseSpotter reel: $title\n$link'),
+      ShareParams(text: 'Check out this EaseSpotter bite: $title\n$link'),
     );
   }
 
@@ -612,7 +617,7 @@ class _ReelPageState extends State<_ReelPage> {
     if (ref == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Sign in to save reels.'),
+          content: Text('Sign in to save bites.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -625,8 +630,8 @@ class _ReelPageState extends State<_ReelPage> {
       if (isSaved) {
         await ref.delete();
       } else {
-        final ownerUid =
-            (widget.data['uid'] ?? widget.data['authorUid'] ?? '').toString();
+        final ownerUid = (widget.data['uid'] ?? widget.data['authorUid'] ?? '')
+            .toString();
         await ref.set({
           'reelId': widget.reelId,
           'ownerUid': ownerUid,
@@ -643,7 +648,7 @@ class _ReelPageState extends State<_ReelPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isSaved ? 'Reel removed from saved.' : 'Reel saved.'),
+          content: Text(isSaved ? 'Bite removed from saved.' : 'Bite saved.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -651,7 +656,7 @@ class _ReelPageState extends State<_ReelPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not update saved reel: $e'),
+          content: Text('Could not update saved bite: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -664,7 +669,7 @@ class _ReelPageState extends State<_ReelPage> {
     if (_groceryItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No grocery list attached to this reel.'),
+          content: Text('No grocery list attached to this bite.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -678,63 +683,62 @@ class _ReelPageState extends State<_ReelPage> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder:
-          (context) => SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.ios_share),
-                  title: const Text('Share Reel'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _shareReel();
-                  },
-                ),
-                if (savedRef == null)
-                  ListTile(
-                    leading: const Icon(Icons.bookmark_border),
-                    title: const Text('Save Reel'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _toggleSaveReel(isSaved: false);
-                    },
-                  )
-                else
-                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                    stream: savedRef.snapshots(),
-                    builder: (context, snapshot) {
-                      final isSaved = snapshot.data?.exists == true;
-                      return ListTile(
-                        leading: Icon(
-                          isSaved ? Icons.bookmark : Icons.bookmark_border,
-                        ),
-                        title: Text(isSaved ? 'Unsave Reel' : 'Save Reel'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _toggleSaveReel(isSaved: isSaved);
-                        },
-                      );
-                    },
-                  ),
-                if (_isOwner)
-                  ListTile(
-                    leading: const Icon(
-                      Icons.delete_outline,
-                      color: Color(0xFFE94560),
-                    ),
-                    title: const Text(
-                      'Delete Reel',
-                      style: TextStyle(color: Color(0xFFE94560)),
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _confirmDeleteReel();
-                    },
-                  ),
-              ],
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.ios_share),
+              title: const Text('Share Bite'),
+              onTap: () {
+                Navigator.pop(context);
+                _shareReel();
+              },
             ),
-          ),
+            if (savedRef == null)
+              ListTile(
+                leading: const Icon(Icons.bookmark_border),
+                title: const Text('Save Bite'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSaveReel(isSaved: false);
+                },
+              )
+            else
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: savedRef.snapshots(),
+                builder: (context, snapshot) {
+                  final isSaved = snapshot.data?.exists == true;
+                  return ListTile(
+                    leading: Icon(
+                      isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    ),
+                    title: Text(isSaved ? 'Unsave Bite' : 'Save Bite'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _toggleSaveReel(isSaved: isSaved);
+                    },
+                  );
+                },
+              ),
+            if (_isOwner)
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xFFE94560),
+                ),
+                title: const Text(
+                  'Delete Bite',
+                  style: TextStyle(color: Color(0xFFE94560)),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmDeleteReel();
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -743,26 +747,25 @@ class _ReelPageState extends State<_ReelPage> {
 
     final ok = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Delete reel?'),
-            content: const Text(
-              'This will permanently remove the reel, its video, and comments.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFE94560),
-                ),
-                child: const Text('Delete'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Delete bite?'),
+        content: const Text(
+          'This will permanently remove the bite, its video, and comments.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFE94560),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
     if (ok != true || !mounted) return;
@@ -781,7 +784,7 @@ class _ReelPageState extends State<_ReelPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Reel deleted.'),
+          content: Text('Bite deleted.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -790,7 +793,7 @@ class _ReelPageState extends State<_ReelPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not delete reel: $e'),
+          content: Text('Could not delete bite: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -804,17 +807,18 @@ class _ReelPageState extends State<_ReelPage> {
 
     const pageSize = 300;
     while (true) {
-      final comments =
-          await reelRef.collection('comments').limit(pageSize).get();
+      final comments = await reelRef
+          .collection('comments')
+          .limit(pageSize)
+          .get();
       if (comments.docs.isEmpty) break;
 
       for (final comment in comments.docs) {
         while (true) {
-          final replies =
-              await comment.reference
-                  .collection('replies')
-                  .limit(pageSize)
-                  .get();
+          final replies = await comment.reference
+              .collection('replies')
+              .limit(pageSize)
+              .get();
           if (replies.docs.isEmpty) break;
 
           final replyBatch = FirebaseFirestore.instance.batch();
@@ -856,20 +860,18 @@ class _ReelPageState extends State<_ReelPage> {
 
     try {
       final existing = await _groceryList.getList();
-      final existingNames =
-          existing
-              .map(
-                (item) => (item['title'] ?? '').toString().trim().toLowerCase(),
-              )
-              .where((name) => name.isNotEmpty)
-              .toSet();
+      final existingNames = existing
+          .map((item) => (item['title'] ?? '').toString().trim().toLowerCase())
+          .where((name) => name.isNotEmpty)
+          .toSet();
 
       int added = 0;
       for (final index in selected) {
         if (index < 0 || index >= sourceItems.length) continue;
         final source = sourceItems[index];
-        final title =
-            (source['title'] ?? source['name'] ?? '').toString().trim();
+        final title = (source['title'] ?? source['name'] ?? '')
+            .toString()
+            .trim();
         if (title.isEmpty) continue;
 
         final key = title.toLowerCase();
@@ -913,9 +915,8 @@ class _ReelPageState extends State<_ReelPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _savingGroceryItems = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save list: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not save list: $e')));
     }
   }
 
@@ -939,11 +940,10 @@ class _ReelPageState extends State<_ReelPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder:
-          (_) => _ReelCommentsSheet(
-            reelId: widget.reelId,
-            isRecipeReel: _isRecipeReel,
-          ),
+      builder: (_) => _ReelCommentsSheet(
+        reelId: widget.reelId,
+        isRecipeReel: _isRecipeReel,
+      ),
     );
   }
 
@@ -1031,7 +1031,18 @@ class _ReelPageState extends State<_ReelPage> {
             left: 16,
             right: 88,
             bottom: 26 + MediaQuery.of(context).padding.bottom,
-            child: _ReelTextOverlay(data: widget.data),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SafetyMenu(
+                  uid: SafetyService.ownerOf(widget.data),
+                  collection: 'reels',
+                  postId: widget.reelId,
+                ),
+                _ReelTextOverlay(data: widget.data),
+              ],
+            ),
           ),
           if (_groceryItems.isNotEmpty)
             Positioned(
@@ -1047,8 +1058,8 @@ class _ReelPageState extends State<_ReelPage> {
                 selectedIndexes: _currentGrocerySelection(),
                 saving: _savingGroceryItems,
                 saved: _grocerySaved,
-                onToggleExpanded:
-                    () => setState(() => _groceryExpanded = !_groceryExpanded),
+                onToggleExpanded: () =>
+                    setState(() => _groceryExpanded = !_groceryExpanded),
                 onToggleItem: (index) {
                   setState(() {
                     final selected = _currentGrocerySelection();
@@ -1106,12 +1117,12 @@ class _ReelPageState extends State<_ReelPage> {
                       return _ReelActionButton(
                         tooltip: isSaved ? 'Unsave' : 'Save',
                         icon: isSaved ? Icons.bookmark : Icons.bookmark_border,
-                        iconColor:
-                            isSaved ? const Color(0xFFFFB020) : Colors.white,
-                        onPressed:
-                            _savingReel
-                                ? () {}
-                                : () => _toggleSaveReel(isSaved: isSaved),
+                        iconColor: isSaved
+                            ? const Color(0xFFFFB020)
+                            : Colors.white,
+                        onPressed: _savingReel
+                            ? () {}
+                            : () => _toggleSaveReel(isSaved: isSaved),
                       );
                     },
                   ),
@@ -1299,12 +1310,11 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
         await batch.commit();
       } else {
         final batch = FirebaseFirestore.instance.batch();
-        final replyRef =
-            reelRef
-                .collection('comments')
-                .doc(_replyingToCommentId)
-                .collection('replies')
-                .doc();
+        final replyRef = reelRef
+            .collection('comments')
+            .doc(_replyingToCommentId)
+            .collection('replies')
+            .doc();
         batch.set(replyRef, {
           'uid': user.uid,
           'text': text,
@@ -1405,8 +1415,8 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
                   const SizedBox(width: 10),
                   _RecipeRatingPicker(
                     rating: _selectedRating,
-                    onChanged:
-                        (rating) => setState(() => _selectedRating = rating),
+                    onChanged: (rating) =>
+                        setState(() => _selectedRating = rating),
                   ),
                 ],
               ),
@@ -1450,10 +1460,9 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
                             minLines: 1,
                             maxLines: 4,
                             decoration: InputDecoration(
-                              hintText:
-                                  _replyingToCommentId == null
-                                      ? 'Leave a comment...'
-                                      : 'Write a reply...',
+                              hintText: _replyingToCommentId == null
+                                  ? 'Leave a comment...'
+                                  : 'Write a reply...',
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
@@ -1470,17 +1479,13 @@ class _ReelCommentsSheetState extends State<_ReelCommentsSheet> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: _sending ? null : _send,
-                  icon:
-                      _sending
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Icon(
-                            Icons.send,
-                            color: const Color(0xFF006677),
-                          ),
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send, color: Color(0xFF006677)),
                 ),
               ],
             ),
@@ -1551,10 +1556,9 @@ class _GroceryListOverlay extends StatelessWidget {
       curve: Curves.easeOutCubic,
       height: expanded ? MediaQuery.of(context).size.height * 0.48 : 58,
       decoration: BoxDecoration(
-        color:
-            expanded
-                ? Colors.white.withValues(alpha: 0.96)
-                : Colors.white.withValues(alpha: 0.20),
+        color: expanded
+            ? Colors.white.withValues(alpha: 0.96)
+            : Colors.white.withValues(alpha: 0.20),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.34)),
         boxShadow: [
@@ -1586,7 +1590,7 @@ class _GroceryListOverlay extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.shopping_bag_outlined,
-                color: const Color(0xFF006677),
+                color: Color(0xFF006677),
               ),
             ),
             const SizedBox(width: 10),
@@ -1612,7 +1616,7 @@ class _GroceryListOverlay extends StatelessWidget {
               child: const Text(
                 'View & Save',
                 style: TextStyle(
-                  color: const Color(0xFF006677),
+                  color: Color(0xFF006677),
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -1633,10 +1637,7 @@ class _GroceryListOverlay extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 8),
           child: Row(
             children: [
-              const Icon(
-                Icons.checklist_rounded,
-                color: const Color(0xFF006677),
-              ),
+              const Icon(Icons.checklist_rounded, color: Color(0xFF006677)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1644,7 +1645,7 @@ class _GroceryListOverlay extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: const Color(0xFF006677),
+                    color: Color(0xFF006677),
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
                   ),
@@ -1664,22 +1665,20 @@ class _GroceryListOverlay extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: selectedCount == 0 || saving ? null : onSave,
-              icon:
-                  saving
-                      ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                      : Icon(
-                        saved ? Icons.check_circle : Icons.playlist_add_check,
-                      ),
+              icon: saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(saved ? Icons.check_circle : Icons.playlist_add_check),
               label: Text(
                 saved ? 'Added to My Lists' : 'Add $selectedCount to My Lists',
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    saved ? const Color(0xFF1B8A4B) : const Color(0xFF006677),
+                backgroundColor: saved
+                    ? const Color(0xFF1B8A4B)
+                    : const Color(0xFF006677),
                 foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(42),
                 shape: RoundedRectangleBorder(
@@ -1697,8 +1696,9 @@ class _GroceryListOverlay extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 4),
             itemBuilder: (context, index) {
               final item = items[index];
-              final name =
-                  (item['title'] ?? item['name'] ?? 'Item').toString().trim();
+              final name = (item['title'] ?? item['name'] ?? 'Item')
+                  .toString()
+                  .trim();
               final location =
                   (item['location'] ?? item['aisle'] ?? item['storeName'] ?? '')
                       .toString()
@@ -1717,33 +1717,32 @@ class _GroceryListOverlay extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                subtitle:
-                    location.isEmpty
-                        ? null
-                        : Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF0EBFF),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: const Color(0xFF006677),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                              ),
+                subtitle: location.isEmpty
+                    ? null
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0EBFF),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF006677),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
+                      ),
               );
             },
           ),
@@ -1776,11 +1775,10 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .where(
-          (item) =>
-              (item['title'] ?? item['name'] ?? '')
-                  .toString()
-                  .trim()
-                  .isNotEmpty,
+          (item) => (item['title'] ?? item['name'] ?? '')
+              .toString()
+              .trim()
+              .isNotEmpty,
         )
         .toList();
   }
@@ -1828,8 +1826,10 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
     }
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream:
-          FirebaseFirestore.instance.collection('users').doc(myUid).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(myUid)
+          .snapshots(),
       builder: (context, snapshot) {
         final following = List<String>.from(
           snapshot.data?.data()?['following'] ?? const [],
@@ -1844,31 +1844,29 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             foregroundColor: Colors.white,
             side: BorderSide(color: Colors.white.withValues(alpha: 0.72)),
-            backgroundColor:
-                isFollowing
-                    ? Colors.white.withValues(alpha: 0.16)
-                    : const Color(0xFF6F3BFF),
+            backgroundColor: isFollowing
+                ? Colors.white.withValues(alpha: 0.16)
+                : const Color(0xFF6F3BFF),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(999),
             ),
           ),
-          child:
-              _updatingFollow
-                  ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                  : Text(
-                    isFollowing ? 'Following' : 'Follow',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
+          child: _updatingFollow
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
                   ),
+                )
+              : Text(
+                  isFollowing ? 'Following' : 'Follow',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
         );
       },
     );
@@ -1886,7 +1884,7 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final title = (widget.data['title'] ?? 'Untitled reel').toString().trim();
+    final title = (widget.data['title'] ?? 'Untitled bite').toString().trim();
     final caption = (widget.data['caption'] ?? '').toString().trim();
     final uid = _authorUid;
     final isRecipeReel = _isRecipeReelData(widget.data);
@@ -2030,18 +2028,18 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: SingleChildScrollView(
-            physics:
-                _expanded
-                    ? const BouncingScrollPhysics()
-                    : const NeverScrollableScrollPhysics(),
+            physics: _expanded
+                ? const BouncingScrollPhysics()
+                : const NeverScrollableScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title.isEmpty ? 'Untitled reel' : title,
+                  title.isEmpty ? 'Untitled bite' : title,
                   maxLines: _expanded ? null : 2,
-                  overflow:
-                      _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                  overflow: _expanded
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: _expanded ? 15 : 11.5,
@@ -2054,10 +2052,9 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
                   Text(
                     caption,
                     maxLines: _expanded ? null : 2,
-                    overflow:
-                        _expanded
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis,
+                    overflow: _expanded
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -2078,8 +2075,9 @@ class _ReelTextOverlayState extends State<_ReelTextOverlay> {
                   ),
                   const SizedBox(height: 5),
                   ...ingredients.map((item) {
-                    final name =
-                        (item['title'] ?? item['name'] ?? '').toString().trim();
+                    final name = (item['title'] ?? item['name'] ?? '')
+                        .toString()
+                        .trim();
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 3),
                       child: Text(

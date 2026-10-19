@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:easespotter/services/share_service.dart';
+
 import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easespotter/screens/auth_gate.dart';
@@ -16,7 +18,9 @@ import 'package:easespotter/shopping_layer/reels_feed_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'firebase_options.dart';
+
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:easespotter/screens/qr_scanner_screen.dart';
 import 'package:easespotter/screens/search_screen.dart';
@@ -33,10 +37,9 @@ Future<void> ensureUserProfileExistsForAnyUser(User user) async {
   if (!(await ref.get()).exists) {
     await ref.set({
       'uid': user.uid,
-      'displayName':
-          user.displayName?.trim().isNotEmpty == true
-              ? user.displayName
-              : (user.isAnonymous ? 'Guest' : 'User'),
+      'displayName': user.displayName?.trim().isNotEmpty == true
+          ? user.displayName
+          : (user.isAnonymous ? 'Guest' : 'User'),
       'avatarUrl': user.photoURL ?? '',
       'bio': '',
       'publicProfile': !user.isAnonymous, // keep guests private by default
@@ -105,11 +108,6 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  String? _shareCodeFromUri(Uri uri) {
-    final value = _idFromUri(uri, 'share');
-    return value?.toUpperCase();
-  }
-
   String? _idFromUri(Uri uri, String firstPathSegment) {
     final host = uri.host.toLowerCase();
     final isEaseSpotterHost =
@@ -126,24 +124,30 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _handleIncomingLink(Uri uri) {
-    final firstSegment =
-        uri.pathSegments.isEmpty ? '' : uri.pathSegments.first.toLowerCase();
+    final firstSegment = uri.pathSegments.isEmpty
+        ? ''
+        : uri.pathSegments.first.toLowerCase();
 
-    void openDeepLink() {
+    Future<void> openDeepLink() async {
       final navigator = _navigatorKey.currentState;
       if (navigator == null) return;
 
       switch (firstSegment) {
         case 'share':
-          final code = _shareCodeFromUri(uri);
-          if (code == null) return;
+          final code = ShareService.parseCode(uri.toString());
+          if (code.isEmpty) return;
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null || user.isAnonymous) {
+            await ShareService.rememberInvite(code);
+            if (navigator.mounted) navigator.pushNamed('/login');
+            return;
+          }
           navigator.push(
             MaterialPageRoute(
-              builder:
-                  (_) => GroceryListScreen(
-                    showBackButton: true,
-                    initialShareCode: code,
-                  ),
+              builder: (_) => GroceryListScreen(
+                showBackButton: true,
+                initialShareCode: code,
+              ),
             ),
           );
           return;
@@ -170,18 +174,20 @@ class _MyAppState extends State<MyApp> {
           if (reelId == null) return;
           navigator.push(
             MaterialPageRoute(
-              builder:
-                  (_) => ReelsFeedScreen(
-                    initialReelId: reelId,
-                    includePrivate: false,
-                  ),
+              builder: (_) =>
+                  ReelsFeedScreen(initialReelId: reelId, includePrivate: false),
             ),
           );
           return;
       }
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => openDeepLink());
+    if (_navigatorKey.currentState != null) {
+      openDeepLink();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => openDeepLink());
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
   }
 
   @override
@@ -219,8 +225,8 @@ class _MyAppState extends State<MyApp> {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/upgrade': (context) => const UpgradeAccountScreen(),
-        '/my-stores':
-            (context) => const MyVisitedStoresScreen(), // ✅ Added route
+        '/my-stores': (context) =>
+            const MyVisitedStoresScreen(), // ✅ Added route
       },
     );
   }
@@ -239,10 +245,9 @@ class _TestWebViewScreenState extends State<TestWebViewScreen> {
   @override
   void initState() {
     super.initState();
-    _controller =
-        WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..loadRequest(Uri.parse('https://www.youtube.com/embed/dQw4w9WgXcQ'));
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(Uri.parse('https://www.youtube.com/embed/dQw4w9WgXcQ'));
   }
 
   @override

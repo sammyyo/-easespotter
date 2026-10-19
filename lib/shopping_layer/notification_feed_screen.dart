@@ -1,3 +1,4 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -64,13 +65,12 @@ class NotificationCenterScreen extends StatelessWidget {
       return const Scaffold(body: Center(child: Text("Not logged in")));
     }
 
-    final notifStream =
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .collection('notifications')
-            .orderBy('createdAt', descending: true)
-            .snapshots();
+    final notifStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('notifications')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
 
     return Scaffold(
       appBar: AppBar(
@@ -103,11 +103,10 @@ class NotificationCenterScreen extends StatelessWidget {
           }
 
           // unread count (for header)
-          final unreadCount =
-              docs.where((d) {
-                final data = d.data() as Map<String, dynamic>;
-                return (data['isRead'] as bool?) == false;
-              }).length;
+          final unreadCount = docs.where((d) {
+            final data = d.data() as Map<String, dynamic>;
+            return (data['isRead'] as bool?) == false;
+          }).length;
 
           return Column(
             children: [
@@ -122,10 +121,9 @@ class NotificationCenterScreen extends StatelessWidget {
                       height: 10,
                       width: 10,
                       decoration: BoxDecoration(
-                        color:
-                            unreadCount > 0
-                                ? const Color(0xFF006677)
-                                : Colors.grey.shade400,
+                        color: unreadCount > 0
+                            ? const Color(0xFF006677)
+                            : Colors.grey.shade400,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -158,193 +156,194 @@ class NotificationCenterScreen extends StatelessWidget {
                     final type = data['type'] as String?;
                     final actorName = (data['actorName'] as String?) ?? "";
                     final actorAvatarUrl = data['actorAvatarUrl'] as String?;
-                    final createdAt =
-                        (data['createdAt'] as Timestamp?)?.toDate();
+                    final createdAt = (data['createdAt'] as Timestamp?)
+                        ?.toDate();
 
                     final leadingIcon = _iconForType(type);
                     final timeLabel = _timeAgo(createdAt);
 
                     //  swipe-to-delete (no delete icon shown)
-                    return Dismissible(
-                      key: ValueKey("notif_${doc.id}"),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        color: Colors.redAccent,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        alignment: Alignment.centerRight,
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.delete, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              "Delete",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      confirmDismiss: (_) async {
-                        try {
-                          await _deleteNotification(uid, doc.id);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Notification deleted"),
-                            ),
-                          );
-                          return true;
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("Delete failed: $e")),
-                          );
-                          return false;
-                        }
-                      },
-                      child: Container(
-                        color: isRead ? Colors.white : const Color(0xFFE6F4F6),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: ListTile(
-                          onTap: () async {
-                            //  tap marks as read
-                            if (!isRead) {
-                              try {
-                                await _markAsRead(uid, doc.id);
-                              } catch (_) {}
-                            }
-
-                            final itemType = data['itemType'] as String?;
-                            final itemId = data['itemId'] as String?;
-                            if (itemType == 'reel' &&
-                                itemId != null &&
-                                itemId.trim().isNotEmpty &&
-                                context.mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => ReelsFeedScreen(
-                                        authorUid: uid,
-                                        initialReelId: itemId,
-                                        includePrivate: true,
-                                      ),
-                                ),
-                              );
-                            }
-                          },
-                          leading: Stack(
-                            clipBehavior: Clip.none,
+                    return SafetyContent(
+                      uid: (data['actorUid'] ?? '').toString(),
+                      child: Dismissible(
+                        key: ValueKey("notif_${doc.id}"),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Colors.redAccent,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          alignment: Alignment.centerRight,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: const Color(
-                                  0xFF006677,
-                                ).withOpacity(0.12),
-                                backgroundImage:
-                                    actorAvatarUrl != null
-                                        ? NetworkImage(actorAvatarUrl)
-                                        : null,
-                                child:
-                                    actorAvatarUrl == null
-                                        ? Icon(
+                              Icon(Icons.delete, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                "Delete",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          try {
+                            await _deleteNotification(uid, doc.id);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Notification deleted"),
+                              ),
+                            );
+                            return true;
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Delete failed: $e")),
+                            );
+                            return false;
+                          }
+                        },
+                        child: Container(
+                          color: isRead
+                              ? Colors.white
+                              : const Color(0xFFE6F4F6),
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: ListTile(
+                            onTap: () async {
+                              //  tap marks as read
+                              if (!isRead) {
+                                try {
+                                  await _markAsRead(uid, doc.id);
+                                } catch (_) {}
+                              }
+
+                              final itemType = data['itemType'] as String?;
+                              final itemId = data['itemId'] as String?;
+                              if (itemType == 'reel' &&
+                                  itemId != null &&
+                                  itemId.trim().isNotEmpty &&
+                                  context.mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ReelsFeedScreen(
+                                      authorUid: uid,
+                                      initialReelId: itemId,
+                                      includePrivate: true,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            leading: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: const Color(0xFF006677)
+                                      .withOpacity(0.12),
+                                  backgroundImage: actorAvatarUrl != null
+                                      ? NetworkImage(actorAvatarUrl)
+                                      : null,
+                                  child: actorAvatarUrl == null
+                                      ? Icon(
                                           leadingIcon,
                                           color: const Color(0xFF006677),
                                         )
-                                        : null,
-                              ),
-                              // unread dot (top-right)
-                              if (!isRead)
-                                Positioned(
-                                  top: -1,
-                                  right: -1,
-                                  child: Container(
-                                    height: 10,
-                                    width: 10,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF006677),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
+                                      : null,
+                                ),
+                                // unread dot (top-right)
+                                if (!isRead)
+                                  Positioned(
+                                    top: -1,
+                                    right: -1,
+                                    child: Container(
+                                      height: 10,
+                                      width: 10,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF006677),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                          title: Text(
-                            msg,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight:
-                                  isRead ? FontWeight.w600 : FontWeight.w800,
-                              color: Colors.grey.shade900,
+                              ],
                             ),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Row(
-                              children: [
-                                if (actorName.trim().isNotEmpty) ...[
+                            title: Text(
+                              msg,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: isRead
+                                    ? FontWeight.w600
+                                    : FontWeight.w800,
+                                color: Colors.grey.shade900,
+                              ),
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  if (actorName.trim().isNotEmpty) ...[
+                                    Text(
+                                      actorName,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.grey.shade800,
+                                      ),
+                                    ),
+                                    const Text(" • "),
+                                  ],
                                   Text(
-                                    actorName,
+                                    timeLabel,
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.grey.shade800,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  const Text(" • "),
                                 ],
-                                Text(
-                                  timeLabel,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            //  3-dots menu (⋮)
+                            trailing: PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert),
+                              onSelected: (value) async {
+                                if (value == "read") {
+                                  try {
+                                    await _markAsRead(uid, doc.id);
+                                  } catch (_) {}
+                                } else if (value == "delete") {
+                                  try {
+                                    await _deleteNotification(uid, doc.id);
+                                  } catch (_) {}
+                                }
+                              },
+                              itemBuilder: (_) => [
+                                if (!isRead)
+                                  const PopupMenuItem(
+                                    value: "read",
+                                    child: Text("Mark as read"),
+                                  ),
+                                const PopupMenuItem(
+                                  value: "delete",
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete,
+                                        size: 18,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text("Delete"),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-
-                          //  3-dots menu (⋮)
-                          trailing: PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert),
-                            onSelected: (value) async {
-                              if (value == "read") {
-                                try {
-                                  await _markAsRead(uid, doc.id);
-                                } catch (_) {}
-                              } else if (value == "delete") {
-                                try {
-                                  await _deleteNotification(uid, doc.id);
-                                } catch (_) {}
-                              }
-                            },
-                            itemBuilder:
-                                (_) => [
-                                  if (!isRead)
-                                    const PopupMenuItem(
-                                      value: "read",
-                                      child: Text("Mark as read"),
-                                    ),
-                                  const PopupMenuItem(
-                                    value: "delete",
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete,
-                                          size: 18,
-                                          color: Colors.red,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text("Delete"),
-                                      ],
-                                    ),
-                                  ),
-                                ],
                           ),
                         ),
                       ),

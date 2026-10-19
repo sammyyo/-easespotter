@@ -7,6 +7,54 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    function notBlocked(a, b) {
+      return !existsAfter(/databases/$(database)/documents/users/$(a)/blockedUsers/$(b))
+        && !existsAfter(/databases/$(database)/documents/users/$(b)/blockedUsers/$(a));
+    }
+    function validPair(c) {
+      return c.participants is list && c.participants.size() == 2
+        && c.participants[0] is string && c.participants[1] is string
+        && c.participants[0] != c.participants[1]
+        && request.auth.uid in c.participants;
+    }
+    function canContact(c) {
+      return validPair(c) && notBlocked(c.participants[0], c.participants[1]);
+    }
+
+    // Reports are immutable client submissions, visible only to moderators.
+    match /abuseReports/{reportId} {
+      function validTarget(d) {
+        return (d.targetType == 'user' && d.targetId == d.targetUid
+            && exists(/databases/$(database)/documents/users/$(d.targetUid)))
+          || (d.targetType in ['glowups', 'recipes', 'shopping_wall', 'reels']
+            && exists(/databases/$(database)/documents/$(d.targetType)/$(d.targetId))
+            && get(/databases/$(database)/documents/$(d.targetType)/$(d.targetId)).data.uid == d.targetUid
+            && (!(d.targetType in ['recipes', 'reels'])
+              || get(/databases/$(database)/documents/$(d.targetType)/$(d.targetId)).data.get('isPublic', d.targetType == 'recipes') == true));
+      }
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasAll(['reporterUid','targetUid','targetType','targetId','reason','details','status','createdAt'])
+        && request.resource.data.keys().hasOnly(['reporterUid','targetUid','targetType','targetId','reason','details','status','createdAt'])
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.targetUid is string
+        && request.resource.data.targetUid != request.auth.uid
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.targetId.size() <= 128
+        && request.resource.data.targetType is string
+        && reportId == request.auth.uid + '_' + request.resource.data.targetType + '_' + request.resource.data.targetId
+        && request.resource.data.reason in ['harassment','hate','violence','sexual','spam','other']
+        && request.resource.data.details is string
+        && request.resource.data.details.size() <= 1000
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && validTarget(request.resource.data);
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['pending','reviewed','dismissed','actioned'];
+      allow delete: if false;
+    }
     function isOwnerByUID() {
       return isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
@@ -79,6 +127,58 @@ service cloud.firestore {
     // ================================
     match /users/{userId} {
       allow read: if true;
+
+      // Optional profile details: private source and public projection saved atomically.
+      match /profileDetails/{visibility} {
+        function keys() {
+          return ['city', 'interests', 'cuisines', 'dietaryPreferences', 'favouriteStores'];
+        }
+        function validValues(v) {
+          return v is map && v.keys().hasAll(keys()) && v.keys().hasOnly(keys())
+            && strOK(v.city, 0, 160) && strOK(v.interests, 0, 160)
+            && strOK(v.cuisines, 0, 160) && strOK(v.dietaryPreferences, 0, 160)
+            && strOK(v.favouriteStores, 0, 160);
+        }
+        function validPrivate(d) {
+          return d.keys().hasAll(['values', 'sharing']) && d.keys().hasOnly(['values', 'sharing'])
+            && validValues(d.values)
+            && d.sharing is map && d.sharing.keys().hasAll(keys()) && d.sharing.keys().hasOnly(keys())
+            && d.sharing.city is bool && d.sharing.interests is bool
+            && d.sharing.cuisines is bool && d.sharing.dietaryPreferences is bool
+            && d.sharing.favouriteStores is bool;
+        }
+        function fieldMatches(key, privateData, publicData) {
+          return publicData[key] == (privateData.sharing[key] ? privateData.values[key] : '');
+        }
+        function matchingProjection() {
+          let privateData = getAfter(/databases/$(database)/documents/users/$(userId)/profileDetails/private).data;
+          let publicData = getAfter(/databases/$(database)/documents/users/$(userId)/profileDetails/public).data;
+          return validPrivate(privateData) && validValues(publicData)
+            && fieldMatches('city', privateData, publicData)
+            && fieldMatches('interests', privateData, publicData)
+            && fieldMatches('cuisines', privateData, publicData)
+            && fieldMatches('dietaryPreferences', privateData, publicData)
+            && fieldMatches('favouriteStores', privateData, publicData);
+        }
+        allow get: if visibility == 'public' || (isSignedIn() && request.auth.uid == userId);
+        allow list: if isSignedIn() && request.auth.uid == userId;
+        allow create, update: if isSignedIn() && request.auth.uid == userId
+          && visibility in ['private', 'public'] && matchingProjection();
+        allow delete: if false;
+      }
+
+      match /blockedUsers/{blockedUid} {
+        allow list: if isSignedIn() && request.auth.uid == userId;
+        // A peer may check this one relationship, never browse a block list.
+        allow get: if isSignedIn() && request.auth.uid in [userId, blockedUid];
+        allow create, update: if isSignedIn() && request.auth.uid == userId
+          && userId != blockedUid
+          && exists(/databases/$(database)/documents/users/$(blockedUid))
+          && request.resource.data.keys().hasOnly(['uid','createdAt'])
+          && request.resource.data.uid == blockedUid
+          && request.resource.data.createdAt == request.time;
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
 
       allow create: if isSignedIn()
         && request.auth.uid == userId
@@ -241,11 +341,11 @@ service cloud.firestore {
     match /users/{userId}/inbox/{conversationId} {
 
       function convoExists() {
-        return exists(/databases/$(database)/documents/conversations/$(conversationId));
+        return existsAfter(/databases/$(database)/documents/conversations/$(conversationId));
       }
 
       function convo() {
-        return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+        return getAfter(/databases/$(database)/documents/conversations/$(conversationId)).data;
       }
 
       function isParticipant(uid) {
@@ -253,12 +353,7 @@ service cloud.firestore {
           || (convo().participants is list && uid in convo().participants);
       }
 
-      allow read: if isSignedIn()
-        && convoExists()
-        && (
-          request.auth.uid == userId ||
-          (isParticipant(request.auth.uid) && isParticipant(userId))
-        );
+      allow read: if isSignedIn() && request.auth.uid == userId;
 
       allow create, update: if isSignedIn()
         && convoExists()
@@ -266,6 +361,8 @@ service cloud.firestore {
           request.auth.uid == userId ||
           (
             isParticipant(request.auth.uid) && isParticipant(userId)
+            && canContact(convo())
+            && request.resource.data.otherUid == request.auth.uid
             && request.resource.data.keys().hasOnly([
               "conversationId",
               "otherUid",
@@ -320,6 +417,7 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
 
       allow update: if isSignedIn()
+        && notBlocked(request.auth.uid, resource.data.uid)
         && request.resource.data.diff(resource.data).addedKeys().size() == 0
         && request.resource.data.diff(resource.data).removedKeys().size() == 0
         && request.resource.data.diff(resource.data).changedKeys()
@@ -382,6 +480,7 @@ service cloud.firestore {
         allow read: if true;
 
         allow create: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid)
           && request.resource.data.keys().hasOnly(
             ['uid','text','createdAt','updatedAt','authorDisplayName','authorAvatarUrl','upvotedBy']
           )
@@ -396,7 +495,8 @@ service cloud.firestore {
             request.resource.data.upvotedBy is list
           );
 
-        allow update: if request.auth != null && (
+        allow update: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid) && (
           (
             resource.data.uid == request.auth.uid
             && request.resource.data.keys().hasOnly(
@@ -438,6 +538,7 @@ service cloud.firestore {
         match /replies/{replyId} {
           allow read: if true;
           allow create: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid)
             && request.resource.data.keys().hasOnly(['uid','text','createdAt'])
             && request.resource.data.uid == request.auth.uid
             && request.resource.data.text is string
@@ -446,7 +547,8 @@ service cloud.firestore {
             && request.resource.data.createdAt is timestamp
             && request.resource.data.createdAt <= request.time;
 
-          allow update: if request.auth != null && (
+          allow update: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/glowups/$(glowupId)).data.uid) && (
             (
               resource.data.uid == request.auth.uid
               && request.resource.data.keys().hasOnly(['uid','text','createdAt','upvotedBy'])
@@ -506,6 +608,7 @@ service cloud.firestore {
       allow update: if isExistingOwner() && uidUnchanged();
 
       allow update: if isSignedIn()
+        && notBlocked(request.auth.uid, resource.data.uid)
         && canReadRecipe(recipeId)
         && request.resource.data.diff(resource.data).addedKeys().size() == 0
         && request.resource.data.diff(resource.data).removedKeys().size() == 0
@@ -536,6 +639,7 @@ service cloud.firestore {
         allow read: if canReadRecipe(recipeId);
 
         allow create: if isSignedIn()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/recipes/$(recipeId)).data.uid)
           && canReadRecipe(recipeId)
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.content is string
@@ -549,6 +653,7 @@ service cloud.firestore {
           && (resource.data.userId == request.auth.uid || isRecipeOwner(recipeId));
 
         allow update: if isSignedIn()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/recipes/$(recipeId)).data.uid)
           && canReadRecipe(recipeId)
           && request.resource.data.diff(resource.data).addedKeys().size() == 0
           && request.resource.data.diff(resource.data).removedKeys().size() == 0
@@ -577,6 +682,7 @@ service cloud.firestore {
           allow read: if canReadRecipe(recipeId);
 
           allow create: if isSignedIn()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/recipes/$(recipeId)).data.uid)
             && canReadRecipe(recipeId)
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.content is string
@@ -590,6 +696,7 @@ service cloud.firestore {
             && (resource.data.userId == request.auth.uid || isRecipeOwner(recipeId));
 
           allow update: if isSignedIn()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/recipes/$(recipeId)).data.uid)
             && canReadRecipe(recipeId)
             && request.resource.data.diff(resource.data).addedKeys().size() == 0
             && request.resource.data.diff(resource.data).removedKeys().size() == 0
@@ -626,8 +733,11 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isOwnerByUID();
-        allow update, delete: if isExistingOwner() && uidUnchanged();
+        allow create: if isOwnerByUID()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/shopping_wall/$(postId)).data.uid);
+        allow update: if isExistingOwner() && uidUnchanged()
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/shopping_wall/$(postId)).data.uid);
+        allow delete: if isExistingOwner();
       }
     }
 
@@ -651,64 +761,30 @@ service cloud.firestore {
     // GROCERY SHARES
     // ================================
     match /grocery_shares/{shareId} {
-      function isGroceryShareMember(d) {
+      function isMember(d) {
         return request.auth.uid == d.uid
-          || request.auth.uid == d.creatorUid
-          || (d.collaborators is list && request.auth.uid in d.collaborators)
-          || (d.participants is list && request.auth.uid in d.participants)
-          || (d.participantMap is map && d.participantMap[request.auth.uid] == true);
+          || request.auth.uid in d.get('participants', [])
+          || request.auth.uid in d.get('collaborators', []);
       }
+      allow read: if isSignedIn() && isMember(resource.data)
+        && (request.auth.uid == resource.data.uid
+          || notBlocked(request.auth.uid, resource.data.uid));
+      // Creation, invite redemption, edits and leaving use the callable function.
+      allow write: if false;
+    }
 
-      function groceryShareIdentityUnchanged() {
-        return (!('code' in resource.data) || request.resource.data.code == resource.data.code)
-          && (!('uid' in resource.data) || request.resource.data.uid == resource.data.uid)
-          && (!('creatorUid' in resource.data) || request.resource.data.creatorUid == resource.data.creatorUid)
-          && (!('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt)
-          && (!('expiresAt' in resource.data) || request.resource.data.expiresAt == resource.data.expiresAt);
-      }
-
-      function groceryShareOnlyChanges(keys) {
-        return request.resource.data.diff(resource.data).removedKeys().size() == 0
-          && request.resource.data.diff(resource.data).addedKeys().hasOnly(keys)
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(keys);
-      }
-
-      function joinsSelfAsGroceryParticipant() {
-        return isSignedIn()
-          && groceryShareIdentityUnchanged()
-          && groceryShareOnlyChanges(['collaborators', 'participants', 'participantMap', 'updatedAt'])
-          && (
-            (request.resource.data.collaborators is list && request.auth.uid in request.resource.data.collaborators)
-            || (request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
-            || (request.resource.data.participantMap is map && request.resource.data.participantMap[request.auth.uid] == true)
-          );
-      }
-
-      function updatesGroceryShareList() {
-        return isSignedIn()
-          && isGroceryShareMember(resource.data)
-          && groceryShareIdentityUnchanged()
-          && groceryShareOnlyChanges(['list', 'updatedAt', 'updatedBy', 'collaborators', 'participants', 'participantMap'])
-          && request.resource.data.list is list
-          && (!('updatedBy' in request.resource.data) || request.resource.data.updatedBy == request.auth.uid)
-          && (!('collaborators' in request.resource.data) || request.resource.data.collaborators is list)
-          && (!('participants' in request.resource.data) || request.resource.data.participants is list)
-          && (!('participantMap' in request.resource.data) || request.resource.data.participantMap is map);
-      }
-
-      allow read: if isSignedIn();
-      allow create: if isOwnerByUID();
-      allow update: if (isExistingOwner() && uidUnchanged())
-        || joinsSelfAsGroceryParticipant()
-        || updatesGroceryShareList();
-      allow delete: if isExistingOwner() && uidUnchanged();
+    match /grocery_invites/{code} {
+      allow read, write: if false;
+    }
+    match /grocery_invite_attempts/{uid} {
+      allow read, write: if false;
     }
 
     // STORE VISITS
     // ================================
     match /store_visits/{visitId} {
       allow get, read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow list: if request.auth != null && request.query.where('userId', '==', request.auth.uid);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.storeId is string
@@ -786,16 +862,19 @@ service cloud.firestore {
           || (d.participants is list && request.auth.uid in d.participants);
       }
 
-      allow read: if isSignedIn() && (isParticipant(resource.data) || inMyInbox());
+      allow read: if isSignedIn() && isParticipant(resource.data);
 
-      allow create: if isSignedIn()
-        && (
-          (request.resource.data.participants is list && request.auth.uid in request.resource.data.participants)
-          || (request.resource.data.participantMap is map && request.resource.data.participantMap[request.auth.uid] == true)
-        );
+      allow create: if isSignedIn() && canContact(request.resource.data)
+        && request.resource.data.participantMap is map
+        && request.resource.data.participantMap.keys().hasOnly(request.resource.data.participants)
+        && request.resource.data.participantMap[request.resource.data.participants[0]] == true
+        && request.resource.data.participantMap[request.resource.data.participants[1]] == true;
 
       allow update: if isSignedIn()
-        && (isParticipant(resource.data) || inMyInbox())
+        && isParticipant(resource.data)
+        && canContact(resource.data)
+        && request.resource.data.participants == resource.data.participants
+        && request.resource.data.participantMap == resource.data.participantMap
         && request.resource.data.diff(resource.data).removedKeys().size() == 0
         && request.resource.data.diff(resource.data).addedKeys()
           .hasOnly([
@@ -848,12 +927,13 @@ service cloud.firestore {
 
         function canAccessConversation() {
           let c = get(/databases/$(database)/documents/conversations/$(conversationId)).data;
-          return isSignedIn() && (isParticipant(c) || inMyInbox());
+          return isSignedIn() && isParticipant(c);
         }
 
         allow read: if canAccessConversation();
 
         allow create: if canAccessConversation()
+          && canContact(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
@@ -869,6 +949,7 @@ service cloud.firestore {
           && (!('replyTo' in request.resource.data) || request.resource.data.replyTo.senderId is string);
 
         allow update: if canAccessConversation()
+          && canContact(get(/databases/$(database)/documents/conversations/$(conversationId)).data)
           && request.resource.data.diff(resource.data).removedKeys().size() == 0
           && request.resource.data.diff(resource.data).addedKeys()
             .hasOnly(['seenBy','userReactions','reactionCounts'])
@@ -903,7 +984,11 @@ service cloud.firestore {
         && request.resource.data.authorUid == request.auth.uid
         && request.resource.data.durationSeconds <= 60;
 
-      allow update: if request.auth != null && (
+      allow update: if request.auth != null
+        && notBlocked(request.auth.uid, resource.data.uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.authorUid == resource.data.authorUid
+        && (
         resource.data.uid == request.auth.uid
         ||
         request.resource.data.diff(resource.data).affectedKeys()
@@ -937,6 +1022,7 @@ service cloud.firestore {
         allow read: if request.auth != null;
 
         allow create: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/reels/$(reelId)).data.uid)
           && request.resource.data.uid == request.auth.uid
           && (
             !('rating' in request.resource.data) ||
@@ -947,7 +1033,11 @@ service cloud.firestore {
             )
           );
 
-        allow update: if request.auth != null;
+        allow update: if request.auth != null
+          && request.resource.data.uid == resource.data.uid
+          && (resource.data.uid == request.auth.uid
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotedBy']))
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/reels/$(reelId)).data.uid);
 
         allow delete: if request.auth != null && (
           resource.data.uid == request.auth.uid ||
@@ -958,9 +1048,14 @@ service cloud.firestore {
           allow read: if request.auth != null;
 
           allow create: if request.auth != null
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/reels/$(reelId)).data.uid)
             && request.resource.data.uid == request.auth.uid;
 
-          allow update: if request.auth != null;
+          allow update: if request.auth != null
+          && request.resource.data.uid == resource.data.uid
+          && (resource.data.uid == request.auth.uid
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotedBy']))
+          && notBlocked(request.auth.uid, get(/databases/$(database)/documents/reels/$(reelId)).data.uid);
 
           allow delete: if request.auth != null && (
             resource.data.uid == request.auth.uid ||

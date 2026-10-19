@@ -1,3 +1,4 @@
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -96,8 +97,7 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
           await NotificationService().notifyUser(
             toUid: widget.uid,
             type: "reaction",
-            message:
-                " $myHandleOrName liked your recipe", // Adjusted message for recipe
+            message: " $myHandleOrName liked your recipe", // Adjusted message for recipe
             itemType: "recipe",
             itemId: widget.recipeId,
             actorUid: uid, // Added actorUid to match service
@@ -179,24 +179,23 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Delete recipe?'),
-            content: const Text(
-              'This will permanently remove the recipe and its comments.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete recipe?'),
+        content: const Text(
+          'This will permanently remove the recipe and its comments.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
 
     if (confirmed != true) return;
@@ -214,9 +213,8 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
       );
       if (mounted) {
         Navigator.of(context).pop(); // close progress
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Recipe deleted.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Recipe deleted.')));
       }
     } catch (e) {
       if (mounted) {
@@ -232,225 +230,224 @@ class _RecipeCardState extends State<RecipeCard> with TickerProviderStateMixin {
     final isUpvoted =
         currentUser != null && _upvotedBy.contains(currentUser.uid);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 2.5,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RecipeDetailScreen(recipeId: widget.recipeId),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            //  HEADER (avatar + name + owner actions)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Author pill that will shrink to content because AuthorHeader shrinks
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(40),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [AuthorHeader(uid: widget.uid)],
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  AuthorActionsMenu(
-                    authorUid: widget.uid,
-                    recipeId: widget.recipeId,
-                    onRequestDelete: _handleDeletePressed,
-                  ),
-                ],
+    return SafetyContent(
+      uid: widget.uid,
+      showNotice: false,
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 2.5,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RecipeDetailScreen(recipeId: widget.recipeId),
               ),
-            ),
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              //  HEADER (avatar + name + owner actions)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Author pill that will shrink to content because AuthorHeader shrinks
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(40),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [AuthorHeader(uid: widget.uid)],
+                      ),
+                    ),
 
-            if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 4 / 5,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    widget.imageUrl!,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Shimmer.fromColors(
-                        baseColor: Colors.grey.shade300,
-                        highlightColor: Colors.grey.shade100,
-                        child: Container(color: Colors.white),
-                      );
-                    },
-                    errorBuilder:
-                        (_, __, ___) => const Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                        ),
-                  ),
+                    const Spacer(),
+
+                    AuthorActionsMenu(
+                      authorUid: widget.uid,
+                      recipeId: widget.recipeId,
+                      onRequestDelete: _handleDeletePressed,
+                    ),
+                  ],
                 ),
               ),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title + category
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.title.isNotEmpty ? widget.title : 'Untitled',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (widget.category != null &&
-                          widget.category!.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Chip(
-                          label: Text(
-                            widget.category!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 0,
-                          ),
-                          side: BorderSide(color: const Color(0xFFBFE3EA)),
-                          backgroundColor: const Color(
-                            0xFF006677,
-                          ).withOpacity(0.06),
-                          labelStyle: const TextStyle(
-                            color: Color(0xFF006677),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.description.isNotEmpty
-                        ? widget.description
-                        : 'No description provided.',
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Actions row
-                  Row(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(-8, 0),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              tooltip: isUpvoted ? 'Unlike' : 'Like',
-                              splashRadius: 20,
-                              icon: AnimatedScale(
-                                scale: isUpvoted ? 1.15 : 1.0,
-                                duration: const Duration(milliseconds: 150),
-                                child: Icon(
-                                  isUpvoted
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  color: isUpvoted ? Colors.red : Colors.grey,
-                                ),
-                              ),
-                              onPressed: _toggleUpvote,
-                            ),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 180),
-                              transitionBuilder:
-                                  (child, anim) => ScaleTransition(
-                                    scale: anim,
-                                    child: child,
-                                  ),
-                              child: Text(
-                                '${_upvotedBy.length}',
-                                key: ValueKey<int>(_upvotedBy.length),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            if (_upvotedBy.isNotEmpty) ...[
-                              const SizedBox(width: 6),
-                              AvatarStack(
-                                uids: _uidsForAvatarStack(
-                                  currentUid: currentUser?.uid,
-                                ),
-                                size: 22,
-                                overlap: 10,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      IconButton(
-                        tooltip: 'Comments',
-                        splashRadius: 20,
-                        icon: const FaIcon(
-                          FontAwesomeIcons.comment,
-                          size: 20,
+              if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
+                AspectRatio(
+                  aspectRatio: 4 / 5,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      widget.imageUrl!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Shimmer.fromColors(
+                          baseColor: Colors.grey.shade300,
+                          highlightColor: Colors.grey.shade100,
+                          child: Container(color: Colors.white),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          size: 48,
                           color: Colors.grey,
                         ),
-                        onPressed: _openCommentsSheet,
                       ),
-
-                      CommentsCount(recipeId: widget.recipeId),
-
-                      const SizedBox(width: 8),
-
-                      IconButton(
-                        tooltip: 'Share',
-                        splashRadius: 20,
-                        icon: const FaIcon(FontAwesomeIcons.share, size: 20),
-                        onPressed: _shareRecipe,
-                      ),
-
-                      const Spacer(),
-                    ],
+                    ),
                   ),
-                ],
+                ),
+
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title + category
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.title.isNotEmpty ? widget.title : 'Untitled',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (widget.category != null &&
+                            widget.category!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Chip(
+                            label: Text(
+                              widget.category!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 0,
+                            ),
+                            side: BorderSide(color: const Color(0xFFBFE3EA)),
+                            backgroundColor: const Color(0xFF006677)
+                                .withOpacity(0.06),
+                            labelStyle: const TextStyle(
+                              color: Color(0xFF006677),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.description.isNotEmpty
+                          ? widget.description
+                          : 'No description provided.',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Actions row
+                    Row(
+                      children: [
+                        Transform.translate(
+                          offset: const Offset(-8, 0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: isUpvoted ? 'Unlike' : 'Like',
+                                splashRadius: 20,
+                                icon: AnimatedScale(
+                                  scale: isUpvoted ? 1.15 : 1.0,
+                                  duration: const Duration(milliseconds: 150),
+                                  child: Icon(
+                                    isUpvoted
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: isUpvoted ? Colors.red : Colors.grey,
+                                  ),
+                                ),
+                                onPressed: _toggleUpvote,
+                              ),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
+                                child: Text(
+                                  '${_upvotedBy.length}',
+                                  key: ValueKey<int>(_upvotedBy.length),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (_upvotedBy.isNotEmpty) ...[
+                                const SizedBox(width: 6),
+                                AvatarStack(
+                                  uids: _uidsForAvatarStack(
+                                    currentUid: currentUser?.uid,
+                                  ),
+                                  size: 22,
+                                  overlap: 10,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        IconButton(
+                          tooltip: 'Comments',
+                          splashRadius: 20,
+                          icon: const FaIcon(
+                            FontAwesomeIcons.comment,
+                            size: 20,
+                            color: Colors.grey,
+                          ),
+                          onPressed: _openCommentsSheet,
+                        ),
+
+                        CommentsCount(recipeId: widget.recipeId),
+
+                        const SizedBox(width: 8),
+
+                        IconButton(
+                          tooltip: 'Share',
+                          splashRadius: 20,
+                          icon: const FaIcon(FontAwesomeIcons.share, size: 20),
+                          onPressed: _shareRecipe,
+                        ),
+
+                        const Spacer(),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

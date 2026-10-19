@@ -1,3 +1,5 @@
+import 'package:easespotter/widgets/safety_controls.dart';
+import 'package:easespotter/services/safety_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -71,10 +73,9 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     final field = 'reactions.$emoji';
 
     await ref.update({
-      field:
-          alreadyReacted
-              ? FieldValue.arrayRemove([uid])
-              : FieldValue.arrayUnion([uid]),
+      field: alreadyReacted
+          ? FieldValue.arrayRemove([uid])
+          : FieldValue.arrayUnion([uid]),
     });
 
     if (!alreadyReacted) {
@@ -104,32 +105,29 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
     final editController = TextEditingController(text: currentText);
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Edit Comment'),
-            content: TextField(
-              controller: editController,
-              decoration: const InputDecoration(
-                labelText: 'Update your comment',
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final newText = editController.text.trim();
-                  if (newText.isNotEmpty) {
-                    await commentRef.update({'text': newText});
-                  }
-                  Navigator.pop(context);
-                },
-                child: const Text('Save'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Comment'),
+        content: TextField(
+          controller: editController,
+          decoration: const InputDecoration(labelText: 'Update your comment'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () async {
+              final newText = editController.text.trim();
+              if (newText.isNotEmpty) {
+                await commentRef.update({'text': newText});
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -139,17 +137,19 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [
+          PostSafetyMenu(collection: 'shopping_wall', postId: widget.postId),
+        ],
         title: const Text(
           'Post Details',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future:
-            FirebaseFirestore.instance
-                .collection('shopping_wall')
-                .doc(widget.postId)
-                .get(),
+        future: FirebaseFirestore.instance
+            .collection('shopping_wall')
+            .doc(widget.postId)
+            .get(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -162,91 +162,93 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
           final emoji = data['emoji'] ?? '🛍️';
           final postOwnerId = data['creatorUid'];
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (imageUrl != null && imageUrl.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(imageUrl),
+          return SafetyContent(
+            uid: SafetyService.ownerOf(data),
+            showNotice: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (imageUrl != null && imageUrl.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(imageUrl),
+                    ),
+                  const SizedBox(height: 20),
+                  Text(
+                    '$emoji $title',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                const SizedBox(height: 20),
-                Text(
-                  '$emoji $title',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                  const SizedBox(height: 10),
+                  Text(desc),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Tags: $tags',
+                    style: const TextStyle(color: Colors.grey),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(desc),
-                const SizedBox(height: 16),
-                Text('Tags: $tags', style: const TextStyle(color: Colors.grey)),
-                const Divider(height: 40),
-                const Text(
-                  'Comments',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                const SizedBox(height: 10),
+                  const Divider(height: 40),
+                  const Text(
+                    'Comments',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 10),
 
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  controller: _scrollController,
-                  itemCount: _comments.length + (_hasMore ? 1 : 0),
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    if (index >= _comments.length) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Center(child: CircularProgressIndicator()),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    controller: _scrollController,
+                    itemCount: _comments.length + (_hasMore ? 1 : 0),
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      if (index >= _comments.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      final doc = _comments[index];
+                      final comment = doc.data() as Map<String, dynamic>;
+                      final commentText = comment['text'] ?? '';
+                      final userId = comment['uid'] ?? '';
+                      final createdAt = (comment['createdAt'] as Timestamp?)
+                          ?.toDate();
+                      final reactions = Map<String, dynamic>.from(
+                        comment['reactions'] ?? {},
                       );
-                    }
 
-                    final doc = _comments[index];
-                    final comment = doc.data() as Map<String, dynamic>;
-                    final commentText = comment['text'] ?? '';
-                    final userId = comment['uid'] ?? '';
-                    final createdAt =
-                        (comment['createdAt'] as Timestamp?)?.toDate();
-                    final reactions = Map<String, dynamic>.from(
-                      comment['reactions'] ?? {},
-                    );
-                    final flaggedBy = List<String>.from(
-                      comment['flaggedBy'] ?? [],
-                    );
-                    final isAuthor = userId == currentUser?.uid;
-                    final isFlagged =
-                        currentUser != null &&
-                        flaggedBy.contains(currentUser.uid);
+                      final isAuthor = userId == currentUser?.uid;
 
-                    return ListTile(
-                      dense: true,
-                      isThreeLine: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8.0,
-                        vertical: 4.0,
-                      ),
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(commentText),
-                          const SizedBox(height: 6),
-                          Text(
-                            'User: $userId${createdAt != null ? ' • ${createdAt.toLocal().toString().split(' ').first}' : ''}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
+                      return SafetyContent(
+                        uid: userId.toString(),
+                        child: ListTile(
+                          dense: true,
+                          isThreeLine: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 4.0,
                           ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children:
-                                reactionEmojis.map((emoji) {
+                          title: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(commentText),
+                              const SizedBox(height: 6),
+                              Text(
+                                'User: $userId${createdAt != null ? ' • ${createdAt.toLocal().toString().split(' ').first}' : ''}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: reactionEmojis.map((emoji) {
                                   final users = List<String>.from(
                                     reactions[emoji] ?? [],
                                   );
@@ -254,22 +256,20 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                                       currentUser != null &&
                                       users.contains(currentUser.uid);
                                   return GestureDetector(
-                                    onTap:
-                                        () => _toggleEmojiReaction(
-                                          doc.reference,
-                                          emoji,
-                                          hasReacted,
-                                        ),
+                                    onTap: () => _toggleEmojiReaction(
+                                      doc.reference,
+                                      emoji,
+                                      hasReacted,
+                                    ),
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 10,
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
-                                        color:
-                                            hasReacted
-                                                ? const Color(0xFFBFE3EA)
-                                                : Colors.grey.shade200,
+                                        color: hasReacted
+                                            ? const Color(0xFFBFE3EA)
+                                            : Colors.grey.shade200,
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                       child: Text(
@@ -279,150 +279,132 @@ class _WallPostDetailScreenState extends State<WallPostDetailScreen> {
                                     ),
                                   );
                                 }).toList(),
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  Icons.flag,
-                                  color:
-                                      isFlagged ? Colors.orange : Colors.grey,
-                                ),
-                                onPressed: () {
-                                  doc.reference.update({
-                                    'flaggedBy':
-                                        isFlagged
-                                            ? FieldValue.arrayRemove([
-                                              currentUser.uid,
-                                            ])
-                                            : FieldValue.arrayUnion([
-                                              currentUser!.uid,
-                                            ]),
-                                  });
-                                },
                               ),
-                              if (isAuthor) ...[
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.edit,
-                                    color: Colors.blue,
-                                  ),
-                                  onPressed:
-                                      () => _showEditDialog(
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  SafetyMenu(uid: userId.toString()),
+                                  if (isAuthor) ...[
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.edit,
+                                        color: Colors.blue,
+                                      ),
+                                      onPressed: () => _showEditDialog(
                                         doc.reference,
                                         commentText,
                                       ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder:
-                                          (context) => AlertDialog(
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
                                             title: const Text('Delete Comment'),
                                             content: const Text(
                                               'Are you sure you want to delete this comment?',
                                             ),
                                             actions: [
                                               TextButton(
-                                                onPressed:
-                                                    () =>
-                                                        Navigator.pop(context),
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
                                                 child: const Text('Cancel'),
                                               ),
                                               ElevatedButton(
-                                                onPressed:
-                                                    () => Navigator.pop(
-                                                      context,
-                                                      true,
-                                                    ),
+                                                onPressed: () => Navigator.pop(
+                                                  context,
+                                                  true,
+                                                ),
                                                 child: const Text('Delete'),
                                               ),
                                             ],
                                           ),
-                                    );
-                                    if (confirm == true) {
-                                      await doc.reference.delete();
-                                    }
-                                  },
-                                ),
-                              ],
+                                        );
+                                        if (confirm == true) {
+                                          await doc.reference.delete();
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ],
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentController,
-                        decoration: const InputDecoration(
-                          hintText: 'Write a comment...',
-                          border: OutlineInputBorder(),
                         ),
-                        minLines: 1,
-                        maxLines: 3,
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: const InputDecoration(
+                            hintText: 'Write a comment...',
+                            border: OutlineInputBorder(),
+                          ),
+                          minLines: 1,
+                          maxLines: 3,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final text = _commentController.text.trim();
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (text.isNotEmpty && user != null) {
-                          // Add comment
-                          await FirebaseFirestore.instance
-                              .collection('shopping_wall')
-                              .doc(widget.postId)
-                              .collection('comments')
-                              .add({
-                                'uid': user.uid,
-                                'text': text,
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final text = _commentController.text.trim();
+                          final user = FirebaseAuth.instance.currentUser;
+                          if (text.isNotEmpty && user != null) {
+                            // Add comment
+                            await FirebaseFirestore.instance
+                                .collection('shopping_wall')
+                                .doc(widget.postId)
+                                .collection('comments')
+                                .add({
+                                  'uid': user.uid,
+                                  'text': text,
+                                  'createdAt': FieldValue.serverTimestamp(),
+                                });
 
-                          _commentController.clear();
+                            _commentController.clear();
 
-                          // Send notification if not the post owner
-                          if (postOwnerId != null && postOwnerId != user.uid) {
-                            final myHandleOrName =
-                                user.displayName ?? "Someone";
-                            await NotificationService().notifyUser(
-                              toUid: postOwnerId,
-                              type: "comment",
-                              message: "$myHandleOrName commented on your post",
-                              itemType: "shopping_wall",
-                              itemId: widget.postId,
-                              actorUid: user.uid,
-                              actorName: myHandleOrName,
-                              actorAvatarUrl: user.photoURL,
-                            );
+                            // Send notification if not the post owner
+                            if (postOwnerId != null &&
+                                postOwnerId != user.uid) {
+                              final myHandleOrName =
+                                  user.displayName ?? "Someone";
+                              await NotificationService().notifyUser(
+                                toUid: postOwnerId,
+                                type: "comment",
+                                message:
+                                    "$myHandleOrName commented on your post",
+                                itemType: "shopping_wall",
+                                itemId: widget.postId,
+                                actorUid: user.uid,
+                                actorName: myHandleOrName,
+                                actorAvatarUrl: user.photoURL,
+                              );
+                            }
                           }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF006677),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF006677),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
+                        child: const Text('Send'),
                       ),
-                      child: const Text('Send'),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },

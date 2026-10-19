@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easespotter/services/store_follow_service.dart';
 import 'package:easespotter/screens/store_confirmation_screen.dart';
+import 'package:easespotter/services/stock_display.dart';
 import 'package:easespotter/services/store_api_service.dart';
 import 'package:easespotter/services/store_logo_service.dart';
 
@@ -1216,6 +1217,8 @@ class _StoreProfilePromotionDetailScreen extends StatelessWidget {
                           _detailRow('Category', promotion.category!),
                         if (promotion.locationText != null)
                           _detailRow('Location', promotion.locationText!),
+                        if (promotion.stockText != null)
+                          _detailRow('Stock', promotion.stockText!),
                         if (promotion.barcode != null)
                           _detailRow('Barcode', promotion.barcode!),
                         if (promotion.description != null)
@@ -1327,6 +1330,7 @@ class _StoreProfilePromotion {
   final String? category;
   final String? barcode;
   final String? locationText;
+  final String? stockText;
   final String? imageUrl;
   final String? originalPriceText;
   final String? salePriceText;
@@ -1344,6 +1348,7 @@ class _StoreProfilePromotion {
     required this.category,
     required this.barcode,
     required this.locationText,
+    required this.stockText,
     required this.imageUrl,
     required this.originalPriceText,
     required this.salePriceText,
@@ -1445,6 +1450,7 @@ class _StoreProfilePromotion {
         'productCode',
       ]),
       locationText: _locationText(data),
+      stockText: StockDisplay.textFor(data),
       imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
       originalPriceText: _priceText(originalPrice),
       salePriceText: _priceText(salePrice),
@@ -1509,6 +1515,7 @@ class _StoreProfilePromotion {
         brand != null ||
         category != null ||
         barcode != null ||
+        stockText != null ||
         locationText != null;
   }
 
@@ -1605,6 +1612,11 @@ class _StoreProfilePromotion {
         'location',
         'locationLabel',
         'locationText',
+        'stock',
+        'currentStock',
+        'inStock',
+        'showStockCount',
+        'stockDisplayThreshold',
       ])
         if (product[key] != null) key: product[key],
       for (final key in const [

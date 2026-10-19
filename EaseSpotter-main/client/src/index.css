@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom badge variants for pricing rule categories */
+.badge.seasonal {
+  background-color: rgba(var(--colors-orange-500) / 0.1);
+  color: rgb(var(--colors-orange-500));
+  border-color: rgba(var(--colors-orange-500) / 0.2);
+}
+
+.badge.competitive {
+  background-color: rgba(var(--colors-blue-500) / 0.1);
+  color: rgb(var(--colors-blue-500));
+  border-color: rgba(var(--colors-blue-500) / 0.2);
+}
+
+.badge.inventory {
+  background-color: rgba(var(--colors-green-500) / 0.1);
+  color: rgb(var(--colors-green-500));
+  border-color: rgba(var(--colors-green-500) / 0.2);
+}
+
+.badge.promotional {
+  background-color: rgba(var(--colors-pink-500) / 0.1);
+  color: rgb(var(--colors-pink-500));
+  border-color: rgba(var(--colors-pink-500) / 0.2);
+}
+
+.badge.loyalty {
+  background-color: rgba(var(--colors-purple-500) / 0.1);
+  color: rgb(var(--colors-purple-500));
+  border-color: rgba(var(--colors-purple-500) / 0.2);
+}
+
+.badge.clearance {
+  background-color: rgba(var(--colors-red-500) / 0.1);
+  color: rgb(var(--colors-red-500));
+  border-color: rgba(var(--colors-red-500) / 0.2);
+}
+
+.badge.bundle {
+  background-color: rgba(var(--colors-indigo-500) / 0.1);
+  color: rgb(var(--colors-indigo-500));
+  border-color: rgba(var(--colors-indigo-500) / 0.2);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  :root {
+    --theme-transition-duration: 0.3s;
+    --background: 60 7.7% 97.5%;
+    --foreground: 180 3.7% 10.6%;
+    --card: 0 0% 100%;
+    --card-foreground: 180 3.7% 10.6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 3.7% 10.6%;
+    --primary: 189 100% 23.3%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 32 100% 48.6%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 60 4.3% 95.5%;
+    --muted-foreground: 195 8.7% 27.1%;
+    --accent: 189 82.6% 93%;
+    --accent-foreground: 189 100% 17.6%;
+    --destructive: 0 75.5% 41.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 60 5.9% 90%;
+    --input: 60 5.9% 90%;
+    --ring: 189 100% 23.3%;
+    --radius: 0.5rem;
+    --chart-1: 189 100% 23.3%;
+    --chart-2: 32 100% 48.6%;
+    --chart-3: 160 84.1% 39.4%;
+    --chart-4: 38 92.1% 50.2%;
+    --chart-5: 0 84.2% 60.2%;
+    --sidebar-background: 223 19.2% 29.6%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 189 82.6% 77.5%;
+    --sidebar-primary-foreground: 189 100% 17.6%;
+    --sidebar-accent: 226 14.6% 39%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 226 14.6% 39%;
+    --sidebar-ring: 193 82.6% 77.5%;
+    --success: 160 84.1% 39.4%;
+    --warning: 38 92.1% 50.2%;
+    --danger: 0 84.2% 60.2%;
+    --info: 199 88.7% 48.4%;
+    --surface-dim: 60 1.3% 85.3%;
+    --surface-container: 60 2.9% 93.1%;
+    --surface-container-high: 60 2.1% 90.8%;
+    --surface-container-highest: 0 0% 88.6%;
+    --outline: 194 5.5% 46.1%;
+    --outline-variant: 194 11.1% 77.1%;
+    --colors-orange-500: 248 132 0;
+    --colors-blue-500: 0 102 119;
+    --colors-green-500: 16 185 129;
+    --colors-pink-500: 239 68 68;
+    --colors-purple-500: 85 92 114;
+    --colors-red-500: 239 68 68;
+    --colors-indigo-500: 61 69 90;
+  }
+
+  .dark {
+    --background: 222 47.4% 11.2%;
+    --foreground: 60 3.4% 94.3%;
+    --card: 223 19.2% 16%;
+    --card-foreground: 60 3.4% 94.3%;
+    --popover: 223 19.2% 16%;
+    --popover-foreground: 60 3.4% 94.3%;
+    --primary: 193 82.6% 77.5%;
+    --primary-foreground: 189 100% 17.6%;
+    --secondary: 32 100% 48.6%;
+    --secondary-foreground: 30 100% 17.8%;
+    --muted: 223 19.2% 22%;
+    --muted-foreground: 194 11.1% 77.1%;
+    --accent: 226 14.6% 39%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 226 14.6% 30%;
+    --input: 226 14.6% 30%;
+    --ring: 193 82.6% 77.5%;
+    --chart-1: 193 82.6% 77.5%;
+    --chart-2: 32 100% 48.6%;
+    --chart-3: 160 84.1% 39.4%;
+    --chart-4: 38 92.1% 50.2%;
+    --chart-5: 0 84.2% 60.2%;
+    --sidebar-background: 223 19.2% 16%;
+    --sidebar-foreground: 60 3.4% 94.3%;
+    --sidebar-primary: 193 82.6% 77.5%;
+    --sidebar-primary-foreground: 189 100% 17.6%;
+    --sidebar-accent: 226 14.6% 28%;
+    --sidebar-accent-foreground: 60 3.4% 94.3%;
+    --sidebar-border: 226 14.6% 28%;
+    --sidebar-ring: 193 82.6% 77.5%;
+  }
+
+  /* Add smooth transitions for theme changes */
+  html {
+    transition: background-color var(--theme-transition-duration) ease,
+                color var(--theme-transition-duration) ease;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Add transitions to common elements */
+  button, a, input, textarea, select, div, span {
+    transition: background-color var(--theme-transition-duration) ease,
+                border-color var(--theme-transition-duration) ease,
+                color var(--theme-transition-duration) ease,
+                box-shadow var(--theme-transition-duration) ease;
+  }
+}

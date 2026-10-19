@@ -1,0 +1,847 @@
+import { useEffect, useState, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { useLocation } from "wouter";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Loader2, Store, Upload, Users, Bell, Settings, Globe, Package, 
+  ChevronRight, Plus, Tag, ExternalLink, Image, Info, Copy, Download 
+} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
+import { StoreProductForm } from "@/components/products/StoreProductForm";
+import { apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Form schema
+const storeProfileSchema = z.object({
+  name: z.string().min(2, "Store name must be at least 2 characters"),
+  description: z.string().optional(),
+  website: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  contactEmail: z.string().email("Must be a valid email").optional().or(z.literal("")),
+  themeColor: z.string().regex(/^#([A-Fa-f0-9]{6})$/, "Must be a valid hex color").optional(),
+  integrationType: z.enum(["manual", "shopify", "woocommerce", "magento", "bigcommerce", "other"]),
+  brandImageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  bannerUrl: z.string().url("Must be a valid URL").optional().or(z.literal(""))
+});
+
+type StoreProfileFormValues = z.infer<typeof storeProfileSchema>;
+
+export default function StoreProfile() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("profile");
+  const [, navigate] = useLocation();
+  const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
+
+  // Fetch store profile data
+  const { data: storeProfile, isLoading: isLoadingProfile, error: profileError, refetch: refetchProfile } = useQuery({
+    queryKey: ["/api/stores/profile"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/stores/profile");
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to fetch store profile");
+      }
+      return res.json();
+    }
+  });
+
+  // Fetch store followers
+  const { data: followers, isLoading: isLoadingFollowers } = useQuery({
+    queryKey: ["/api/stores/followers"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/stores/followers");
+      if (!res.ok) {
+        // Don't throw error for followers, just return empty array
+        return [];
+      }
+      return res.json();
+    }
+  });
+
+  // Fetch integration logs (admin only)
+  const { data: integrationLogs, isLoading: isLoadingLogs } = useQuery({
+    queryKey: ["/api/stores/integration-logs"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/stores/integration-logs");
+      if (!res.ok) {
+        // Don't throw error for logs, just return empty array
+        return [];
+      }
+      return res.json();
+    },
+    // Silently fail if not admin
+    retry: false
+  });
+
+  // Create form with default values from store profile
+  const form = useForm<StoreProfileFormValues>({
+    resolver: zodResolver(storeProfileSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      website: "",
+      contactEmail: "",
+      themeColor: "#FFFFFF",
+      integrationType: "manual",
+      brandImageUrl: "",
+      bannerUrl: ""
+    },
+  });
+
+  // Create a ref to track profile update status
+  const profileUpdatedRef = useRef(false);
+
+  // Update form values when store profile data is loaded
+  useEffect(() => {
+    if (storeProfile) {
+      form.reset({
+        name: storeProfile.name || "",
+        description: storeProfile.description || "",
+        website: storeProfile.website || "",
+        contactEmail: storeProfile.contactEmail || "",
+        themeColor: storeProfile.themeColor || "#FFFFFF",
+        integrationType: storeProfile.integrationType || "manual",
+        brandImageUrl: storeProfile.logoUrl || "", // Using logoUrl from the backend but saving as brandImageUrl
+        bannerUrl: storeProfile.bannerUrl || "" // Banner image URL
+      });
+      
+      // Reset the update flag when new data is loaded
+      profileUpdatedRef.current = false;
+    }
+  }, [storeProfile, form]);
+
+  // Update store profile mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: StoreProfileFormValues) => {
+      const res = await apiRequest("POST", "/api/stores/profile", data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update store profile");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      // Set the flag to indicate a successful update
+      profileUpdatedRef.current = true;
+      
+      toast({
+        title: "Profile updated",
+        description: "Your store profile has been updated successfully.",
+      });
+      
+      // Force a profile refresh after a small delay to ensure backend processing is complete
+      setTimeout(() => {
+        refetchProfile();
+      }, 500);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Handle form submission with proper error handling
+  const onSubmit = (data: StoreProfileFormValues) => {
+    // Create a copy of the data to avoid modifying the form data directly
+    const submissionData = { ...data };
+    
+    // Handle the image upload separately to avoid navigation issues
+    updateProfileMutation.mutate(submissionData, {
+      onSuccess: (updatedProfile) => {
+        // We don't need to manually update the UI, as the query invalidation will do that
+        console.log("Profile updated successfully", updatedProfile);
+      }
+    });
+  };
+
+  // Show loader when initial data is loading
+  if (isLoadingProfile && !storeProfile) {
+    return (
+      <div className="flex justify-center items-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Show error if profile fetch failed
+  if (profileError) {
+    return (
+      <div className="container mx-auto py-8">
+        <Alert variant="destructive">
+          <AlertTitle>Error loading store profile</AlertTitle>
+          <AlertDescription>
+            {profileError instanceof Error ? profileError.message : "Failed to load store profile data. Please try again."}
+          </AlertDescription>
+        </Alert>
+        <Button 
+          className="mt-4" 
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/stores/profile"] })}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">Store Profile</h1>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button" 
+            size="sm"
+            className="flex items-center gap-1"
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = 'image/*';
+              input.onchange = (e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.files && target.files[0]) {
+                  const file = target.files[0];
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const base64String = reader.result as string;
+                    form.setValue('brandImageUrl', base64String);
+                    const imageData = {
+                      ...form.getValues(),
+                      brandImageUrl: base64String
+                    };
+                    updateProfileMutation.mutate(imageData, {
+                      onSuccess: () => refetchProfile()
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              };
+              input.click();
+            }}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Logo
+          </Button>
+          
+          <Button
+            type="button"
+            size="sm"
+            className="flex items-center gap-1"
+            onClick={() => {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = 'image/*';
+              input.onchange = (e) => {
+                const target = e.target as HTMLInputElement;
+                if (target.files && target.files[0]) {
+                  const file = target.files[0];
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const base64String = reader.result as string;
+                    form.setValue('bannerUrl', base64String);
+                    const imageData = {
+                      ...form.getValues(),
+                      bannerUrl: base64String
+                    };
+                    updateProfileMutation.mutate(imageData, {
+                      onSuccess: () => refetchProfile()
+                    });
+                  };
+                  reader.readAsDataURL(file);
+                }
+              };
+              input.click();
+            }}
+          >
+            <Image className="h-4 w-4 mr-2" />
+            Upload Banner
+          </Button>
+          
+          {storeProfile?.slug && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={() => navigate(`/store/${storeProfile.slug}`)}
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Store
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full md:w-auto md:inline-grid grid-cols-4">
+          <TabsTrigger value="profile" className="flex items-center">
+            <Settings className="h-4 w-4 mr-2" /> Profile
+          </TabsTrigger>
+          <TabsTrigger value="products" className="flex items-center">
+            <Package className="h-4 w-4 mr-2" /> Products
+          </TabsTrigger>
+          <TabsTrigger value="followers" className="flex items-center">
+            <Users className="h-4 w-4 mr-2" /> Followers
+          </TabsTrigger>
+          <TabsTrigger value="integration" className="flex items-center">
+            <Globe className="h-4 w-4 mr-2" /> Integration
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Store Profile</CardTitle>
+              <CardDescription>
+                Manage your store's public profile information
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Store Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          This is how your store will appear to customers
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Tell customers about your store"
+                            className="resize-none"
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          A brief description of your store
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="website"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Website URL</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="https://example.com" 
+                              {...field} 
+                              value={field.value || ""}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Your store's website URL
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="contactEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contact Email</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="contact@example.com" 
+                              {...field}
+                              value={field.value || ""} 
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Email for customer inquiries
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Hidden inputs for image URLs */}
+                  <input type="hidden" {...form.register("brandImageUrl")} />
+                  <input type="hidden" {...form.register("bannerUrl")} />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={form.control}
+                      name="themeColor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Theme Color</FormLabel>
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-2">
+                              <FormControl>
+                                <Input 
+                                  type="text" 
+                                  {...field}
+                                  value={field.value || "#FFFFFF"} 
+                                />
+                              </FormControl>
+                              <div 
+                                className="h-10 w-10 rounded-md border"
+                                style={{ backgroundColor: field.value || "#FFFFFF" }}
+                              />
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                "#FFFFFF", // White
+                                "#3498db", // Blue
+                                "#2ecc71", // Green
+                                "#e74c3c", // Red
+                                "#9b59b6", // Purple
+                                "#f1c40f", // Yellow
+                                "#1abc9c", // Teal
+                                "#e67e22", // Orange
+                                "#34495e", // Dark Blue
+                                "#7f8c8d", // Gray
+                                "#16a085", // Dark Green
+                              ].map((color) => (
+                                <div
+                                  key={color}
+                                  className={`h-8 w-8 rounded-md border cursor-pointer hover:scale-110 transition-transform ${
+                                    field.value === color ? 'ring-2 ring-primary ring-offset-2' : ''
+                                  } ${color === "#FFFFFF" ? 'border-gray-300' : 'border'}`}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => field.onChange(color)}
+                                  title={color}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <FormDescription>
+                            Optional: Select or enter your store's brand color (hex format, defaults to white if not specified)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="integrationType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Integration Type</FormLabel>
+                          <FormControl>
+                            <select
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              {...field}
+                              value={field.value || "manual"}
+                            >
+                              <option value="manual">Manual</option>
+                              <option value="shopify">Shopify</option>
+                              <option value="woocommerce">WooCommerce</option>
+                              <option value="magento">Magento</option>
+                              <option value="bigcommerce">BigCommerce</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </FormControl>
+                          <FormDescription>
+                            How your store integrates with EaseSpotter
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="pt-4">
+                    <Button 
+                      type="submit" 
+                      disabled={updateProfileMutation.isPending}
+                      className="w-full md:w-auto"
+                    >
+                      {updateProfileMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Products Tab */}
+        <TabsContent value="products" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Store Products</CardTitle>
+              <CardDescription>
+                Manage your store's product catalog
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium">Product Management</h3>
+                    <p className="text-sm text-muted-foreground">Add, edit, and manage your product inventory</p>
+                  </div>
+                  <Button 
+                    onClick={() => navigate("/products?storeId=" + storeProfile?.id)}
+                    className="flex items-center"
+                  >
+                    <Package className="h-4 w-4 mr-2" />
+                    Manage Products
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                  <Card className="p-4 border border-border bg-background/50">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Plus className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Add Products</h4>
+                        <p className="text-sm text-muted-foreground">Create new products for your store</p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => setIsAddProductDialogOpen(true)}
+                      >
+                        Add Product
+                      </Button>
+                    </div>
+                  </Card>
+                  
+                  <Card className="p-4 border border-border bg-background/50">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Tag className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Store QR Code</h4>
+                        <p className="text-sm text-muted-foreground">Generate a QR code for your product catalog</p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => setIsQRDialogOpen(true)}
+                      >
+                        Generate Store QR Code
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Followers Tab */}
+        <TabsContent value="followers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Store Followers</CardTitle>
+              <CardDescription>
+                Users who follow your store for updates
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingFollowers ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : followers && followers.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Follow Date</TableHead>
+                      <TableHead>Notification Preferences</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {followers.map((follower) => (
+                      <TableRow key={follower.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{follower.username}</div>
+                            <div className="text-sm text-muted-foreground">{follower.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(follower.followDate).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {follower.notificationPreferences?.promotions && (
+                              <Badge variant="outline">Promotions</Badge>
+                            )}
+                            {follower.notificationPreferences?.newProducts && (
+                              <Badge variant="outline">New Products</Badge>
+                            )}
+                            {follower.notificationPreferences?.priceDrops && (
+                              <Badge variant="outline">Price Drops</Badge>
+                            )}
+                            {follower.notificationPreferences?.restockAlerts && (
+                              <Badge variant="outline">Restock Alerts</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={follower.status === "active" ? "default" : "secondary"}
+                          >
+                            {follower.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No followers yet. When users follow your store, they'll appear here.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Integration Tab */}
+        <TabsContent value="integration" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Integration Settings</CardTitle>
+              <CardDescription>
+                Manage how your store integrates with other systems
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div>
+                <h3 className="font-medium mb-2">Current Integration Type</h3>
+                <Badge className="text-sm">
+                  {storeProfile?.integrationType === "manual" ? "Manual" :
+                    storeProfile?.integrationType === "shopify" ? "Shopify" :
+                    storeProfile?.integrationType === "woocommerce" ? "WooCommerce" :
+                    storeProfile?.integrationType === "magento" ? "Magento" :
+                    storeProfile?.integrationType === "bigcommerce" ? "BigCommerce" : 
+                    "Other"}
+                </Badge>
+              </div>
+
+              {/* Integration Logs (Admin only) */}
+              {integrationLogs && integrationLogs.length > 0 && (
+                <div>
+                  <h3 className="font-medium mb-2">Integration Logs</h3>
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Action</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {integrationLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell>
+                              {new Date(log.timestamp).toLocaleString()}
+                            </TableCell>
+                            <TableCell>{log.action}</TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={log.status === "success" ? "default" : "destructive"}
+                              >
+                                {log.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {log.errorMessage ? (
+                                <span className="text-red-500">{log.errorMessage}</span>
+                              ) : (
+                                <span>Success</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {isLoadingLogs && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+
+              {/* Integration Documentation */}
+              <div className="bg-muted p-4 rounded-md">
+                <h3 className="font-medium mb-2">Integration Documentation</h3>
+                <p className="text-sm mb-2">
+                  To integrate your e-commerce platform with EaseSpotter, you'll need to use our API endpoints:
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1 mb-2">
+                  <li>Product Sync: <code>/api/stores/products/sync</code></li>
+                  <li>Inventory Updates: <code>/api/stores/inventory/update</code></li>
+                  <li>Order Webhooks: <code>/api/stores/orders/webhook</code></li>
+                </ul>
+                <p className="text-sm">
+                  Contact our support team for detailed API documentation and integration assistance.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      
+      {/* Add Product Dialog */}
+    <Dialog open={isAddProductDialogOpen} onOpenChange={setIsAddProductDialogOpen}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Add Store Product</DialogTitle>
+          <DialogDescription>
+            Add a new product to your store catalog
+          </DialogDescription>
+        </DialogHeader>
+        
+        {storeProfile && (
+          <StoreProductForm 
+            onSuccess={() => {
+              setIsAddProductDialogOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+              toast({
+                title: "Product added",
+                description: "Your product has been added to the store catalog."
+              });
+            }}
+            storeId={storeProfile.id}
+            storeType={storeProfile.integrationType === "manual" ? "physical" : "website"}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+    
+    {/* Store QR Code Dialog */}
+    <Dialog open={isQRDialogOpen} onOpenChange={setIsQRDialogOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Store QR Code</DialogTitle>
+          <DialogDescription>
+            Scan this QR code to access your store's product catalog
+          </DialogDescription>
+        </DialogHeader>
+        
+        {storeProfile && (
+          <div className="flex flex-col items-center space-y-4">
+            <div className="bg-white p-4 rounded-md">
+              <QRCodeSVG 
+                value={`${window.location.origin}/store/${storeProfile.slug}`}
+                size={200}
+                bgColor="#FFFFFF"
+                fgColor="#000000"
+                level="H"
+                includeMargin={false}
+              />
+            </div>
+            <div className="text-sm text-muted-foreground text-center">
+              This QR code links to your store at:<br/>
+              <span className="font-medium">{window.location.origin}/store/{storeProfile.slug}</span>
+            </div>
+            <div className="flex gap-2 w-full justify-center">
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/store/${storeProfile.slug}`);
+                  toast({
+                    title: "Link copied",
+                    description: "Store URL copied to clipboard"
+                  });
+                }}
+              >
+                <Copy className="h-4 w-4 mr-1" /> Copy Link
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-1"
+                onClick={() => {
+                  const canvas = document.querySelector('.QRCodeSVG canvas') as HTMLCanvasElement;
+                  if (canvas) {
+                    const link = document.createElement('a');
+                    link.download = `${storeProfile.name.replace(/\s+/g, '-')}-qrcode.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                  }
+                }}
+              >
+                <Download className="h-4 w-4 mr-1" /> Save Image
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

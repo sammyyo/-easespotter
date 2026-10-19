@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'package:easespotter/screens/store_profile_screen.dart';
+import 'package:easespotter/services/stock_display.dart';
 import 'package:easespotter/services/store_api_service.dart';
 
 class PromotionsScreen extends StatelessWidget {
@@ -781,6 +782,8 @@ class _PromotionDetailScreen extends StatelessWidget {
                           _detailRow('Category', promotion.category!),
                         if (promotion.locationText != null)
                           _detailRow('Location', promotion.locationText!),
+                        if (promotion.stockText != null)
+                          _detailRow('Stock', promotion.stockText!),
                         if (promotion.barcode != null)
                           _detailRow('Barcode', promotion.barcode!),
                         if (promotion.description != null)
@@ -987,6 +990,7 @@ class _Promotion {
   final String? category;
   final String? barcode;
   final String? locationText;
+  final String? stockText;
   final String? imageUrl;
   final DateTime? startsAt;
   final DateTime? endsAt;
@@ -1008,6 +1012,7 @@ class _Promotion {
     required this.category,
     required this.barcode,
     required this.locationText,
+    required this.stockText,
     required this.imageUrl,
     required this.startsAt,
     required this.endsAt,
@@ -1157,6 +1162,7 @@ class _Promotion {
         'productCode',
       ]),
       locationText: _locationText(data),
+      stockText: StockDisplay.textFor(data),
       imageUrl: imageUrl.isEmpty ? null : _absoluteImageUrl(imageUrl),
       startsAt: _dateValue(data, const [
         'startsAt',
@@ -1222,6 +1228,7 @@ class _Promotion {
         brand != null ||
         category != null ||
         barcode != null ||
+        stockText != null ||
         locationText != null;
   }
 
@@ -1509,6 +1516,11 @@ class _Promotion {
         'location',
         'locationLabel',
         'locationText',
+        'stock',
+        'currentStock',
+        'inStock',
+        'showStockCount',
+        'stockDisplayThreshold',
       ])
         if (product[key] != null) key: product[key],
       if (productBasePrice != null) 'originalPrice': productBasePrice,

@@ -1,3 +1,5 @@
+import 'shared_profile_details.dart';
+import 'package:easespotter/widgets/safety_controls.dart';
 import 'package:flutter/material.dart';
 import 'package:easespotter/helper/user_profile_service.dart' as ups;
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -84,8 +86,10 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     _collabAvatarProviders.clear();
     _collabAvatarUrls.clear();
 
-    _userDocStream =
-        FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
+    _userDocStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots();
     _followStatsStream = _userDocStream
         .map((snap) {
           final data = (snap.data() as Map<String, dynamic>?) ?? {};
@@ -123,8 +127,9 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     if (hint == null) return null;
     final displayName = (hint['displayName'] ?? '').toString().trim();
     final avatarUrl = (hint['avatarUrl'] ?? '').toString().trim();
-    final handle =
-        ((hint['socialHandle'] ?? hint['handle']) ?? '').toString().trim();
+    final handle = ((hint['socialHandle'] ?? hint['handle']) ?? '')
+        .toString()
+        .trim();
     if (displayName.isEmpty && avatarUrl.isEmpty && handle.isEmpty) return null;
     return ups.UserProfile(
       uid: uid,
@@ -260,7 +265,8 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
 
       if (url.isEmpty || !url.startsWith('http')) continue;
 
-      if (_collabAvatarUrls[uid] == url && _collabAvatarProviders[uid] != null) {
+      if (_collabAvatarUrls[uid] == url &&
+          _collabAvatarProviders[uid] != null) {
         continue;
       }
 
@@ -363,11 +369,10 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchTopCollaborators() async {
-    final query =
-        await FirebaseFirestore.instance
-            .collection('grocery_shares')
-            .where('creatorUid', isEqualTo: widget.uid)
-            .get();
+    final query = await FirebaseFirestore.instance
+        .collection('grocery_shares')
+        .where('creatorUid', isEqualTo: widget.uid)
+        .get();
 
     final Map<String, int> countMap = {};
     for (var doc in query.docs) {
@@ -378,17 +383,16 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
       }
     }
 
-    final sorted =
-        countMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final sorted = countMap.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final top = sorted.take(6);
 
     final List<Map<String, dynamic>> result = [];
     for (final entry in top) {
-      final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(entry.key)
-              .get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(entry.key)
+          .get();
       if (userDoc.exists) {
         final userData = userDoc.data()!;
         result.add({
@@ -415,14 +419,13 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
             child: SizedBox(
               width: 48,
               height: 48,
-              child:
-                  provider != null
-                      ? Image(
-                        image: provider,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                      )
-                      : const Icon(Icons.person, size: 20, color: Colors.grey),
+              child: provider != null
+                  ? Image(
+                      image: provider,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    )
+                  : const Icon(Icons.person, size: 20, color: Colors.grey),
             ),
           ),
           const SizedBox(width: 6),
@@ -479,366 +482,385 @@ class _PublicProfileWidgetState extends State<PublicProfileWidget> {
     final isOwner = currentUser != null && currentUser!.uid == widget.uid;
 
     // Root key makes Flutter keep the same element tree when parent rebuilds
-    return KeyedSubtree(
-      key: ValueKey('public_profile_${widget.uid}'),
-      child: FutureBuilder<ups.UserProfile?>(
-        future: _profileFuture,
-        initialData: _cachedProfile,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Text("Error fetching profile: ${snapshot.error}"),
-            );
-          }
+    return SafetyContent(
+      uid: widget.uid,
+      showNotice: true,
+      child: KeyedSubtree(
+        key: ValueKey('public_profile_${widget.uid}'),
+        child: FutureBuilder<ups.UserProfile?>(
+          future: _profileFuture,
+          initialData: _cachedProfile,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text("Error fetching profile: ${snapshot.error}"),
+              );
+            }
 
-          final profile =
-              snapshot.data ??
-              _cachedProfile ??
-              ups.UserProfile(uid: widget.uid, displayName: 'User');
+            final profile =
+                snapshot.data ??
+                _cachedProfile ??
+                ups.UserProfile(uid: widget.uid, displayName: 'User');
 
-          final hasAvatar = (profile.avatarUrl ?? '').trim().isNotEmpty;
-          final accentColor = const Color(0xFF006677);
+            final hasAvatar = (profile.avatarUrl ?? '').trim().isNotEmpty;
+            final accentColor = const Color(0xFF006677);
 
-          final firstLink =
-              (() {
-                for (final u in profile.profileUrls) {
-                  final trimmed = u.trim();
-                  if (trimmed.isNotEmpty) return trimmed;
-                }
-                return '';
-              })();
+            final firstLink = (() {
+              for (final u in profile.profileUrls) {
+                final trimmed = u.trim();
+                if (trimmed.isNotEmpty) return trimmed;
+              }
+              return '';
+            })();
 
-          return Padding(
-            padding: const EdgeInsets.only(
-              top: 0,
-              left: 5,
-              right: 5,
-              bottom: 0,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildAvatar(40, hasAvatar),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    profile.displayName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
+            return Padding(
+              padding: const EdgeInsets.only(
+                top: 0,
+                left: 5,
+                right: 5,
+                bottom: 0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SafetyMenu(uid: widget.uid),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAvatar(40, hasAvatar),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      profile.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (isOwner)
-                                  IconButton(
-                                    tooltip: 'Edit profile',
-                                    visualDensity: VisualDensity.compact,
-                                    icon: Container(
-                                      width: 30,
-                                      height: 30,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: const Color(0xFF006677),
-                                          width: 1.2,
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.edit_outlined,
-                                        size: 18,
-                                        color: Color(0xFF006677),
-                                      ),
-                                    ),
-                                    onPressed:
-                                        () => Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (_) => const ProfileScreen(),
+                                  if (isOwner)
+                                    IconButton(
+                                      tooltip: 'Edit profile',
+                                      visualDensity: VisualDensity.compact,
+                                      icon: Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF006677),
+                                            width: 1.2,
                                           ),
                                         ),
-                                  ),
-                              ],
-                            ),
-                            if (profile.socialHandle?.isNotEmpty ?? false)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: UserHandle(
-                                  handle: profile.socialHandle!,
-                                  uid: widget.uid,
-                                ),
+                                        child: const Icon(
+                                          Icons.edit_outlined,
+                                          size: 18,
+                                          color: Color(0xFF006677),
+                                        ),
+                                      ),
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const ProfileScreen(),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
+                              if (profile.socialHandle?.isNotEmpty ?? false)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: UserHandle(
+                                    handle: profile.socialHandle!,
+                                    uid: widget.uid,
+                                  ),
+                                ),
 
-                            // Followers/following stream stays small
-                            StreamBuilder<_FollowStats>(
-                              stream: _followStatsStream,
-                              builder: (context, snap) {
-                                final followers =
-                                    snap.data?.followers ?? const <String>[];
-                                final following =
-                                    snap.data?.following ?? const <String>[];
-                                final isFollowing =
-                                    currentUser != null &&
-                                    followers.contains(currentUser!.uid);
+                              // Followers/following stream stays small
+                              StreamBuilder<_FollowStats>(
+                                stream: _followStatsStream,
+                                builder: (context, snap) {
+                                  final followers =
+                                      snap.data?.followers ?? const <String>[];
+                                  final following =
+                                      snap.data?.following ?? const <String>[];
+                                  final isFollowing =
+                                      currentUser != null &&
+                                      followers.contains(currentUser!.uid);
 
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 10),
-                                      child: _ProfileCountsRow(
-                                        uid: widget.uid,
-                                        followers: followers,
-                                        following: following,
-                                        reelsStream: _ownedCollectionCount(
-                                          collection: 'reels',
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 10),
+                                        child: _ProfileCountsRow(
                                           uid: widget.uid,
-                                          publicOnly: !isOwner,
-                                        ),
-                                      ),
-                                    ),
-
-                                    if (profile.bio?.isNotEmpty ?? false)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 6),
-                                        child: Text(
-                                          profile.bio!,
-                                          style: const TextStyle(
-                                            color: Colors.black87,
+                                          followers: followers,
+                                          following: following,
+                                          reelsStream: _ownedCollectionCount(
+                                            collection: 'reels',
+                                            uid: widget.uid,
+                                            publicOnly: !isOwner,
                                           ),
                                         ),
                                       ),
 
-                                    if (firstLink.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: OutlinedButton.icon(
-                                          onPressed: () async {
-                                            final link =
-                                                firstLink.startsWith('http')
-                                                    ? firstLink
-                                                    : 'https://$firstLink';
-                                            final uri = Uri.parse(link);
-                                            if (await canLaunchUrl(uri)) {
-                                              await launchUrl(
-                                                uri,
-                                                mode:
-                                                    LaunchMode
-                                                        .externalApplication,
-                                              );
-                                            } else {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Could not open link',
-                                                    ),
-                                                  ),
+                                      if (profile.bio?.isNotEmpty ?? false)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 6,
+                                          ),
+                                          child: Text(
+                                            profile.bio!,
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        ),
+
+                                      SharedProfileDetails(key: ValueKey(widget.uid), uid: widget.uid),
+
+                                      if (firstLink.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 8,
+                                          ),
+                                          child: OutlinedButton.icon(
+                                            onPressed: () async {
+                                              final link =
+                                                  firstLink.startsWith('http')
+                                                  ? firstLink
+                                                  : 'https://$firstLink';
+                                              final uri = Uri.parse(link);
+                                              if (await canLaunchUrl(uri)) {
+                                                await launchUrl(
+                                                  uri,
+                                                  mode: LaunchMode
+                                                      .externalApplication,
                                                 );
-                                              }
-                                            }
-                                          },
-                                          icon: const Icon(
-                                            Icons.link,
-                                            size: 16,
-                                          ),
-                                          label: Text(
-                                            firstLink,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: accentColor,
-                                            side: BorderSide(
-                                              color: accentColor.withOpacity(
-                                                0.35,
-                                              ),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 10,
-                                              horizontal: 12,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-
-                                    if (currentUser != null &&
-                                        currentUser!.uid != widget.uid)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          top: 12.0,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton.icon(
-                                                onPressed:
-                                                    () => _toggleFollow(
-                                                      isFollowing,
+                                              } else {
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Could not open link',
+                                                      ),
                                                     ),
-                                                icon: Icon(
-                                                  isFollowing
-                                                      ? Icons.person_remove
-                                                      : Icons.person_add,
-                                                ),
-                                                label: Text(
-                                                  isFollowing
-                                                      ? 'Following'
-                                                      : 'Follow',
-                                                ),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      isFollowing
-                                                          ? Colors.grey[300]
-                                                          : accentColor,
-                                                  foregroundColor:
-                                                      isFollowing
-                                                          ? Colors.black
-                                                          : Colors.white,
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          22,
-                                                        ),
-                                                  ),
-                                                  elevation: 0,
+                                                  );
+                                                }
+                                              }
+                                            },
+                                            icon: const Icon(
+                                              Icons.link,
+                                              size: 16,
+                                            ),
+                                            label: Text(
+                                              firstLink,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: accentColor,
+                                              side: BorderSide(
+                                                color: accentColor.withOpacity(
+                                                  0.35,
                                                 ),
                                               ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 10,
+                                                    horizontal: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
                                             ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: OutlinedButton.icon(
-                                                onPressed: () async {
-                                                  try {
-                                                    final convoId =
-                                                        await MessagingService()
-                                                            .ensureConversation(
-                                                              otherUid:
-                                                                  widget.uid,
-                                                            );
-                                                    if (!context.mounted) {
-                                                      return;
-                                                    }
+                                          ),
+                                        ),
 
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder:
-                                                            (_) => ChatScreen(
-                                                              conversationId:
-                                                                  convoId,
-                                                              otherUid:
-                                                                  widget.uid,
-                                                              otherDisplayName:
-                                                                  profile
-                                                                      .displayName,
-                                                            ),
+                                      if (currentUser != null &&
+                                          currentUser!.uid != widget.uid)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 12.0,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: () =>
+                                                      _toggleFollow(
+                                                        isFollowing,
                                                       ),
-                                                    );
-                                                  } catch (e) {
-                                                    if (context.mounted) {
-                                                      final message = e
-                                                          .toString()
-                                                          .replaceFirst(
-                                                            'Exception: ',
-                                                            '',
-                                                          );
-                                                      ScaffoldMessenger.of(
+                                                  icon: Icon(
+                                                    isFollowing
+                                                        ? Icons.person_remove
+                                                        : Icons.person_add,
+                                                  ),
+                                                  label: Text(
+                                                    isFollowing
+                                                        ? 'Following'
+                                                        : 'Follow',
+                                                  ),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: isFollowing
+                                                        ? Colors.grey[300]
+                                                        : accentColor,
+                                                    foregroundColor: isFollowing
+                                                        ? Colors.black
+                                                        : Colors.white,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 12,
+                                                        ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            22,
+                                                          ),
+                                                    ),
+                                                    elevation: 0,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () async {
+                                                    try {
+                                                      final convoId =
+                                                          await MessagingService()
+                                                              .ensureConversation(
+                                                                otherUid:
+                                                                    widget.uid,
+                                                              );
+                                                      if (!context.mounted) {
+                                                        return;
+                                                      }
+
+                                                      Navigator.push(
                                                         context,
-                                                      ).showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                            message,
+                                                        MaterialPageRoute(
+                                                          builder: (_) => ChatScreen(
+                                                            conversationId:
+                                                                convoId,
+                                                            otherUid:
+                                                                widget.uid,
+                                                            otherDisplayName:
+                                                                profile
+                                                                    .displayName,
                                                           ),
                                                         ),
                                                       );
+                                                    } catch (e) {
+                                                      if (context.mounted) {
+                                                        final message = e
+                                                            .toString()
+                                                            .replaceFirst(
+                                                              'Exception: ',
+                                                              '',
+                                                            );
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(
+                                                              message,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
                                                     }
-                                                  }
-                                                },
-                                                icon: const Icon(
-                                                  Icons.mail_outline,
-                                                  size: 18,
-                                                ),
-                                                label: const Text("Message"),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: accentColor,
-                                                  side: BorderSide(
-                                                    color: accentColor
-                                                        .withOpacity(0.5),
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.mail_outline,
+                                                    size: 18,
                                                   ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          22,
+                                                  label: const Text("Message"),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        accentColor,
+                                                    side: BorderSide(
+                                                      color: accentColor
+                                                          .withOpacity(0.5),
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 12,
                                                         ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            22,
+                                                          ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+
+                  if ((profile.musicUrl ?? '').trim().contains(
+                    'spotify.com',
+                  )) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      '🎧 My Mood Track',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildMusicWidget(context, profile.musicUrl!),
+                  ],
 
-                if ((profile.musicUrl ?? '').trim().contains(
-                  'spotify.com',
-                )) ...[
-                  const SizedBox(height: 12),
-                  const Text(
-                    '🎧 My Mood Track',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildMusicWidget(context, profile.musicUrl!),
+                  // Use the sticky cached widget (this is the main flicker fix)
+                  if (widget.showTopCollaborators) ...[
+                    const SizedBox(height: 8),
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.black12,
+                    ),
+                    const SizedBox(height: 6),
+                    _topSectionWidget,
+                  ],
                 ],
-
-                // Use the sticky cached widget (this is the main flicker fix)
-                if (widget.showTopCollaborators) ...[
-                  const SizedBox(height: 8),
-                  const Divider(height: 1, thickness: 1, color: Colors.black12),
-                  const SizedBox(height: 6),
-                  _topSectionWidget,
-                ],
-              ],
-            ),
-          );
-        },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -872,32 +894,28 @@ class _ProfileCountsRow extends StatelessWidget {
       builder: (context, reelsSnap) {
         return Row(
           children: [
-            _ProfileCountItem(label: 'Reels', count: reelsSnap.data ?? 0),
+            _ProfileCountItem(label: 'Bites', count: reelsSnap.data ?? 0),
             _ProfileCountItem(
               label: 'Followers',
               count: followers.length,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              FollowListScreen(userId: uid, initialTabIndex: 0),
-                    ),
-                  ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      FollowListScreen(userId: uid, initialTabIndex: 0),
+                ),
+              ),
             ),
             _ProfileCountItem(
               label: 'Following',
               count: following.length,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              FollowListScreen(userId: uid, initialTabIndex: 1),
-                    ),
-                  ),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      FollowListScreen(userId: uid, initialTabIndex: 1),
+                ),
+              ),
             ),
           ],
         );
